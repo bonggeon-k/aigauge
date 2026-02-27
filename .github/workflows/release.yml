@@ -32,10 +32,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Verify version alignment
+        shell: bash
         run: |
           TAG="${GITHUB_REF_NAME#v}"
           PKG=$(node -p "require('./package.json').version")
-          CARGO=$(rg '^version\s*=\s*"' -N src-tauri/Cargo.toml | head -n1 | sed -E 's/.*"([0-9.]+)".*/\1/')
+          CARGO=$(grep -E '^version\s*=\s*"' src-tauri/Cargo.toml | head -n1 | sed -E 's/.*"([0-9.]+)".*/\1/')
           TAURI=$(node -p "require('./src-tauri/tauri.conf.json').version")
           test "$TAG" = "$PKG"
           test "$TAG" = "$CARGO"
@@ -43,6 +44,7 @@ jobs:
 
       - name: Generate changelog excerpt
         id: changelog
+        shell: bash
         run: |
           git log --pretty=format:'- %s' $(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo '')..HEAD > RELEASE_CHANGELOG.md || true
           cat RELEASE_CHANGELOG.md || true
