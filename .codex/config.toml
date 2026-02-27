@@ -1,0 +1,25 @@
+[features]
+multi_agent = true
+
+[agents]
+max_threads = 4
+max_depth = 1
+
+[agents.default]
+description = "AIGauge project orchestrator. Distributes tasks, merges results, runs final validation."
+
+[agents.rust-backend]
+description = "Tauri 2.x Rust backend: providers, credentials, IPC commands, Cargo.toml."
+config_file = ".codex/agents/rust-backend.toml"
+
+[agents.react-frontend]
+description = "React 19 + shadcn/ui + Tailwind v4: components, design tokens, animations, i18n."
+config_file = ".codex/agents/react-frontend.toml"
+
+[agents.security]
+description = "CSP, credential store audit, isolation pattern, CI/CD, code signing."
+config_file = ".codex/agents/security.toml"
+
+[agents.explorer]
+description = "Read-only codebase exploration, dependency analysis, file structure review."
+config_file = ".codex/agents/explorer.toml"
