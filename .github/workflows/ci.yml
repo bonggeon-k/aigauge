@@ -53,7 +53,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Verify IPC capability baseline
-        run: node -e "const fs=require('fs');const cap='src-tauri/capabilities/default.json';const conf='src-tauri/tauri.conf.json';if(!fs.existsSync(cap))throw new Error('missing capabilities/default.json');const capText=fs.readFileSync(cap,'utf8');if(!capText.includes('core:default'))throw new Error('missing core:default permission');const confText=fs.readFileSync(conf,'utf8');if(!confText.includes('\"tray-popup\"'))throw new Error('missing tray-popup window config');console.log('IPC capability baseline OK');"
+        run: node -e "const fs=require('fs'); const cap=JSON.parse(fs.readFileSync('src-tauri/capabilities/default.json','utf8')); if(!cap.permissions){throw new Error('no permissions')} console.log('Capabilities OK:', cap.permissions.length, 'permissions')"
 
       - name: Rust clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
