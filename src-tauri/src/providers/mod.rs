@@ -8,6 +8,7 @@ pub mod kiro;
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::time::Duration;
 use thiserror::Error;
 
@@ -125,6 +126,19 @@ pub fn build_shared_http_client() -> Result<Client> {
         .pool_max_idle_per_host(8)
         .build()
         .map_err(|error| ProviderError::Operation(format!("failed to build http client: {error}")))
+}
+
+pub fn home_dir() -> Option<PathBuf> {
+    std::env::var("USERPROFILE")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var("HOME")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+                .map(PathBuf::from)
+        })
 }
 
 #[allow(async_fn_in_trait)]

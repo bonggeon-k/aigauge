@@ -17,7 +17,7 @@ pub struct JetBrainsProvider {
 impl JetBrainsProvider {
     #[instrument(skip(credential_manager))]
     pub fn new(credential_manager: CredentialManager, client: Client) -> Self {
-        // TODO(phase-5): replace stub endpoints with JetBrains AI official usage APIs.
+        // TODO(phase-5): production API integration
         Self {
             credential_manager,
             client,

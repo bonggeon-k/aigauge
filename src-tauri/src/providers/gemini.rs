@@ -8,8 +8,8 @@ use std::path::PathBuf;
 use tracing::instrument;
 
 use super::{
-    not_configured_quota, not_configured_usage, unreachable_quota, unreachable_usage, AuthMethod,
-    CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit, Result, UsageData,
+    home_dir, not_configured_quota, not_configured_usage, unreachable_quota, unreachable_usage,
+    AuthMethod, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit, Result, UsageData,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -33,9 +33,7 @@ impl GeminiProvider {
     }
 
     fn creds_path() -> Option<PathBuf> {
-        std::env::var("HOME")
-            .ok()
-            .map(|home| PathBuf::from(home).join(".gemini").join("oauth_creds.json"))
+        home_dir().map(|home| home.join(".gemini").join("oauth_creds.json"))
     }
 
     fn read_creds() -> Option<GeminiOauthCreds> {

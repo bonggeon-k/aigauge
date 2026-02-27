@@ -340,10 +340,6 @@ async fn fetch_live_entry(
     })
 }
 
-fn provider_requires_priority(provider: &str) -> bool {
-    matches!(provider, "codex" | "claude" | "gemini" | "kiro")
-}
-
 pub(crate) async fn resolve_dashboard_entry(
     provider: &str,
     state: &AppState,
@@ -370,10 +366,6 @@ pub(crate) async fn resolve_dashboard_entry(
             };
 
             return Ok((entry.clone(), source));
-        }
-
-        if !provider_requires_priority(provider) {
-            return Ok((entry.clone(), DataSource::Snapshot));
         }
     }
 
@@ -594,9 +586,8 @@ mod tests {
     }
 
     #[test]
-    fn priority_provider_mapping_is_stable() {
-        assert!(provider_requires_priority("codex"));
-        assert!(provider_requires_priority("kiro"));
-        assert!(!provider_requires_priority("copilot"));
+    fn data_source_enum_shape_is_stable() {
+        let source = DataSource::Cache;
+        assert!(matches!(source, DataSource::Cache));
     }
 }

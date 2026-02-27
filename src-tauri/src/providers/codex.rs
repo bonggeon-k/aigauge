@@ -11,8 +11,8 @@ use tracing::instrument;
 use once_cell::sync::Lazy;
 
 use super::{
-    not_configured_quota, not_configured_usage, unreachable_quota, unreachable_usage, AuthMethod,
-    CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit, Result, UsageData,
+    home_dir, not_configured_quota, not_configured_usage, unreachable_quota, unreachable_usage,
+    AuthMethod, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit, Result, UsageData,
 };
 
 static LAST_PLAN: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("Unknown".to_string()));
@@ -51,9 +51,7 @@ impl CodexProvider {
     }
 
     fn auth_path() -> Option<PathBuf> {
-        std::env::var("HOME")
-            .ok()
-            .map(|home| PathBuf::from(home).join(".codex").join("auth.json"))
+        home_dir().map(|home| home.join(".codex").join("auth.json"))
     }
 
     fn read_token_from_auth_file() -> Option<String> {

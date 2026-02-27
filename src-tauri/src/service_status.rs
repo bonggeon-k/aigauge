@@ -80,6 +80,34 @@ fn parse_gemini_status(value: &Value) -> ServiceStatus {
     }
 }
 
+fn parse_copilot_status(value: &Value) -> ServiceStatus {
+    let indicator = value
+        .pointer("/status/indicator")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
+    ServiceStatus {
+        provider_id: "copilot".to_string(),
+        indicator: indicator.to_string(),
+        description: value
+            .pointer("/status/description")
+            .and_then(Value::as_str)
+            .unwrap_or("GitHub status unavailable")
+            .to_string(),
+    }
+}
+
+fn status_from_head(provider_id: &str, status: Option<u16>, description: &str) -> ServiceStatus {
+    if status == Some(200) {
+        ServiceStatus {
+            provider_id: provider_id.to_string(),
+            indicator: "none".to_string(),
+            description: description.to_string(),
+        }
+    } else {
+        unknown_status(provider_id, "status endpoint unavailable")
+    }
+}
+
 fn unknown_status(provider_id: &str, description: &str) -> ServiceStatus {
     ServiceStatus {
         provider_id: provider_id.to_string(),
@@ -132,7 +160,57 @@ pub async fn get_service_statuses(
         Err(_) => unknown_status("gemini", "status endpoint unavailable"),
     };
 
-    Ok(vec![codex, claude, gemini])
+    let copilot = match state
+        .http_client
+        .get("https://www.githubstatus.com/api/v2/status.json")
+        .send()
+        .await
+    {
+        Ok(response) => match response.json::<Value>().await {
+            Ok(value) => parse_copilot_status(&value),
+            Err(_) => unknown_status("copilot", "status endpoint unavailable"),
+        },
+        Err(_) => unknown_status("copilot", "status endpoint unavailable"),
+    };
+
+    let cursor = match state
+        .http_client
+        .head("https://www.cursor.com")
+        .send()
+        .await
+    {
+        Ok(response) => status_from_head(
+            "cursor",
+            Some(response.status().as_u16()),
+            "Cursor reachable",
+        ),
+        Err(_) => status_from_head("cursor", None, "Cursor reachable"),
+    };
+
+    let jetbrains = match state
+        .http_client
+        .head("https://www.jetbrains.com")
+        .send()
+        .await
+    {
+        Ok(response) => status_from_head(
+            "jetbrains",
+            Some(response.status().as_u16()),
+            "JetBrains reachable",
+        ),
+        Err(_) => status_from_head("jetbrains", None, "JetBrains reachable"),
+    };
+
+    let kiro = match state.http_client.head("https://kiro.dev").send().await {
+        Ok(response) => {
+            status_from_head("kiro", Some(response.status().as_u16()), "Kiro reachable")
+        }
+        Err(_) => status_from_head("kiro", None, "Kiro reachable"),
+    };
+
+    Ok(vec![
+        codex, claude, gemini, copilot, cursor, jetbrains, kiro,
+    ])
 }
 
 #[cfg(test)]
@@ -151,5 +229,15 @@ mod tests {
 
         let gemini = parse_gemini_status(&serde_json::json!([]));
         assert_eq!(gemini.indicator, "none");
+
+        let copilot = parse_copilot_status(
+            &serde_json::json!({"status":{"indicator":"minor","description":"degraded"}}),
+        );
+        assert_eq!(copilot.indicator, "minor");
+
+        let cursor = status_from_head("cursor", Some(200), "Cursor reachable");
+        assert_eq!(cursor.indicator, "none");
+        let unknown = status_from_head("cursor", Some(503), "Cursor reachable");
+        assert_eq!(unknown.indicator, "unknown");
     }
 }

@@ -11,6 +11,7 @@ use tauri::Manager;
 use tracing::instrument;
 
 use crate::commands::{AppState, PROVIDER_IDS};
+use crate::providers::home_dir;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderCost {
@@ -274,11 +275,11 @@ impl CostEngine {
     }
 
     fn scan_codex_sessions_last_30_days(&self) -> Result<f64, String> {
-        let home =
-            std::env::var("HOME").map_err(|error| format!("failed to read HOME: {error}"))?;
+        let home = home_dir()
+            .ok_or_else(|| "failed to resolve home directory (USERPROFILE/HOME)".to_string())?;
         let roots = [
-            PathBuf::from(&home).join(".codex").join("sessions"),
-            PathBuf::from(home).join(".codex").join("archived_sessions"),
+            home.join(".codex").join("sessions"),
+            home.join(".codex").join("archived_sessions"),
         ];
 
         let now = Utc::now();
@@ -378,12 +379,16 @@ fn pricing_for_model(model: &str) -> (f64, f64, f64) {
         (2.50, 10.00, 10.00)
     } else if model.starts_with("gpt-4o-mini") {
         (0.15, 0.60, 0.60)
+    } else if model.starts_with("gpt-4o") {
+        (2.50, 10.00, 10.00)
     } else if model.starts_with("gpt-4.1-mini") {
         (0.40, 1.60, 1.60)
     } else if model.starts_with("gpt-4.1") {
         (2.00, 8.00, 8.00)
+    } else if model.starts_with("claude-sonnet-4") {
+        (3.00, 15.00, 15.00)
     } else {
-        (2.50, 10.00, 10.00)
+        (5.00, 15.00, 15.00)
     }
 }
 
@@ -488,8 +493,11 @@ mod tests {
     fn pricing_table_matches_expected_tiers() {
         assert_eq!(pricing_for_model("o3"), (2.50, 10.00, 10.00));
         assert_eq!(pricing_for_model("gpt-4o-mini"), (0.15, 0.60, 0.60));
+        assert_eq!(pricing_for_model("gpt-4o"), (2.50, 10.00, 10.00));
         assert_eq!(pricing_for_model("gpt-4.1-mini"), (0.40, 1.60, 1.60));
         assert_eq!(pricing_for_model("gpt-4.1"), (2.00, 8.00, 8.00));
+        assert_eq!(pricing_for_model("claude-sonnet-4"), (3.00, 15.00, 15.00));
+        assert_eq!(pricing_for_model("unknown-model"), (5.00, 15.00, 15.00));
     }
 
     #[test]
