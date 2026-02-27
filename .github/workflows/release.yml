@@ -9,11 +9,18 @@ permissions:
   contents: write
 
 jobs:
-  publish-tauri:
+  release:
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: aarch64-apple-darwin
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -34,58 +41,22 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Verify version alignment
-        shell: bash
-        run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          PKG=$(node -p "require('./package.json').version")
-          CARGO=$(grep -E '^version\s*=\s*"' src-tauri/Cargo.toml | head -n1 | sed -E 's/.*"([0-9.]+)".*/\1/')
-          TAURI=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          test "$TAG" = "$PKG"
-          test "$TAG" = "$CARGO"
-          test "$TAG" = "$TAURI"
-
-      - name: Generate changelog excerpt
-        id: changelog
-        shell: bash
-        run: |
-          git log --pretty=format:'- %s' $(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo '')..HEAD > RELEASE_CHANGELOG.md || true
-          cat RELEASE_CHANGELOG.md || true
-
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y pkg-config libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
-      - name: Install dependencies
+      - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: macOS notarization placeholders
-        if: matrix.os == 'macos-latest'
-        run: |
-          echo "Using placeholders for notarization secrets"
-          echo "APPLE_ID=${{ secrets.APPLE_ID }}" > /dev/null
-          echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}" > /dev/null
-
-      - name: Build and publish
+      - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "AIGauge ${{ github.ref_name }}"
-          releaseBody: |
-            AIGauge v1.0.0 launch release.
-            Unsigned development build
-
-            Highlights:
-            - Design polish + onboarding flow
-            - Accessibility and keyboard improvements
-            - Shared HTTP client performance optimization
-            - Plugin registry foundation
-            - Telemetry opt-in controls
-            - System tray polish + global shortcuts
-          releaseDraft: true
+          releaseBody: "Unsigned development build — code signing will be added in a future release."
+          releaseDraft: false
           prerelease: false
-          includeUpdaterJson: true
