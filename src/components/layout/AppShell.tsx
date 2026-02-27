@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Menu, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Navigation, type AppRoute } from "@/components/layout/Navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +12,9 @@ import {
 interface AppShellProps {
   theme: "light" | "dark";
   onToggleTheme: () => void;
+  route: AppRoute;
+  onNavigate: (route: AppRoute) => void;
+  updateBanner?: ReactNode;
   children: ReactNode;
 }
 
@@ -28,15 +32,22 @@ const detectPlatform = (): string => {
   return "Desktop";
 };
 
-export const AppShell = ({ theme, onToggleTheme, children }: AppShellProps) => {
+export const AppShell = ({
+  theme,
+  onToggleTheme,
+  route,
+  onNavigate,
+  updateBanner,
+  children,
+}: AppShellProps) => {
   const platform = detectPlatform();
   const isTauri =
     typeof window !== "undefined" &&
     "__TAURI_INTERNALS__" in (window as unknown as Record<string, unknown>);
 
   return (
-    <div className="min-h-screen p-4 text-foreground md:p-8">
-      <div className="mx-auto w-full max-w-6xl rounded-2xl border border-border/60 bg-background/70 shadow-md backdrop-blur-sm">
+    <div className="min-h-screen p-4 pb-24 text-foreground md:p-8 md:pb-8">
+      <div className="mx-auto w-full max-w-7xl rounded-2xl border border-border/60 bg-background/70 shadow-md backdrop-blur-sm">
         <header
           className="flex items-center justify-between rounded-t-2xl border-b border-border/70 px-4 py-3"
           data-tauri-drag-region={isTauri ? "" : undefined}
@@ -57,14 +68,20 @@ export const AppShell = ({ theme, onToggleTheme, children }: AppShellProps) => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>Dashboard</DropdownMenuItem>
-                <DropdownMenuItem>Credentials</DropdownMenuItem>
-                <DropdownMenuItem>Settings</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onNavigate("dashboard")}>Dashboard</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onNavigate("analytics")}>Analytics</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onNavigate("settings")}>Settings</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </header>
-        <main className="p-4 md:p-6">{children}</main>
+
+        {updateBanner ? <div className="border-b border-border/60 p-3">{updateBanner}</div> : null}
+
+        <div className="flex min-h-[70vh]">
+          <Navigation route={route} onNavigate={onNavigate} />
+          <main className="w-full p-4 md:p-6">{children}</main>
+        </div>
       </div>
     </div>
   );

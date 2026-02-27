@@ -4,6 +4,11 @@
     "subtitle": "AI 코딩 도구를 위한 FinOps 대시보드",
     "addProvider": "프로바이더 추가"
   },
+  "nav": {
+    "dashboard": "대시보드",
+    "analytics": "분석",
+    "settings": "설정"
+  },
   "quota": {
     "warning": "할당량 경고",
     "critical": "할당량 위험",
@@ -13,7 +18,24 @@
   "cost": {
     "summary": "비용 요약",
     "monthly": "월간 총 비용",
-    "compare": "지난달 대비"
+    "compare": "지난달 대비",
+    "analytics": "비용 분석",
+    "pace": "지출 속도",
+    "roi": "ROI",
+    "budget": "예산"
+  },
+  "export": {
+    "title": "내보내기",
+    "preview": "미리보기",
+    "download": "다운로드",
+    "includeCost": "비용 포함",
+    "csv": "CSV",
+    "json": "JSON",
+    "pdf": "PDF (추후)"
+  },
+  "updater": {
+    "available": "업데이트 가능",
+    "install": "업데이트 설치"
   },
   "settings": {
     "title": "설정",
@@ -28,6 +50,7 @@
     "notConfigured": "미설정",
     "testConnection": "연결 테스트",
     "removeCredential": "인증 제거",
-    "save": "저장"
+    "save": "저장",
+    "jetbrains": "JetBrains AI Assistant"
   }
 }

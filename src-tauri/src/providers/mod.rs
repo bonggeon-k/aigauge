@@ -3,6 +3,7 @@ pub mod codex;
 pub mod copilot;
 pub mod cursor;
 pub mod gemini;
+pub mod jetbrains;
 pub mod kiro;
 
 use reqwest::Client;
@@ -143,6 +144,7 @@ mod tests {
     use crate::providers::copilot::CopilotProvider;
     use crate::providers::cursor::CursorProvider;
     use crate::providers::gemini::GeminiProvider;
+    use crate::providers::jetbrains::JetBrainsProvider;
     use crate::providers::kiro::KiroProvider;
 
     async fn assert_provider_shape<P: Provider>(provider: &P) {
@@ -178,6 +180,7 @@ mod tests {
         assert_provider_shape(&GeminiProvider::new(manager.clone())).await;
         assert_provider_shape(&KiroProvider::new(manager.clone())).await;
         assert_provider_shape(&CopilotProvider::new(manager.clone())).await;
-        assert_provider_shape(&CursorProvider::new(manager)).await;
+        assert_provider_shape(&CursorProvider::new(manager.clone())).await;
+        assert_provider_shape(&JetBrainsProvider::new(manager)).await;
     }
 }

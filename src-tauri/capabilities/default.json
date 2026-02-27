@@ -1,12 +1,21 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability scope for provider dashboard commands and events",
+  "description": "Capability scope for dashboard, analytics, updater, tray, export, and notifications",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "core:event:allow-emit",
     "core:event:allow-listen",
-    "core:event:allow-unlisten"
+    "core:event:allow-unlisten",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:resources:default",
+    "core:tray:default",
+    "core:menu:default",
+    "updater:allow-check",
+    "updater:allow-download-and-install",
+    "notification:default"
   ]
 }

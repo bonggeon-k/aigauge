@@ -5,8 +5,11 @@ use tauri::Emitter;
 use tauri::Manager;
 use tracing::instrument;
 
-use crate::commands::{provider_health, AppState, DashboardEntry};
+use crate::commands::{provider_health, AppState, DashboardEntry, PROVIDER_IDS};
+use crate::config::AppConfig;
+use crate::notifications::{notify_quota_critical, notify_quota_warning};
 use crate::providers::ProviderStatus;
+use crate::tray::update_tray_menu;
 
 #[derive(Debug, Clone)]
 pub struct ProviderPollState {
@@ -53,9 +56,8 @@ impl PollingManager {
     pub fn start(app: tauri::AppHandle) {
         let app_handle = app.clone();
         tauri::async_runtime::spawn(async move {
-            let provider_ids = ["codex", "claude", "gemini", "kiro", "copilot", "cursor"];
-            let mut states: HashMap<String, ProviderPollState> = provider_ids
-                .into_iter()
+            let mut states: HashMap<String, ProviderPollState> = PROVIDER_IDS
+                .iter()
                 .map(|id| {
                     (
                         id.to_string(),
@@ -65,8 +67,9 @@ impl PollingManager {
                 .collect();
 
             loop {
-                for provider in provider_ids {
-                    let Some(state) = states.get_mut(provider) else {
+                let mut cycle_entries = Vec::new();
+                for provider in PROVIDER_IDS {
+                    let Some(state) = states.get_mut(*provider) else {
                         continue;
                     };
 
@@ -100,22 +103,38 @@ impl PollingManager {
                                     0.0
                                 };
 
+                                let config = app_state
+                                    .config_store
+                                    .load(&app_handle)
+                                    .unwrap_or_else(|_| AppConfig::default());
+
                                 if dashboard.quota.status == ProviderStatus::Ok && usage_pct >= 0.95
                                 {
                                     let _ = app_handle.emit("quota-critical", &dashboard);
+                                    if config.notifications.quota_critical {
+                                        notify_quota_critical(&app_handle, &config, &dashboard);
+                                    }
                                 } else if dashboard.quota.status == ProviderStatus::Ok
                                     && usage_pct >= 0.8
                                 {
                                     let _ = app_handle.emit("quota-warning", &dashboard);
+                                    if config.notifications.quota_warning {
+                                        notify_quota_warning(&app_handle, &config, &dashboard);
+                                    }
                                 }
                             }
 
+                            cycle_entries.push(dashboard);
                             state.on_success();
                         }
                         _ => {
                             state.on_error();
                         }
                     }
+                }
+
+                if !cycle_entries.is_empty() {
+                    update_tray_menu(&app_handle, &cycle_entries);
                 }
 
                 tokio::time::sleep(Duration::from_secs(10)).await;

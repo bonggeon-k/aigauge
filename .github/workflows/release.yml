@@ -60,6 +60,15 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "AIGauge ${{ github.ref_name }}"
-          releaseBody: "Automated release for AIGauge"
+          releaseBody: |
+            Automated release for AIGauge.
+
+            Included updates:
+            - Cost Analytics dashboard
+            - System tray dynamic summary
+            - Export (CSV/JSON)
+            - Auto-update plumbing
+            - JetBrains AI provider support
           releaseDraft: true
           prerelease: false
+          includeUpdaterJson: true

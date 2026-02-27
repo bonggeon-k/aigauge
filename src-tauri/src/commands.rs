@@ -5,6 +5,7 @@ use crate::providers::codex::CodexProvider;
 use crate::providers::copilot::CopilotProvider;
 use crate::providers::cursor::CursorProvider;
 use crate::providers::gemini::GeminiProvider;
+use crate::providers::jetbrains::JetBrainsProvider;
 use crate::providers::kiro::KiroProvider;
 use crate::providers::{
     AuthMethod, CostData, Provider, ProviderError, ProviderInfo, ProviderStatus, QuotaLimit,
@@ -13,6 +14,16 @@ use crate::providers::{
 use chrono::Utc;
 use serde::Serialize;
 use tracing::instrument;
+
+pub const PROVIDER_IDS: &[&str] = &[
+    "codex",
+    "claude",
+    "gemini",
+    "kiro",
+    "copilot",
+    "cursor",
+    "jetbrains",
+];
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ProviderDescriptor {
@@ -44,6 +55,7 @@ pub struct ProviderRegistry {
     kiro: KiroProvider,
     copilot: CopilotProvider,
     cursor: CursorProvider,
+    jetbrains: JetBrainsProvider,
 }
 
 pub struct AppState {
@@ -78,7 +90,8 @@ impl ProviderRegistry {
             gemini: GeminiProvider::new(credential_manager.clone()),
             kiro: KiroProvider::new(credential_manager.clone()),
             copilot: CopilotProvider::new(credential_manager.clone()),
-            cursor: CursorProvider::new(credential_manager),
+            cursor: CursorProvider::new(credential_manager.clone()),
+            jetbrains: JetBrainsProvider::new(credential_manager),
         }
     }
 
@@ -114,6 +127,11 @@ impl ProviderRegistry {
                 name: self.cursor.name().await.to_string(),
                 auth_method: self.cursor.auth_method(),
             },
+            ProviderDescriptor {
+                id: "jetbrains".to_string(),
+                name: self.jetbrains.name().await.to_string(),
+                auth_method: self.jetbrains.auth_method(),
+            },
         ]
     }
 
@@ -125,6 +143,7 @@ impl ProviderRegistry {
             "kiro" => Ok(self.kiro.provider_info().await),
             "copilot" => Ok(self.copilot.provider_info().await),
             "cursor" => Ok(self.cursor.provider_info().await),
+            "jetbrains" => Ok(self.jetbrains.provider_info().await),
             _ => Err(ProviderError::Operation(format!(
                 "unsupported provider: {provider}"
             ))),
@@ -139,6 +158,7 @@ impl ProviderRegistry {
             "kiro" => self.kiro.fetch_usage().await,
             "copilot" => self.copilot.fetch_usage().await,
             "cursor" => self.cursor.fetch_usage().await,
+            "jetbrains" => self.jetbrains.fetch_usage().await,
             _ => Err(ProviderError::Operation(format!(
                 "unsupported provider: {provider}"
             ))),
@@ -153,6 +173,7 @@ impl ProviderRegistry {
             "kiro" => self.kiro.fetch_cost().await,
             "copilot" => self.copilot.fetch_cost().await,
             "cursor" => self.cursor.fetch_cost().await,
+            "jetbrains" => self.jetbrains.fetch_cost().await,
             _ => Err(ProviderError::Operation(format!(
                 "unsupported provider: {provider}"
             ))),
@@ -167,6 +188,7 @@ impl ProviderRegistry {
             "kiro" => self.kiro.fetch_quota().await,
             "copilot" => self.copilot.fetch_quota().await,
             "cursor" => self.cursor.fetch_quota().await,
+            "jetbrains" => self.jetbrains.fetch_quota().await,
             _ => Err(ProviderError::Operation(format!(
                 "unsupported provider: {provider}"
             ))),
@@ -253,10 +275,9 @@ pub async fn get_quota(
 pub async fn get_all_dashboard_data(
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<DashboardEntry>, String> {
-    let providers = ["codex", "claude", "gemini", "kiro", "copilot", "cursor"];
-    let mut entries = Vec::with_capacity(providers.len());
+    let mut entries = Vec::with_capacity(PROVIDER_IDS.len());
 
-    for provider in providers {
+    for provider in PROVIDER_IDS {
         let info = state
             .providers
             .info_for(provider)

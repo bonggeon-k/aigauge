@@ -1,5 +1,10 @@
 pub mod commands;
 pub mod config;
+pub mod cost_engine;
 pub mod credentials;
+pub mod export;
+pub mod notifications;
 pub mod polling;
 pub mod providers;
+pub mod tray;
+pub mod updater;

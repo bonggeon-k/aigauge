@@ -1,15 +1,15 @@
 # AIGauge
 
-AIGauge is a desktop FinOps dashboard for AI coding tools, built with Tauri 2.x, Rust, React 19, TypeScript, shadcn/ui, and Tailwind v4.
+AIGauge is a desktop FinOps dashboard for AI coding assistants. It tracks provider usage, quota pressure, spend, and cost efficiency in one Tauri + React application.
 
 ## Features
 
-- Multi-provider usage dashboard (Codex, Claude, Gemini, Kiro, GitHub Copilot, Cursor)
-- Provider abstraction with Tauri IPC commands (`get_providers`, `get_usage`, `get_cost`)
-- Secure credential operations through OS keychain only
-- Light/Dark theming with system detection
-- React dashboard cards and usage gauges for quick monitoring
-- Cross-platform CI and release workflows
+- Multi-provider dashboard with polling and health checks
+- Cost Analytics page (monthly trend, provider breakdown, ROI, pace vs budget)
+- Export pipeline (CSV/JSON, PDF placeholder)
+- System tray summary with quick actions (open dashboard/settings, quit)
+- Auto-update plumbing via signed updater metadata (`latest.json`)
+- Native quota notifications for warning/critical thresholds
 
 ## Supported Providers
 
@@ -21,27 +21,48 @@ AIGauge is a desktop FinOps dashboard for AI coding tools, built with Tauri 2.x,
 | GitHub Copilot | OAuth token | Usage, quota, plan-level cost |
 | Cursor | Access token | Usage, quota, estimated cost |
 | Kiro | Access token | Usage, quota, estimated cost |
+| JetBrains AI Assistant | API key | Usage, quota, monthly cost |
 
 ## Security Model
 
-- All credential reads/writes route through `CredentialManager`
-- Sensitive credential values are zeroized on drop
-- Tauri isolation pattern enabled via `dist-isolation/`
-- Strict CSP and minimal Tauri capability scope
-- No plaintext secret storage in repository files
+- All credentials are read/written only via `CredentialManager`
+- Sensitive strings use zeroization on drop
+- Tauri isolation pattern enabled (`dist-isolation/`)
+- CSP limits network targets to required provider domains
+- Capability scope is explicit in `src-tauri/capabilities/default.json`
+
+## Cost Analytics
+
+- `get_cost_summary`: total monthly cost + provider percentages
+- `get_cost_history`: rolling 12-month persisted history
+- `get_roi_analysis`: cost/request, cost/1K tokens, efficiency score
+- `get_pace_analysis`: projected month-end spend vs budget
 
 ## Configuration
 
-- Provider credentials are stored in OS keychain via `CredentialManager`
-- App config is stored as JSON in Tauri app data directory:
-  - polling intervals
-  - enabled providers
-  - language and theme preferences
-  - notification toggles for quota warnings/critical events
-- Runtime events emitted by backend polling:
-  - `usage-updated`
-  - `quota-warning` (>= 80%)
-  - `quota-critical` (>= 95%)
+App config is persisted in the Tauri app data directory (`config.json`):
+
+- Provider polling intervals
+- Enabled providers
+- Theme/language preferences
+- Notification toggles
+
+Cost history is stored in the same app data directory (`cost-history.json`) and capped to 12 months.
+
+## Auto-Update
+
+Updater endpoints are configured in `src-tauri/tauri.conf.json` and expected to serve signed `latest.json` metadata from GitHub Releases.
+
+## Export
+
+- Backend commands: `export_data`, `export_to_file`
+- Formats: CSV and JSON (`PDF` currently returns JSON placeholder payload)
+- Frontend Export panel supports provider filtering and cost field toggle
+
+## Keyboard Shortcuts
+
+- No global shortcuts are currently bound.
+- Tray icon click toggles main window visibility.
 
 ## Development (WSL2 Ubuntu)
 
@@ -54,12 +75,8 @@ pnpm build
 pnpm tauri dev
 ```
 
-## Build Notes
-
-- Linux development and preview are supported in WSLg
-- Windows installers (`.exe/.msi`) are produced in GitHub Actions release pipeline
-
 ## Screenshots
 
-- `docs/screenshots/dashboard-light.png` (Phase 1 dashboard placeholder)
-- `docs/screenshots/dashboard-dark.png` (Phase 1 dashboard placeholder)
+- `docs/screenshots/dashboard-light.png` (dashboard placeholder)
+- `docs/screenshots/dashboard-dark.png` (dashboard placeholder)
+- `docs/screenshots/analytics.png` (analytics placeholder)

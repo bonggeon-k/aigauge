@@ -187,6 +187,45 @@ const fallbackDashboard: DashboardEntry[] = [
       last_checked: "2026-02-27T12:00:00Z",
     },
   },
+  {
+    info: {
+      id: "jetbrains",
+      name: "JetBrains AI Assistant",
+      icon: "brain-circuit",
+      auth_method: "api_key",
+      plan_name: "AI Pro",
+      quota_limit: 150000,
+      reset_period: "monthly",
+    },
+    usage: {
+      provider: "jetbrains",
+      requests: 32,
+      tokens: 12600,
+      period_start: "2026-02-01T00:00:00Z",
+      period_end: "2026-02-27T23:59:59Z",
+      status: "ok",
+    },
+    quota: {
+      used: 12600,
+      limit: 150000,
+      unit: "tokens",
+      reset_at: "2026-02-27T23:59:59Z",
+      status: "ok",
+    },
+    cost: {
+      provider: "jetbrains",
+      currency: "USD",
+      total: 11.43,
+      period_start: "2026-02-01T00:00:00Z",
+      period_end: "2026-02-27T23:59:59Z",
+      status: "ok",
+    },
+    health: {
+      configured: true,
+      reachable: true,
+      last_checked: "2026-02-27T12:00:00Z",
+    },
+  },
 ];
 
 export const useTauriEvent = <T>(
@@ -308,8 +347,9 @@ export const useProvider = () =>
               kiro: 300,
               copilot: 300,
               cursor: 300,
+              jetbrains: 300,
             },
-            enabled_providers: ["codex", "claude", "gemini", "kiro", "copilot", "cursor"],
+            enabled_providers: ["codex", "claude", "gemini", "kiro", "copilot", "cursor", "jetbrains"],
             theme_preference: "system",
             language: "en",
             notifications: {

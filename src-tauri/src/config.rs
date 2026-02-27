@@ -31,6 +31,7 @@ impl Default for AppConfig {
             ("kiro".to_string(), 300_u64),
             ("copilot".to_string(), 300_u64),
             ("cursor".to_string(), 300_u64),
+            ("jetbrains".to_string(), 300_u64),
         ]
         .into_iter()
         .collect();
@@ -44,6 +45,7 @@ impl Default for AppConfig {
                 "kiro".to_string(),
                 "copilot".to_string(),
                 "cursor".to_string(),
+                "jetbrains".to_string(),
             ],
             theme_preference: "system".to_string(),
             language: "en".to_string(),

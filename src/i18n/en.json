@@ -4,6 +4,11 @@
     "subtitle": "FinOps dashboard for AI coding tools",
     "addProvider": "Add Provider"
   },
+  "nav": {
+    "dashboard": "Dashboard",
+    "analytics": "Analytics",
+    "settings": "Settings"
+  },
   "quota": {
     "warning": "Quota warning",
     "critical": "Quota critical",
@@ -13,7 +18,24 @@
   "cost": {
     "summary": "Cost Summary",
     "monthly": "Monthly total",
-    "compare": "vs last month"
+    "compare": "vs last month",
+    "analytics": "Cost Analytics",
+    "pace": "Spending Pace",
+    "roi": "ROI",
+    "budget": "Budget"
+  },
+  "export": {
+    "title": "Export",
+    "preview": "Preview",
+    "download": "Download",
+    "includeCost": "Include cost",
+    "csv": "CSV",
+    "json": "JSON",
+    "pdf": "PDF (soon)"
+  },
+  "updater": {
+    "available": "Update available",
+    "install": "Install update"
   },
   "settings": {
     "title": "Settings",
@@ -28,6 +50,7 @@
     "notConfigured": "Not Configured",
     "testConnection": "Test Connection",
     "removeCredential": "Remove Credential",
-    "save": "Save"
+    "save": "Save",
+    "jetbrains": "JetBrains AI Assistant"
   }
 }

@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' https://*.anthropic.com https://*.openai.com https://*.github.com https://*.google.com https://*.amazonaws.com; style-src 'self' 'unsafe-inline'",
+      "csp": "default-src 'self'; connect-src 'self' https://*.anthropic.com https://*.openai.com https://*.github.com https://*.google.com https://*.amazonaws.com https://api.jetbrains.ai; style-src 'self' 'unsafe-inline'",
       "pattern": {
         "use": "isolation",
         "options": {
@@ -41,5 +41,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/everygoodnews-ship-it/aigauge/releases/latest/download/latest.json"
+      ],
+      "pubkey": "PLACEHOLDER"
+    }
   }
 }

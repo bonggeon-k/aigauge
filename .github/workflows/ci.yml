@@ -7,10 +7,11 @@ on:
 
 jobs:
   validate:
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -56,6 +57,12 @@ jobs:
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Verify IPC capability baseline
+        run: |
+          test -f src-tauri/capabilities/default.json
+          rg "tauri::command" src-tauri/src -n
+          rg "core:default" src-tauri/capabilities/default.json -n
 
       - name: Rust clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
