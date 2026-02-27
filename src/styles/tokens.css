@@ -13,6 +13,10 @@
   --color-success: #15803d;
   --color-warning: #ca8a04;
   --color-danger: #b91c1c;
+  --quota-safe: #16a34a;
+  --quota-warn: #ca8a04;
+  --quota-danger: #f97316;
+  --quota-critical: #dc2626;
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -27,6 +31,8 @@
 
   --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.08);
   --shadow-md: 0 8px 24px rgb(15 23 42 / 0.08);
+  --transition-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --transition-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 :root.dark {
@@ -41,6 +47,10 @@
   --color-success: #22c55e;
   --color-warning: #facc15;
   --color-danger: #ef4444;
+  --quota-safe: #22c55e;
+  --quota-warn: #facc15;
+  --quota-danger: #fb923c;
+  --quota-critical: #ef4444;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35);
   --shadow-md: 0 10px 30px rgb(0 0 0 / 0.45);
 }

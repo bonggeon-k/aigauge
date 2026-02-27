@@ -1,6 +1,33 @@
 {
   "app": {
     "title": "AIGauge",
-    "subtitle": "AI 코딩 도구를 위한 FinOps 대시보드"
+    "subtitle": "AI 코딩 도구를 위한 FinOps 대시보드",
+    "addProvider": "프로바이더 추가"
+  },
+  "quota": {
+    "warning": "할당량 경고",
+    "critical": "할당량 위험",
+    "safe": "안전",
+    "resetIn": "재설정까지"
+  },
+  "cost": {
+    "summary": "비용 요약",
+    "monthly": "월간 총 비용",
+    "compare": "지난달 대비"
+  },
+  "settings": {
+    "title": "설정",
+    "theme": "테마",
+    "language": "언어",
+    "notifications": "알림",
+    "save": "설정 저장"
+  },
+  "provider": {
+    "setup": "프로바이더 설정",
+    "settings": "프로바이더 설정",
+    "notConfigured": "미설정",
+    "testConnection": "연결 테스트",
+    "removeCredential": "인증 제거",
+    "save": "저장"
   }
 }

@@ -1,6 +1,33 @@
 {
   "app": {
     "title": "AIGauge",
-    "subtitle": "FinOps dashboard for AI coding tools"
+    "subtitle": "FinOps dashboard for AI coding tools",
+    "addProvider": "Add Provider"
+  },
+  "quota": {
+    "warning": "Quota warning",
+    "critical": "Quota critical",
+    "safe": "Safe",
+    "resetIn": "Reset in"
+  },
+  "cost": {
+    "summary": "Cost Summary",
+    "monthly": "Monthly total",
+    "compare": "vs last month"
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": "Theme",
+    "language": "Language",
+    "notifications": "Notifications",
+    "save": "Save Settings"
+  },
+  "provider": {
+    "setup": "Setup Provider",
+    "settings": "Provider Settings",
+    "notConfigured": "Not Configured",
+    "testConnection": "Test Connection",
+    "removeCredential": "Remove Credential",
+    "save": "Save"
   }
 }

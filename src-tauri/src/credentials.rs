@@ -115,6 +115,21 @@ impl CredentialManager {
     }
 
     #[instrument(skip(self), fields(provider = provider))]
+    pub fn get_credential(&self, provider: &str) -> Result<Option<Zeroizing<String>>> {
+        let account = Self::account_name(provider);
+        let credential = self
+            .backend
+            .get_password(self.service_name.as_str(), account.as_str())?
+            .map(Zeroizing::new);
+        info!(
+            provider = provider,
+            found = credential.is_some(),
+            "credential loaded"
+        );
+        Ok(credential)
+    }
+
+    #[instrument(skip(self), fields(provider = provider))]
     pub fn delete_credential(&self, provider: &str) -> Result<()> {
         let account = Self::account_name(provider);
         self.backend
@@ -189,5 +204,22 @@ mod tests {
             .has_credential("codex")
             .expect("lookup after delete should succeed");
         assert!(!missing);
+    }
+
+    #[test]
+    fn get_credential_returns_value() {
+        let backend = Arc::new(MockKeyring::default());
+        let manager = CredentialManager::with_backend("test.aigauge", backend);
+        manager
+            .save_credential("claude", "token-123".to_string())
+            .expect("save should succeed");
+
+        let credential = manager
+            .get_credential("claude")
+            .expect("get credential should succeed");
+        assert_eq!(
+            credential.map(|value| value.to_string()),
+            Some("token-123".to_string())
+        );
     }
 }
