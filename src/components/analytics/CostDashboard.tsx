@@ -69,6 +69,7 @@ export const CostDashboard = ({ summary, history, pace }: CostDashboardProps) =>
 
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="h-56">
+            <p className="sr-only">Monthly cost trend chart showing total spend by month.</p>
             <ResponsiveContainer>
               <LineChart data={historyView}>
                 <XAxis dataKey="month" />
@@ -90,6 +91,7 @@ export const CostDashboard = ({ summary, history, pace }: CostDashboardProps) =>
           </div>
 
           <div className="h-56">
+            <p className="sr-only">Provider cost share donut chart.</p>
             <ResponsiveContainer>
               <PieChart>
                 <Pie

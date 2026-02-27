@@ -9,6 +9,13 @@
     "analytics": "분석",
     "settings": "설정"
   },
+  "onboarding": {
+    "welcomeTitle": "AIGauge에 오신 것을 환영합니다",
+    "skip": "건너뛰기",
+    "next": "다음",
+    "back": "이전",
+    "complete": "설정이 완료되었습니다"
+  },
   "quota": {
     "warning": "할당량 경고",
     "critical": "할당량 위험",
@@ -42,7 +49,11 @@
     "theme": "테마",
     "language": "언어",
     "notifications": "알림",
-    "save": "설정 저장"
+    "save": "설정 저장",
+    "telemetry": "텔레메트리",
+    "plugins": "플러그인",
+    "about": "정보",
+    "shortcuts": "키보드 단축키"
   },
   "provider": {
     "setup": "프로바이더 설정",
@@ -52,5 +63,12 @@
     "removeCredential": "인증 제거",
     "save": "저장",
     "jetbrains": "JetBrains AI Assistant"
+  },
+  "empty": {
+    "title": "설정된 프로바이더가 없습니다",
+    "cta": "시작하기"
+  },
+  "a11y": {
+    "skipToContent": "본문으로 이동"
   }
 }

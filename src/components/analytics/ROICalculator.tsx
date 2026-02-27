@@ -32,6 +32,7 @@ export const ROICalculator = ({ roi }: ROICalculatorProps) => {
       </div>
 
       <div className="h-56">
+        <p className="sr-only">Bar chart for cost per request by provider.</p>
         <ResponsiveContainer>
           <BarChart data={roi.entries}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -48,6 +49,7 @@ export const ROICalculator = ({ roi }: ROICalculatorProps) => {
       </div>
 
       <div className="h-56">
+        <p className="sr-only">Bar chart for cost per one thousand tokens by provider.</p>
         <ResponsiveContainer>
           <BarChart data={roi.entries}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />

@@ -66,10 +66,35 @@ export interface AppConfig {
   enabled_providers: string[];
   theme_preference: string;
   language: string;
+  onboarding_complete: boolean;
+  telemetry_enabled: boolean;
   notifications: {
     quota_warning: boolean;
     quota_critical: boolean;
   };
+}
+
+export interface ShortcutInfo {
+  id: string;
+  accelerator: string;
+  description: string;
+}
+
+export interface PluginManifest {
+  id: string;
+  name: string;
+  version: string;
+  author: string;
+  description: string;
+  auth_method: AuthMethod;
+  api_endpoint: string;
+}
+
+export interface TelemetryStatus {
+  enabled: boolean;
+  configured_provider_count: number;
+  app_version: string;
+  os: string;
 }
 
 const isTauriRuntime =
@@ -110,82 +135,7 @@ const fallbackDashboard: DashboardEntry[] = [
       period_end: "2026-02-27T23:59:59Z",
       status: "ok",
     },
-    health: {
-      configured: true,
-      reachable: true,
-      last_checked: "2026-02-27T12:00:00Z",
-    },
-  },
-  {
-    info: {
-      id: "claude",
-      name: "Anthropic Claude",
-      icon: "brain",
-      auth_method: "api_key",
-      plan_name: "Pro / Team",
-      quota_limit: 15000,
-      reset_period: "monthly",
-    },
-    usage: {
-      provider: "claude",
-      requests: 96,
-      tokens: 36800,
-      period_start: "2026-02-01T00:00:00Z",
-      period_end: "2026-02-27T23:59:59Z",
-      status: "ok",
-    },
-    quota: {
-      used: 96,
-      limit: 15000,
-      unit: "messages",
-      reset_at: "2026-02-27T23:59:59Z",
-      status: "ok",
-    },
-    cost: {
-      provider: "claude",
-      currency: "USD",
-      total: 38.72,
-      period_start: "2026-02-01T00:00:00Z",
-      period_end: "2026-02-27T23:59:59Z",
-      status: "ok",
-    },
-    health: {
-      configured: true,
-      reachable: true,
-      last_checked: "2026-02-27T12:00:00Z",
-    },
-  },
-  {
-    info: {
-      id: "cursor",
-      name: "Cursor",
-      icon: "mouse-pointer-click",
-      auth_method: "token",
-      plan_name: "Pro",
-      quota_limit: 250000,
-      reset_period: "monthly",
-    },
-    usage: {
-      provider: "cursor",
-      requests: 0,
-      tokens: 0,
-      period_start: "",
-      period_end: "",
-      status: "not_configured",
-    },
-    quota: {
-      used: 0,
-      limit: 0,
-      unit: "tokens",
-      reset_at: "",
-      status: "not_configured",
-    },
-    cost: null,
-    health: {
-      configured: false,
-      reachable: false,
-      last_checked: "2026-02-27T12:00:00Z",
-    },
+    health: { configured: true, reachable: true, last_checked: "2026-02-27T12:00:00Z" },
   },
   {
     info: {
@@ -220,18 +170,11 @@ const fallbackDashboard: DashboardEntry[] = [
       period_end: "2026-02-27T23:59:59Z",
       status: "ok",
     },
-    health: {
-      configured: true,
-      reachable: true,
-      last_checked: "2026-02-27T12:00:00Z",
-    },
+    health: { configured: true, reachable: true, last_checked: "2026-02-27T12:00:00Z" },
   },
 ];
 
-export const useTauriEvent = <T>(
-  eventName: string,
-  handler: (payload: T) => void,
-): void => {
+export const useTauriEvent = <T>(eventName: string, handler: (payload: T) => void): void => {
   useEffect(() => {
     if (!isTauriRuntime) {
       return;
@@ -268,39 +211,28 @@ export const useProvider = () =>
 
       async getUsage(provider: string): Promise<UsageData> {
         if (!isTauriRuntime) {
-          return (
-            fallbackDashboard.find((entry) => entry.info.id === provider)?.usage ??
-            fallbackDashboard[0].usage
-          );
+          return fallbackDashboard.find((entry) => entry.info.id === provider)?.usage ?? fallbackDashboard[0].usage;
         }
         return invoke<UsageData>("get_usage", { provider });
       },
 
       async getCost(provider: string): Promise<CostData | null> {
         if (!isTauriRuntime) {
-          return (
-            fallbackDashboard.find((entry) => entry.info.id === provider)?.cost ?? null
-          );
+          return fallbackDashboard.find((entry) => entry.info.id === provider)?.cost ?? null;
         }
         return invoke<CostData | null>("get_cost", { provider });
       },
 
       async getProviderInfo(provider: string): Promise<ProviderInfo> {
         if (!isTauriRuntime) {
-          return (
-            fallbackDashboard.find((entry) => entry.info.id === provider)?.info ??
-            fallbackDashboard[0].info
-          );
+          return fallbackDashboard.find((entry) => entry.info.id === provider)?.info ?? fallbackDashboard[0].info;
         }
         return invoke<ProviderInfo>("get_provider_info", { provider });
       },
 
       async getQuota(provider: string): Promise<QuotaLimit> {
         if (!isTauriRuntime) {
-          return (
-            fallbackDashboard.find((entry) => entry.info.id === provider)?.quota ??
-            fallbackDashboard[0].quota
-          );
+          return fallbackDashboard.find((entry) => entry.info.id === provider)?.quota ?? fallbackDashboard[0].quota;
         }
         return invoke<QuotaLimit>("get_quota", { provider });
       },
@@ -314,27 +246,72 @@ export const useProvider = () =>
 
       async checkHealth(provider: string): Promise<HealthStatus> {
         if (!isTauriRuntime) {
-          return {
-            configured: true,
-            reachable: true,
-            last_checked: new Date().toISOString(),
-          };
+          return { configured: true, reachable: true, last_checked: new Date().toISOString() };
         }
         return invoke<HealthStatus>("check_provider_health", { provider });
       },
 
       async saveCredential(provider: string, credential: string): Promise<void> {
-        if (!isTauriRuntime) {
-          return;
+        if (isTauriRuntime) {
+          await invoke("save_credential", { provider, credential });
         }
-        await invoke("save_credential", { provider, credential });
       },
 
       async deleteCredential(provider: string): Promise<void> {
-        if (!isTauriRuntime) {
-          return;
+        if (isTauriRuntime) {
+          await invoke("delete_credential", { provider });
         }
-        await invoke("delete_credential", { provider });
+      },
+
+      async getKeyboardShortcuts(): Promise<ShortcutInfo[]> {
+        if (!isTauriRuntime) {
+          return [
+            {
+              id: "toggle_window",
+              accelerator: "Ctrl+Shift+G",
+              description: "Toggle window",
+            },
+          ];
+        }
+        return invoke<ShortcutInfo[]>("get_keyboard_shortcuts");
+      },
+
+      async getPlugins(): Promise<PluginManifest[]> {
+        if (!isTauriRuntime) {
+          return [];
+        }
+        return invoke<PluginManifest[]>("get_plugins");
+      },
+
+      async registerPlugin(manifest: PluginManifest): Promise<PluginManifest> {
+        if (!isTauriRuntime) {
+          return manifest;
+        }
+        return invoke<PluginManifest>("register_plugin", { manifest });
+      },
+
+      async getTelemetryStatus(): Promise<TelemetryStatus> {
+        if (!isTauriRuntime) {
+          return {
+            enabled: false,
+            configured_provider_count: fallbackDashboard.length,
+            app_version: "1.0.0",
+            os: "linux",
+          };
+        }
+        return invoke<TelemetryStatus>("get_telemetry_status");
+      },
+
+      async setTelemetryEnabled(enabled: boolean): Promise<TelemetryStatus> {
+        if (!isTauriRuntime) {
+          return {
+            enabled,
+            configured_provider_count: fallbackDashboard.length,
+            app_version: "1.0.0",
+            os: "linux",
+          };
+        }
+        return invoke<TelemetryStatus>("set_telemetry_enabled", { enabled });
       },
 
       async getConfig(): Promise<AppConfig> {
@@ -352,6 +329,8 @@ export const useProvider = () =>
             enabled_providers: ["codex", "claude", "gemini", "kiro", "copilot", "cursor", "jetbrains"],
             theme_preference: "system",
             language: "en",
+            onboarding_complete: false,
+            telemetry_enabled: false,
             notifications: {
               quota_warning: true,
               quota_critical: true,

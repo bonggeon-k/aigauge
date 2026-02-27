@@ -26,7 +26,8 @@ export const AlertBanner = ({ message, level, onDismiss }: AlertBannerProps) => 
           initial={{ opacity: 0, y: -16 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -16 }}
-          transition={{ duration: 0.25 }}
+          transition={{ duration: 0.3, type: "spring", stiffness: 280, damping: 22 }}
+          aria-live="polite"
           className={`mb-4 rounded-lg border px-4 py-3 ${bgClass}`}
         >
           <div className="flex items-center justify-between gap-3">

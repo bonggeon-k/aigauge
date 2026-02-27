@@ -6,6 +6,7 @@ import {
   Cpu,
   Github,
   MousePointerClick,
+  BrainCircuit,
   Sparkles,
   MoreHorizontal,
 } from "lucide-react";
@@ -44,6 +45,7 @@ const iconMap = {
   kiro: Cpu,
   copilot: Github,
   cursor: MousePointerClick,
+  jetbrains: BrainCircuit,
 } as const;
 
 const numberFormat = new Intl.NumberFormat("en-US");
@@ -107,9 +109,10 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
+      whileHover={{ scale: 1.02, y: -2 }}
       transition={{ duration: 0.35, ease: "easeOut" }}
     >
-      <Card className="h-full border-border/70 bg-card/90 shadow-md backdrop-blur-sm">
+      <Card className="h-full border-border/70 bg-card/90 shadow-md transition-shadow duration-200 hover:shadow-xl backdrop-blur-sm">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">

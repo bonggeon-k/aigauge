@@ -118,9 +118,11 @@ pub fn unreachable_quota(unit: &str) -> QuotaLimit {
     }
 }
 
-pub fn default_http_client() -> Result<Client> {
+pub fn build_shared_http_client() -> Result<Client> {
     Client::builder()
         .timeout(Duration::from_secs(30))
+        .pool_idle_timeout(Duration::from_secs(90))
+        .pool_max_idle_per_host(8)
         .build()
         .map_err(|error| ProviderError::Operation(format!("failed to build http client: {error}")))
 }
@@ -175,12 +177,13 @@ mod tests {
     #[tokio::test]
     async fn providers_return_expected_shapes() {
         let manager = CredentialManager::new();
-        assert_provider_shape(&CodexProvider::new(manager.clone())).await;
-        assert_provider_shape(&ClaudeProvider::new(manager.clone())).await;
-        assert_provider_shape(&GeminiProvider::new(manager.clone())).await;
-        assert_provider_shape(&KiroProvider::new(manager.clone())).await;
-        assert_provider_shape(&CopilotProvider::new(manager.clone())).await;
-        assert_provider_shape(&CursorProvider::new(manager.clone())).await;
-        assert_provider_shape(&JetBrainsProvider::new(manager)).await;
+        let client = build_shared_http_client().expect("client should build");
+        assert_provider_shape(&CodexProvider::new(manager.clone(), client.clone())).await;
+        assert_provider_shape(&ClaudeProvider::new(manager.clone(), client.clone())).await;
+        assert_provider_shape(&GeminiProvider::new(manager.clone(), client.clone())).await;
+        assert_provider_shape(&KiroProvider::new(manager.clone(), client.clone())).await;
+        assert_provider_shape(&CopilotProvider::new(manager.clone(), client.clone())).await;
+        assert_provider_shape(&CursorProvider::new(manager.clone(), client.clone())).await;
+        assert_provider_shape(&JetBrainsProvider::new(manager, client)).await;
     }
 }

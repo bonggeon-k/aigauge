@@ -1,70 +1,36 @@
 # AIGauge
 
-AIGauge is a desktop FinOps dashboard for AI coding assistants. It tracks provider usage, quota pressure, spend, and cost efficiency in one Tauri + React application.
+> FinOps dashboard for AI coding assistants.
 
-## Features
+![Version](https://img.shields.io/badge/version-1.0.0-0f766e)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![CI](https://img.shields.io/github/actions/workflow/status/everygoodnews-ship-it/aigauge/ci.yml?branch=main)
 
-- Multi-provider dashboard with polling and health checks
-- Cost Analytics page (monthly trend, provider breakdown, ROI, pace vs budget)
-- Export pipeline (CSV/JSON, PDF placeholder)
-- System tray summary with quick actions (open dashboard/settings, quit)
-- Auto-update plumbing via signed updater metadata (`latest.json`)
-- Native quota notifications for warning/critical thresholds
+## Highlights
 
-## Supported Providers
+- Usage/quota/cost dashboard for major AI coding providers
+- Cost analytics (trend, breakdown, ROI, pace)
+- System tray quick status + alerts
+- Auto-update support with signed metadata
+- Export (CSV/JSON)
+- Onboarding flow and accessibility polish
+- Community plugin manifest foundation
 
-| Provider | Auth Method | Tracks |
-| --- | --- | --- |
-| OpenAI Codex | API key / session token | Usage, quota, monthly cost |
-| Anthropic Claude | API key / org cookie | Usage, quota, estimated cost |
-| Google Gemini | API key | Usage, quota, estimated cost |
-| GitHub Copilot | OAuth token | Usage, quota, plan-level cost |
-| Cursor | Access token | Usage, quota, estimated cost |
-| Kiro | Access token | Usage, quota, estimated cost |
-| JetBrains AI Assistant | API key | Usage, quota, monthly cost |
+## Screenshot Placeholders
 
-## Security Model
+- Dashboard Light: `1280x820`
+- Dashboard Dark: `1280x820`
+- Tray Popover: `600x500`
+- Analytics: `1280x820`
 
-- All credentials are read/written only via `CredentialManager`
-- Sensitive strings use zeroization on drop
-- Tauri isolation pattern enabled (`dist-isolation/`)
-- CSP limits network targets to required provider domains
-- Capability scope is explicit in `src-tauri/capabilities/default.json`
+## Quick Start
 
-## Cost Analytics
+1. Download release artifact for your OS.
+2. Install and launch AIGauge.
+3. Run onboarding and configure provider credentials.
+4. Monitor usage and cost in dashboard + analytics.
 
-- `get_cost_summary`: total monthly cost + provider percentages
-- `get_cost_history`: rolling 12-month persisted history
-- `get_roi_analysis`: cost/request, cost/1K tokens, efficiency score
-- `get_pace_analysis`: projected month-end spend vs budget
-
-## Configuration
-
-App config is persisted in the Tauri app data directory (`config.json`):
-
-- Provider polling intervals
-- Enabled providers
-- Theme/language preferences
-- Notification toggles
-
-Cost history is stored in the same app data directory (`cost-history.json`) and capped to 12 months.
-
-## Auto-Update
-
-Updater endpoints are configured in `src-tauri/tauri.conf.json` and expected to serve signed `latest.json` metadata from GitHub Releases.
-
-## Export
-
-- Backend commands: `export_data`, `export_to_file`
-- Formats: CSV and JSON (`PDF` currently returns JSON placeholder payload)
-- Frontend Export panel supports provider filtering and cost field toggle
-
-## Keyboard Shortcuts
-
-- No global shortcuts are currently bound.
-- Tray icon click toggles main window visibility.
-
-## Development (WSL2 Ubuntu)
+## Build From Source
 
 ```bash
 pnpm install
@@ -75,8 +41,41 @@ pnpm build
 pnpm tauri dev
 ```
 
-## Screenshots
+## Supported Providers
 
-- `docs/screenshots/dashboard-light.png` (dashboard placeholder)
-- `docs/screenshots/dashboard-dark.png` (dashboard placeholder)
-- `docs/screenshots/analytics.png` (analytics placeholder)
+| Provider | Auth Method | Tracks |
+| --- | --- | --- |
+| OpenAI Codex | API key / session token | Usage, quota, cost |
+| Anthropic Claude | API key / org cookie | Usage, quota, cost |
+| Google Gemini | API key | Usage, quota, cost |
+| GitHub Copilot | OAuth token | Usage, quota, cost |
+| Cursor | Access token | Usage, quota, cost |
+| Kiro | Access token | Usage, quota, cost |
+| JetBrains AI Assistant | API key | Usage, quota, cost |
+| Community Plugins | Manifest-defined | Endpoint-dependent |
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl/Cmd+Shift+G` | Toggle main window |
+| `Ctrl/Cmd+Shift+R` | Force refresh providers |
+
+## Comparison
+
+- **AIGauge vs CodexBar**: multi-provider + desktop analytics/tray focus.
+- **AIGauge vs ccusage**: GUI, cross-provider view, onboarding, tray notifications.
+
+## Roadmap
+
+- Phase 4: richer plugin SDK and marketplace concepts
+- Phase 5: team dashboards and shared budgets
+- Phase 6: advanced forecast and anomaly detection
+
+## Contributing
+
+See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) and [docs/PLUGIN_GUIDE.md](docs/PLUGIN_GUIDE.md).
+
+## License
+
+MIT

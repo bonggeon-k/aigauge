@@ -13,6 +13,7 @@
 
   --transition-bounce: 280ms cubic-bezier(0.2, 1.4, 0.4, 1);
   --transition-smooth: 220ms ease;
+  --transition-page: 260ms cubic-bezier(0.22, 0.9, 0.29, 1);
 
   --chart-1: #0f766e;
   --chart-2: #0284c7;
@@ -25,13 +26,21 @@
   --nav-bg: #ffffffcc;
   --nav-active: #0f766e;
   --nav-active-fg: #ffffff;
+
+  --ring-width: 2px;
+  --ring-color: #0f766e;
+  --ring-offset: 2px;
+
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(15, 23, 32, 0.1);
+  --glass-blur: 12px;
 }
 
 .dark {
   --color-primary: #2dd4bf;
-  --color-background: #0b1217;
-  --color-foreground: #e4eef1;
-  --color-muted: #22343b;
+  --color-background: #081017;
+  --color-foreground: #eaf2f5;
+  --color-muted: #2b3d46;
   --shadow-soft: 0 14px 36px rgba(0, 0, 0, 0.45);
 
   --chart-1: #2dd4bf;
@@ -45,4 +54,18 @@
   --nav-bg: #121c23cc;
   --nav-active: #2dd4bf;
   --nav-active-fg: #022c22;
+
+  --ring-color: #2dd4bf;
+
+  --glass-bg: rgba(10, 18, 23, 0.78);
+  --glass-border: rgba(234, 242, 245, 0.15);
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }

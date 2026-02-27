@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { motion } from "framer-motion";
 import { LayoutDashboard, Settings, TrendingUp } from "lucide-react";
 
 export type AppRoute = "dashboard" | "analytics" | "settings";
@@ -17,17 +18,25 @@ const items: Array<{ id: AppRoute; label: string; icon: ComponentType<{ classNam
 export const Navigation = ({ route, onNavigate }: NavigationProps) => {
   return (
     <>
-      <nav className="hidden w-48 shrink-0 border-r border-border/60 p-3 md:block">
+      <nav role="navigation" aria-label="Primary navigation" className="hidden w-48 shrink-0 border-r border-border/60 p-3 md:block">
         <ul className="space-y-2">
           {items.map((item) => {
             const Icon = item.icon;
             const active = route === item.id;
             return (
-              <li key={item.id}>
+              <li key={item.id} className="relative">
+                {active ? (
+                  <motion.span
+                    layoutId="nav-active-indicator"
+                    className="absolute inset-0 rounded-md bg-primary"
+                    transition={{ type: "spring", stiffness: 420, damping: 30 }}
+                  />
+                ) : null}
                 <button
                   type="button"
-                  className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${
-                    active ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                  aria-label={`Navigate to ${item.label}`}
+                  className={`relative z-10 flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${
+                    active ? "text-primary-foreground" : "hover:bg-muted"
                   }`}
                   onClick={() => onNavigate(item.id)}
                 >
@@ -40,7 +49,7 @@ export const Navigation = ({ route, onNavigate }: NavigationProps) => {
         </ul>
       </nav>
 
-      <nav className="fixed inset-x-4 bottom-4 z-30 rounded-xl border border-border bg-background/95 p-2 backdrop-blur md:hidden">
+      <nav role="navigation" aria-label="Primary navigation mobile" className="fixed inset-x-4 bottom-4 z-30 rounded-xl border border-border bg-background/95 p-2 backdrop-blur md:hidden">
         <div className="grid grid-cols-3 gap-1">
           {items.map((item) => {
             const Icon = item.icon;
@@ -49,13 +58,21 @@ export const Navigation = ({ route, onNavigate }: NavigationProps) => {
               <button
                 key={item.id}
                 type="button"
-                className={`flex flex-col items-center justify-center rounded-md py-2 text-[11px] ${
-                  active ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                aria-label={`Navigate to ${item.label}`}
+                className={`relative flex flex-col items-center justify-center rounded-md py-2 text-[11px] ${
+                  active ? "text-primary-foreground" : "hover:bg-muted"
                 }`}
                 onClick={() => onNavigate(item.id)}
               >
-                <Icon className="mb-1 h-4 w-4" />
-                {item.label}
+                {active ? (
+                  <motion.span
+                    layoutId="nav-active-indicator-mobile"
+                    className="absolute inset-0 rounded-md bg-primary"
+                    transition={{ type: "spring", stiffness: 420, damping: 30 }}
+                  />
+                ) : null}
+                <Icon className="relative z-10 mb-1 h-4 w-4" />
+                <span className="relative z-10">{item.label}</span>
               </button>
             );
           })}

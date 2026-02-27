@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability scope for dashboard, analytics, updater, tray, export, and notifications",
+  "description": "Capability scope for dashboard, analytics, updater, tray, export, notifications, shortcuts, plugins, and telemetry",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -13,9 +13,16 @@
     "core:window:allow-set-focus",
     "core:resources:default",
     "core:tray:default",
+    "core:tray:allow-set-tooltip",
+    "core:tray:allow-set-title",
     "core:menu:default",
     "updater:allow-check",
     "updater:allow-download-and-install",
-    "notification:default"
+    "notification:allow-show",
+    "notification:allow-notify",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-unregister-all",
+    "global-shortcut:allow-is-registered"
   ]
 }

@@ -1,3 +1,5 @@
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
 use tauri::menu::MenuBuilder;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
@@ -6,6 +8,15 @@ use tracing::instrument;
 use crate::commands::DashboardEntry;
 
 pub const TRAY_EVENT_UPDATE: &str = "tray-update";
+
+static LAST_TRAY_FINGERPRINT: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
+
+#[derive(Debug, Clone, PartialEq)]
+enum TrayStatus {
+    Ok,
+    Warning,
+    Critical,
+}
 
 #[instrument(skip(app))]
 pub fn init_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
@@ -21,7 +32,10 @@ pub fn init_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
         .build()
         .map_err(|error| format!("failed to build tray menu: {error}"))?;
 
-    let mut builder = TrayIconBuilder::with_id("main-tray").menu(&menu);
+    let mut builder = TrayIconBuilder::with_id("main-tray")
+        .menu(&menu)
+        .tooltip("AIGauge — Total: $0.00/mo");
+
     if let Some(icon) = app.default_window_icon().cloned() {
         builder = builder.icon(icon);
     }
@@ -69,12 +83,54 @@ pub fn init_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
     Ok(())
 }
 
+fn derive_status(entries: &[DashboardEntry]) -> TrayStatus {
+    let mut status = TrayStatus::Ok;
+    for entry in entries {
+        let pct = if entry.quota.limit > 0 {
+            entry.quota.used as f64 / entry.quota.limit as f64
+        } else {
+            0.0
+        };
+        if pct >= 0.95 {
+            return TrayStatus::Critical;
+        }
+        if pct >= 0.8 {
+            status = TrayStatus::Warning;
+        }
+    }
+    status
+}
+
 #[instrument(skip(app, entries))]
 pub fn update_tray_menu(app: &AppHandle, entries: &[DashboardEntry]) {
     let total = entries
         .iter()
         .filter_map(|entry| entry.cost.as_ref().map(|cost| cost.total))
         .sum::<f64>();
+
+    let status = derive_status(entries);
+    let status_emoji = match status {
+        TrayStatus::Ok => "🟢",
+        TrayStatus::Warning => "🟡",
+        TrayStatus::Critical => "🔴",
+    };
+
+    let mut fingerprint = format!("{status_emoji}|{total:.2}");
+    for entry in entries {
+        let pct = if entry.quota.limit > 0 {
+            (entry.quota.used as f64 / entry.quota.limit as f64) * 100.0
+        } else {
+            0.0
+        };
+        fingerprint.push_str(format!("|{}:{:.0}", entry.info.id, pct).as_str());
+    }
+
+    if let Ok(mut guard) = LAST_TRAY_FINGERPRINT.lock() {
+        if *guard == fingerprint {
+            return;
+        }
+        *guard = fingerprint;
+    }
 
     if let Some(tray) = app.tray_by_id("main-tray") {
         let mut menu_builder = MenuBuilder::new(app)
@@ -105,6 +161,9 @@ pub fn update_tray_menu(app: &AppHandle, entries: &[DashboardEntry]) {
         {
             let _ = tray.set_menu(Some(menu));
         }
+
+        let _ = tray.set_tooltip(Some(format!("AIGauge — Total: ${total:.2}/mo")));
+        let _ = tray.set_title(Some(status_emoji));
     }
 
     let _ = app.emit(TRAY_EVENT_UPDATE, total);

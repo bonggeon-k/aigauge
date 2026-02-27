@@ -1,4 +1,4 @@
-use chrono::{Datelike, Utc};
+use chrono::{Datelike, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -147,7 +147,10 @@ impl CostEngine {
         }
         let raw = fs::read_to_string(path)
             .map_err(|error| format!("failed to read cost history: {error}"))?;
-        serde_json::from_str(&raw).map_err(|error| format!("failed to parse cost history: {error}"))
+        let mut history: Vec<MonthlyCostHistory> =
+            serde_json::from_str(&raw).map_err(|error| format!("failed to parse cost history: {error}"))?;
+        history = trim_history(history);
+        Ok(history)
     }
 
     #[instrument(skip(self, state))]
@@ -238,6 +241,23 @@ impl CostEngine {
     }
 }
 
+fn trim_history(mut history: Vec<MonthlyCostHistory>) -> Vec<MonthlyCostHistory> {
+    let now = Utc::now().date_naive();
+    let earliest = now - chrono::Duration::days(370);
+    history.retain(|entry| {
+        NaiveDate::parse_from_str(&format!("{}-01", entry.month), "%Y-%m-%d")
+            .map(|month| month >= earliest)
+            .unwrap_or(false)
+    });
+    history.sort_by(|a, b| a.month.cmp(&b.month));
+    if history.len() > 12 {
+        let keep_from = history.len() - 12;
+        history.split_off(keep_from)
+    } else {
+        history
+    }
+}
+
 #[tauri::command]
 #[instrument(skip(state, app))]
 pub async fn get_cost_summary(
@@ -291,5 +311,23 @@ mod tests {
         let keep_from = items.len() - 12;
         let trimmed = items.split_off(keep_from);
         assert_eq!(trimmed.len(), 12);
+    }
+
+    #[test]
+    fn trim_history_removes_stale_entries() {
+        let items = vec![
+            MonthlyCostHistory {
+                month: "2023-01".to_string(),
+                total: 1.0,
+                by_provider: Vec::new(),
+            },
+            MonthlyCostHistory {
+                month: format!("{:04}-{:02}", Utc::now().year(), Utc::now().month()),
+                total: 2.0,
+                by_provider: Vec::new(),
+            },
+        ];
+        let trimmed = trim_history(items);
+        assert_eq!(trimmed.len(), 1);
     }
 }

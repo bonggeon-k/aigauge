@@ -8,10 +8,11 @@ use crate::providers::gemini::GeminiProvider;
 use crate::providers::jetbrains::JetBrainsProvider;
 use crate::providers::kiro::KiroProvider;
 use crate::providers::{
-    AuthMethod, CostData, Provider, ProviderError, ProviderInfo, ProviderStatus, QuotaLimit,
-    UsageData,
+    build_shared_http_client, AuthMethod, CostData, Provider, ProviderError, ProviderInfo,
+    ProviderStatus, QuotaLimit, UsageData,
 };
 use chrono::Utc;
+use reqwest::Client;
 use serde::Serialize;
 use tracing::instrument;
 
@@ -62,16 +63,20 @@ pub struct AppState {
     pub providers: ProviderRegistry,
     pub credential_manager: CredentialManager,
     pub config_store: ConfigStore,
+    #[allow(dead_code)]
+    pub http_client: Client,
 }
 
 impl AppState {
     #[instrument]
     pub fn new() -> Self {
         let credential_manager = CredentialManager::new();
+        let http_client = build_shared_http_client().unwrap_or_else(|_| Client::new());
         Self {
-            providers: ProviderRegistry::new(credential_manager.clone()),
+            providers: ProviderRegistry::new(credential_manager.clone(), http_client.clone()),
             credential_manager,
             config_store: ConfigStore,
+            http_client,
         }
     }
 }
@@ -83,15 +88,15 @@ impl Default for AppState {
 }
 
 impl ProviderRegistry {
-    pub fn new(credential_manager: CredentialManager) -> Self {
+    pub fn new(credential_manager: CredentialManager, http_client: Client) -> Self {
         Self {
-            codex: CodexProvider::new(credential_manager.clone()),
-            claude: ClaudeProvider::new(credential_manager.clone()),
-            gemini: GeminiProvider::new(credential_manager.clone()),
-            kiro: KiroProvider::new(credential_manager.clone()),
-            copilot: CopilotProvider::new(credential_manager.clone()),
-            cursor: CursorProvider::new(credential_manager.clone()),
-            jetbrains: JetBrainsProvider::new(credential_manager),
+            codex: CodexProvider::new(credential_manager.clone(), http_client.clone()),
+            claude: ClaudeProvider::new(credential_manager.clone(), http_client.clone()),
+            gemini: GeminiProvider::new(credential_manager.clone(), http_client.clone()),
+            kiro: KiroProvider::new(credential_manager.clone(), http_client.clone()),
+            copilot: CopilotProvider::new(credential_manager.clone(), http_client.clone()),
+            cursor: CursorProvider::new(credential_manager.clone(), http_client.clone()),
+            jetbrains: JetBrainsProvider::new(credential_manager, http_client),
         }
     }
 

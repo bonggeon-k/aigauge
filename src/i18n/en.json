@@ -9,6 +9,13 @@
     "analytics": "Analytics",
     "settings": "Settings"
   },
+  "onboarding": {
+    "welcomeTitle": "Welcome to AIGauge",
+    "skip": "Skip",
+    "next": "Next",
+    "back": "Back",
+    "complete": "You're all set"
+  },
   "quota": {
     "warning": "Quota warning",
     "critical": "Quota critical",
@@ -42,7 +49,11 @@
     "theme": "Theme",
     "language": "Language",
     "notifications": "Notifications",
-    "save": "Save Settings"
+    "save": "Save Settings",
+    "telemetry": "Telemetry",
+    "plugins": "Plugins",
+    "about": "About",
+    "shortcuts": "Keyboard Shortcuts"
   },
   "provider": {
     "setup": "Setup Provider",
@@ -52,5 +63,12 @@
     "removeCredential": "Remove Credential",
     "save": "Save",
     "jetbrains": "JetBrains AI Assistant"
+  },
+  "empty": {
+    "title": "No providers configured",
+    "cta": "Get started"
+  },
+  "a11y": {
+    "skipToContent": "Skip to content"
   }
 }

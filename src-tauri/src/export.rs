@@ -1,6 +1,7 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::path::{Component, Path};
 use tracing::instrument;
 
 use crate::commands::{AppState, PROVIDER_IDS};
@@ -131,8 +132,13 @@ pub async fn export_to_file(
     path: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
+    let parsed = Path::new(path.as_str());
+    if parsed.components().any(|component| matches!(component, Component::ParentDir)) {
+        return Err("invalid export path".to_string());
+    }
+
     let content = export_data(request, state).await?;
-    fs::write(path, content).map_err(|error| format!("failed to write export file: {error}"))
+    fs::write(parsed, content).map_err(|error| format!("failed to write export file: {error}"))
 }
 
 #[cfg(test)]

@@ -11,35 +11,45 @@
 
 ## Credential Flow
 
-1. Frontend invokes `save_credential` / `delete_credential` IPC.
-2. Backend routes all credential operations through `CredentialManager`.
-3. `CredentialManager` uses OS keychain APIs (`keyring` crate).
-4. Read values are wrapped in `Zeroizing<String>` where applicable.
-5. Provider modules request credentials via `CredentialManager` only.
+1. Frontend invokes credential IPC commands.
+2. Backend routes all reads/writes through `CredentialManager`.
+3. OS keychain backend is used (`keyring`).
+4. Sensitive values are zeroized when dropped.
 
-No credentials are persisted in repo files, app config JSON, or export output by default.
+Credentials are never persisted in config files, telemetry, or exported reports.
+
+## Plugin Security Model
+
+- Plugin manifests are TOML files loaded from app data directory only.
+- Manifest validation rejects empty IDs/names and `javascript:` endpoint schemes.
+- Plugin requests use shared reqwest client with timeout.
+- Plugin credential access is still delegated to `CredentialManager`.
+
+## Telemetry Disclosure
+
+Telemetry is disabled by default and includes only:
+
+- app version
+- OS identifier
+- configured provider count
+
+Telemetry excludes:
+
+- credentials
+- prompts
+- usage payload details
+- export content
 
 ## Update Signature Verification
 
-- Updater uses Tauri updater plugin.
-- `tauri.conf.json` defines release metadata endpoint and update `pubkey`.
-- Signed artifacts and `latest.json` are expected from release workflow.
-- Installation is initiated only through explicit IPC command (`install_update`).
+- Updater endpoint serves signed `latest.json` metadata from GitHub Releases.
+- `tauri.conf.json` defines updater pubkey.
+- Update install is user-initiated from app UI.
 
 ## CSP Rationale
 
-CSP is configured to:
-
-- Restrict defaults to `self`
-- Allow outbound `connect-src` only for provider endpoints and GitHub update metadata
-- Keep style/script execution constrained to the packaged app and isolation environment
+CSP restricts to app-local sources by default and permits outbound provider/update endpoints only.
 
 ## Isolation Pattern
 
-Tauri isolation pattern is enabled with assets from `dist-isolation/`.
-
-Purpose:
-
-- reduce renderer privilege surface
-- minimize risk from injected/untrusted web content
-- enforce stricter separation between privileged Rust commands and UI layer
+Tauri isolation pattern is enabled (`dist-isolation/`) to reduce renderer privilege exposure.

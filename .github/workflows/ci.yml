@@ -7,7 +7,7 @@ on:
 
 jobs:
   validate:
-    timeout-minutes: 45
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
@@ -83,6 +83,29 @@ jobs:
 
       - name: Frontend build
         run: pnpm build
+
+      - name: Accessibility check (manual fallback)
+        run: |
+          pnpm add -D @axe-core/cli
+          echo "Axe CLI installed. E2E page URL required for full run in CI."
+
+      - name: Bundle size check
+        run: |
+          DIST_SIZE=$(du -sm dist | cut -f1)
+          echo "dist size: ${DIST_SIZE}MB"
+          if [ "$DIST_SIZE" -gt 5 ]; then
+            echo "::warning::dist bundle is larger than 5MB"
+          fi
+
+      - name: Rust binary size check
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          BIN_SIZE=$(stat -c%s src-tauri/target/debug/aigauge || echo 0)
+          BIN_SIZE_MB=$((BIN_SIZE / 1024 / 1024))
+          echo "binary size: ${BIN_SIZE_MB}MB"
+          if [ "$BIN_SIZE_MB" -gt 15 ]; then
+            echo "::warning::Rust binary exceeds 15MB"
+          fi
 
       - name: pnpm audit
         run: pnpm audit --audit-level=high

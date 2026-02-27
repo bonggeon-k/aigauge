@@ -5,7 +5,7 @@ use serde_json::Value;
 use tracing::instrument;
 
 use super::{
-    default_http_client, not_configured_quota, not_configured_usage, unreachable_quota,
+    not_configured_quota, not_configured_usage, unreachable_quota,
     unreachable_usage, AuthMethod, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit,
     Result, UsageData,
 };
@@ -17,8 +17,7 @@ pub struct CodexProvider {
 
 impl CodexProvider {
     #[instrument(skip(credential_manager))]
-    pub fn new(credential_manager: CredentialManager) -> Self {
-        let client = default_http_client().unwrap_or_else(|_| Client::new());
+    pub fn new(credential_manager: CredentialManager, client: Client) -> Self {
         Self {
             credential_manager,
             client,

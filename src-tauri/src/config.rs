@@ -19,6 +19,8 @@ pub struct AppConfig {
     pub enabled_providers: Vec<String>,
     pub theme_preference: String,
     pub language: String,
+    pub onboarding_complete: bool,
+    pub telemetry_enabled: bool,
     pub notifications: NotificationSettings,
 }
 
@@ -49,6 +51,8 @@ impl Default for AppConfig {
             ],
             theme_preference: "system".to_string(),
             language: "en".to_string(),
+            onboarding_complete: false,
+            telemetry_enabled: false,
             notifications: NotificationSettings {
                 quota_warning: true,
                 quota_critical: true,
