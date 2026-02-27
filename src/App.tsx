@@ -33,16 +33,22 @@ const pageMotion = {
   exit: { opacity: 0, y: -12 },
 };
 
-const isTrayRoute = (): boolean =>
-  typeof window !== "undefined" &&
-  (window.location.pathname.startsWith("/tray") ||
-    (() => {
-      try {
-        return getCurrentWindow().label === "tray-popup";
-      } catch {
-        return false;
-      }
-    })());
+const isTrayRoute = (): boolean => {
+  if (typeof window === "undefined") return false;
+
+  // Check hash route
+  if (window.location.hash.includes("/tray")) return true;
+
+  // Check pathname (for Tauri window)
+  if (window.location.pathname.startsWith("/tray")) return true;
+
+  // Check Tauri window label
+  try {
+    return getCurrentWindow().label === "tray-popup";
+  } catch {
+    return false;
+  }
+};
 
 function DashboardApp() {
   const { t } = useTranslation();
