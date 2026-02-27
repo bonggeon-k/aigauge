@@ -61,8 +61,9 @@ jobs:
       - name: Verify IPC capability baseline
         run: |
           test -f src-tauri/capabilities/default.json
-          rg "tauri::command" src-tauri/src -n
-          rg "core:default" src-tauri/capabilities/default.json -n
+          grep -R "tauri::command" src-tauri/src
+          grep -n "core:default" src-tauri/capabilities/default.json
+          grep -n "\"label\": \"tray-popup\"" src-tauri/tauri.conf.json
 
       - name: Rust clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings

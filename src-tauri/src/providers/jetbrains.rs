@@ -5,9 +5,8 @@ use serde_json::Value;
 use tracing::instrument;
 
 use super::{
-    not_configured_quota, not_configured_usage, unreachable_quota,
-    unreachable_usage, AuthMethod, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit,
-    Result, UsageData,
+    not_configured_quota, not_configured_usage, unreachable_quota, unreachable_usage, AuthMethod,
+    CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit, Result, UsageData,
 };
 
 pub struct JetBrainsProvider {
@@ -18,6 +17,7 @@ pub struct JetBrainsProvider {
 impl JetBrainsProvider {
     #[instrument(skip(credential_manager))]
     pub fn new(credential_manager: CredentialManager, client: Client) -> Self {
+        // TODO(phase-5): replace stub endpoints with JetBrains AI official usage APIs.
         Self {
             credential_manager,
             client,
@@ -65,7 +65,10 @@ impl Provider for JetBrainsProvider {
         };
 
         let value = match self
-            .fetch_json("https://api.jetbrains.ai/assistant/usage", credential.as_str())
+            .fetch_json(
+                "https://api.jetbrains.ai/assistant/usage",
+                credential.as_str(),
+            )
             .await
         {
             Ok(value) => value,
@@ -74,14 +77,8 @@ impl Provider for JetBrainsProvider {
 
         Ok(UsageData {
             provider: "jetbrains".to_string(),
-            requests: value
-                .get("requests")
-                .and_then(Value::as_u64)
-                .unwrap_or(0),
-            tokens: value
-                .get("tokens")
-                .and_then(Value::as_u64)
-                .unwrap_or(0),
+            requests: value.get("requests").and_then(Value::as_u64).unwrap_or(0),
+            tokens: value.get("tokens").and_then(Value::as_u64).unwrap_or(0),
             period_start: value
                 .get("period_start")
                 .and_then(Value::as_str)
@@ -114,7 +111,10 @@ impl Provider for JetBrainsProvider {
         };
 
         let value = match self
-            .fetch_json("https://api.jetbrains.ai/assistant/cost", credential.as_str())
+            .fetch_json(
+                "https://api.jetbrains.ai/assistant/cost",
+                credential.as_str(),
+            )
             .await
         {
             Ok(value) => value,
@@ -137,10 +137,7 @@ impl Provider for JetBrainsProvider {
                 .and_then(Value::as_str)
                 .unwrap_or("USD")
                 .to_string(),
-            total: value
-                .get("total")
-                .and_then(Value::as_f64)
-                .unwrap_or(0.0),
+            total: value.get("total").and_then(Value::as_f64).unwrap_or(0.0),
             period_start: value
                 .get("period_start")
                 .and_then(Value::as_str)

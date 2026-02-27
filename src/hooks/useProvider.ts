@@ -97,6 +97,24 @@ export interface TelemetryStatus {
   os: string;
 }
 
+export interface ManualProviderInput {
+  provider: string;
+  requests: number;
+  tokens: number;
+  used: number;
+  limit: number;
+  unit: string;
+  reset_at: string;
+  cost_total?: number;
+  plan_name?: string;
+}
+
+export interface ServiceStatus {
+  provider_id: string;
+  indicator: string;
+  description: string;
+}
+
 const isTauriRuntime =
   typeof window !== "undefined" &&
   "__TAURI_INTERNALS__" in (window as unknown as Record<string, unknown>);
@@ -261,6 +279,25 @@ export const useProvider = () =>
         if (isTauriRuntime) {
           await invoke("delete_credential", { provider });
         }
+      },
+
+      async saveManualInput(provider: string, input: ManualProviderInput): Promise<void> {
+        if (isTauriRuntime) {
+          await invoke("save_manual_input", { provider, input });
+        }
+      },
+
+      async clearProviderData(provider: string): Promise<void> {
+        if (isTauriRuntime) {
+          await invoke("clear_provider_data", { provider });
+        }
+      },
+
+      async getServiceStatuses(): Promise<ServiceStatus[]> {
+        if (!isTauriRuntime) {
+          return [];
+        }
+        return invoke<ServiceStatus[]>("get_service_statuses");
       },
 
       async getKeyboardShortcuts(): Promise<ShortcutInfo[]> {

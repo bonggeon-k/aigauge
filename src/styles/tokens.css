@@ -34,6 +34,10 @@
   --glass-bg: rgba(255, 255, 255, 0.75);
   --glass-border: rgba(15, 23, 32, 0.1);
   --glass-blur: 12px;
+
+  --surface-0: #f4f6fb;
+  --surface-1: #e9edf7;
+  --surface-2: #dce3f2;
 }
 
 .dark {
@@ -59,6 +63,10 @@
 
   --glass-bg: rgba(10, 18, 23, 0.78);
   --glass-border: rgba(234, 242, 245, 0.15);
+
+  --surface-0: #16172b;
+  --surface-1: #1e1f35;
+  --surface-2: #2a2b45;
 }
 
 @keyframes skeleton-shimmer {

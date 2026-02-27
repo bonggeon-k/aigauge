@@ -5,9 +5,8 @@ use serde_json::Value;
 use tracing::instrument;
 
 use super::{
-    not_configured_quota, not_configured_usage, unreachable_quota,
-    unreachable_usage, AuthMethod, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit,
-    Result, UsageData,
+    not_configured_quota, not_configured_usage, unreachable_quota, unreachable_usage, AuthMethod,
+    CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit, Result, UsageData,
 };
 
 pub struct CopilotProvider {
@@ -18,6 +17,7 @@ pub struct CopilotProvider {
 impl CopilotProvider {
     #[instrument(skip(credential_manager))]
     pub fn new(credential_manager: CredentialManager, client: Client) -> Self {
+        // TODO(phase-5): replace placeholder endpoint parsing with production OAuth flow.
         Self {
             credential_manager,
             client,

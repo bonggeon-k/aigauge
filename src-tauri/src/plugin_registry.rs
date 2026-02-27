@@ -78,7 +78,8 @@ fn load_plugins_from_dir(path: &Path) -> Result<Vec<PluginManifest>, String> {
     }
 
     let mut manifests = Vec::new();
-    let entries = fs::read_dir(path).map_err(|error| format!("failed to read plugin dir: {error}"))?;
+    let entries =
+        fs::read_dir(path).map_err(|error| format!("failed to read plugin dir: {error}"))?;
     for entry in entries {
         let entry = entry.map_err(|error| format!("failed to read plugin entry: {error}"))?;
         let entry_path = entry.path();
@@ -111,7 +112,10 @@ pub fn get_plugins(app: tauri::AppHandle) -> Result<Vec<PluginManifest>, String>
 
 #[tauri::command]
 #[instrument(skip(app, manifest))]
-pub fn register_plugin(manifest: PluginManifest, app: tauri::AppHandle) -> Result<PluginManifest, String> {
+pub fn register_plugin(
+    manifest: PluginManifest,
+    app: tauri::AppHandle,
+) -> Result<PluginManifest, String> {
     if !is_valid_manifest(&manifest) {
         return Err("invalid plugin manifest".to_string());
     }

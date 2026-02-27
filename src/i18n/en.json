@@ -64,6 +64,13 @@
     "save": "Save",
     "jetbrains": "JetBrains AI Assistant"
   },
+  "tray": {
+    "title": "Quick View",
+    "refresh": "Refresh",
+    "manualInput": "Manual input",
+    "clearData": "Clear provider data",
+    "notConfiguredGuide": "Provider setup required"
+  },
   "empty": {
     "title": "No providers configured",
     "cta": "Get started"

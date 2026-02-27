@@ -5,7 +5,7 @@ use tauri::Emitter;
 use tauri::Manager;
 use tracing::instrument;
 
-use crate::commands::{provider_health, AppState, DashboardEntry, PROVIDER_IDS};
+use crate::commands::{resolve_dashboard_entry, AppState, PROVIDER_IDS};
 use crate::config::AppConfig;
 use crate::notifications::{notify_quota_critical, notify_quota_warning};
 use crate::providers::ProviderStatus;
@@ -26,7 +26,7 @@ impl ProviderPollState {
             base_interval,
             current_interval: base_interval,
             max_interval: Duration::from_secs(30 * 60),
-            next_poll_at: Instant::now() + base_interval,
+            next_poll_at: Instant::now(),
         }
     }
 
@@ -78,56 +78,39 @@ impl PollingManager {
                     }
 
                     let app_state = app_handle.state::<AppState>();
+                    match resolve_dashboard_entry(provider, &app_state, &app_handle).await {
+                        Ok((dashboard, _source)) => {
+                            let _ = app_handle.emit("usage-updated", &dashboard);
 
-                    let info = app_state.providers.info_for(provider).await;
-                    let usage = app_state.providers.usage_for(provider).await;
-                    let quota = app_state.providers.quota_for(provider).await;
-                    let cost = app_state.providers.cost_for(provider).await;
-                    let health = provider_health(provider, &app_state).await;
-
-                    match (info, usage, quota, cost, health) {
-                        (Ok(info), Ok(usage), Ok(quota), Ok(cost), Ok(health)) => {
-                            let dashboard = DashboardEntry {
-                                info,
-                                usage,
-                                quota,
-                                cost,
-                                health,
+                            let usage_pct = if dashboard.quota.limit > 0 {
+                                dashboard.quota.used as f64 / dashboard.quota.limit as f64
+                            } else {
+                                0.0
                             };
 
-                            let emit_result = app_handle.emit("usage-updated", &dashboard);
-                            if emit_result.is_ok() {
-                                let usage_pct = if dashboard.quota.limit > 0 {
-                                    dashboard.quota.used as f64 / dashboard.quota.limit as f64
-                                } else {
-                                    0.0
-                                };
+                            let config = app_state
+                                .config_store
+                                .load(&app_handle)
+                                .unwrap_or_else(|_| AppConfig::default());
 
-                                let config = app_state
-                                    .config_store
-                                    .load(&app_handle)
-                                    .unwrap_or_else(|_| AppConfig::default());
-
-                                if dashboard.quota.status == ProviderStatus::Ok && usage_pct >= 0.95
-                                {
-                                    let _ = app_handle.emit("quota-critical", &dashboard);
-                                    if config.notifications.quota_critical {
-                                        notify_quota_critical(&app_handle, &config, &dashboard);
-                                    }
-                                } else if dashboard.quota.status == ProviderStatus::Ok
-                                    && usage_pct >= 0.8
-                                {
-                                    let _ = app_handle.emit("quota-warning", &dashboard);
-                                    if config.notifications.quota_warning {
-                                        notify_quota_warning(&app_handle, &config, &dashboard);
-                                    }
+                            if dashboard.quota.status == ProviderStatus::Ok && usage_pct >= 0.95 {
+                                let _ = app_handle.emit("quota-critical", &dashboard);
+                                if config.notifications.quota_critical {
+                                    notify_quota_critical(&app_handle, &config, &dashboard);
+                                }
+                            } else if dashboard.quota.status == ProviderStatus::Ok
+                                && usage_pct >= 0.8
+                            {
+                                let _ = app_handle.emit("quota-warning", &dashboard);
+                                if config.notifications.quota_warning {
+                                    notify_quota_warning(&app_handle, &config, &dashboard);
                                 }
                             }
 
                             cycle_entries.push(dashboard);
                             state.on_success();
                         }
-                        _ => {
+                        Err(_) => {
                             state.on_error();
                         }
                     }
@@ -169,5 +152,10 @@ mod tests {
 
         state.on_success();
         assert_eq!(state.current_interval, Duration::from_secs(60));
+    }
+
+    #[test]
+    fn dashboard_entry_placeholder_compiles() {
+        let _entries: Vec<crate::commands::DashboardEntry> = Vec::new();
     }
 }

@@ -115,13 +115,15 @@ pub async fn export_data(
     let rows = collect_rows(&state, &request).await?;
     match request.format {
         ExportFormat::Csv => Ok(rows_to_csv(&rows, request.include_cost)),
-        ExportFormat::Json | ExportFormat::Pdf => serde_json::to_string_pretty(&serde_json::json!({
-            "generated_at": Utc::now().to_rfc3339(),
-            "format": request.format,
-            "rows": rows,
-            "date_range": request.date_range,
-        }))
-        .map_err(|error| format!("failed to serialize export json: {error}")),
+        ExportFormat::Json | ExportFormat::Pdf => {
+            serde_json::to_string_pretty(&serde_json::json!({
+                "generated_at": Utc::now().to_rfc3339(),
+                "format": request.format,
+                "rows": rows,
+                "date_range": request.date_range,
+            }))
+            .map_err(|error| format!("failed to serialize export json: {error}"))
+        }
     }
 }
 
@@ -133,7 +135,10 @@ pub async fn export_to_file(
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
     let parsed = Path::new(path.as_str());
-    if parsed.components().any(|component| matches!(component, Component::ParentDir)) {
+    if parsed
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
         return Err("invalid export path".to_string());
     }
 

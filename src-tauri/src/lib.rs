@@ -8,6 +8,8 @@ pub mod notifications;
 pub mod plugin_registry;
 pub mod polling;
 pub mod providers;
+pub mod quota_cache;
+pub mod service_status;
 pub mod telemetry;
 pub mod tray;
 pub mod updater;

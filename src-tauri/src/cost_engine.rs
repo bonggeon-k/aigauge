@@ -1,7 +1,12 @@
-use chrono::{Datelike, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, Utc};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::BTreeMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{Duration, Instant, SystemTime};
 use tauri::Manager;
 use tracing::instrument;
 
@@ -53,20 +58,41 @@ pub struct PaceAnalysis {
 #[derive(Debug, Clone, Default)]
 pub struct CostEngine;
 
+#[derive(Debug, Clone, Default)]
+struct TokenTotals {
+    input: u64,
+    output: u64,
+    reasoning_output: u64,
+}
+
+#[derive(Debug, Clone)]
+struct CachedCodexCost {
+    computed_at: Instant,
+    total_cost: f64,
+}
+
+static CODEX_COST_CACHE: Lazy<Mutex<Option<CachedCodexCost>>> = Lazy::new(|| Mutex::new(None));
+
 impl CostEngine {
     #[instrument(skip(self, state))]
     pub async fn summary(&self, state: &AppState) -> Result<CostSummary, String> {
+        let codex_cost = self.codex_monthly_cost().unwrap_or(0.0);
+
         let mut total = 0.0;
         let mut by_provider = Vec::new();
 
         for provider in PROVIDER_IDS {
-            let amount = state
-                .providers
-                .cost_for(provider)
-                .await
-                .map_err(|e| e.to_string())?
-                .map(|c| c.total)
-                .unwrap_or(0.0);
+            let amount = if *provider == "codex" {
+                codex_cost
+            } else {
+                state
+                    .providers
+                    .cost_for(provider)
+                    .await
+                    .map_err(|error| error.to_string())?
+                    .map(|cost| cost.total)
+                    .unwrap_or(0.0)
+            };
 
             total += amount;
             by_provider.push(ProviderCost {
@@ -109,11 +135,7 @@ impl CostEngine {
 
         history.retain(|item| item.month != entry.month);
         history.push(entry);
-        history.sort_by(|a, b| a.month.cmp(&b.month));
-        if history.len() > 12 {
-            let keep_from = history.len() - 12;
-            history = history.split_off(keep_from);
-        }
+        history = trim_history(history);
 
         let data = serde_json::to_string_pretty(&history)
             .map_err(|error| format!("failed to serialize cost history: {error}"))?;
@@ -145,30 +167,31 @@ impl CostEngine {
         if !path.exists() {
             return Ok(Vec::new());
         }
+
         let raw = fs::read_to_string(path)
             .map_err(|error| format!("failed to read cost history: {error}"))?;
-        let mut history: Vec<MonthlyCostHistory> =
-            serde_json::from_str(&raw).map_err(|error| format!("failed to parse cost history: {error}"))?;
-        history = trim_history(history);
-        Ok(history)
+        let history: Vec<MonthlyCostHistory> = serde_json::from_str(&raw)
+            .map_err(|error| format!("failed to parse cost history: {error}"))?;
+        Ok(trim_history(history))
     }
 
     #[instrument(skip(self, state))]
     pub async fn roi_analysis(&self, state: &AppState) -> Result<RoiAnalysis, String> {
+        let summary = self.summary(state).await?;
+        let costs_by_provider: BTreeMap<String, f64> = summary
+            .by_provider
+            .iter()
+            .map(|item| (item.provider.clone(), item.amount))
+            .collect();
+
         let mut rows = Vec::new();
         for provider in PROVIDER_IDS {
             let usage = state
                 .providers
                 .usage_for(provider)
                 .await
-                .map_err(|e| e.to_string())?;
-            let cost = state
-                .providers
-                .cost_for(provider)
-                .await
-                .map_err(|e| e.to_string())?
-                .map(|c| c.total)
-                .unwrap_or(0.0);
+                .map_err(|error| error.to_string())?;
+            let cost = costs_by_provider.get(*provider).copied().unwrap_or(0.0);
 
             let cost_per_request = if usage.requests > 0 {
                 cost / usage.requests as f64
@@ -196,9 +219,9 @@ impl CostEngine {
 
         let best_value_provider = rows
             .iter()
-            .filter(|r| r.efficiency_score.is_finite())
+            .filter(|row| row.efficiency_score.is_finite())
             .max_by(|a, b| a.efficiency_score.total_cmp(&b.efficiency_score))
-            .map(|r| r.provider.clone());
+            .map(|row| row.provider.clone());
 
         Ok(RoiAnalysis {
             entries: rows,
@@ -207,25 +230,16 @@ impl CostEngine {
     }
 
     #[instrument(skip(self, state))]
-    pub async fn pace_analysis(&self, state: &AppState, monthly_budget: f64) -> Result<PaceAnalysis, String> {
+    pub async fn pace_analysis(
+        &self,
+        state: &AppState,
+        monthly_budget: f64,
+    ) -> Result<PaceAnalysis, String> {
         let summary = self.summary(state).await?;
         let now = Utc::now();
-        let days_in_month = match now.month() {
-            1 => 31,
-            2 => if now.year() % 4 == 0 { 29 } else { 28 },
-            3 => 31,
-            4 => 30,
-            5 => 31,
-            6 => 30,
-            7 => 31,
-            8 => 31,
-            9 => 30,
-            10 => 31,
-            11 => 30,
-            _ => 31,
-        } as f64;
-
+        let days_in_month = days_in_month(now.year(), now.month()) as f64;
         let elapsed_days = now.day() as f64;
+
         let projected = if elapsed_days > 0.0 {
             summary.total_monthly / elapsed_days * days_in_month
         } else {
@@ -239,6 +253,150 @@ impl CostEngine {
             on_track: projected <= monthly_budget,
         })
     }
+
+    fn codex_monthly_cost(&self) -> Option<f64> {
+        if let Ok(cache) = CODEX_COST_CACHE.lock() {
+            if let Some(cached) = cache.as_ref() {
+                if cached.computed_at.elapsed() < Duration::from_secs(30 * 60) {
+                    return Some(cached.total_cost);
+                }
+            }
+        }
+
+        let scanned = self.scan_codex_sessions_last_30_days().ok()?;
+        if let Ok(mut cache) = CODEX_COST_CACHE.lock() {
+            *cache = Some(CachedCodexCost {
+                computed_at: Instant::now(),
+                total_cost: scanned,
+            });
+        }
+        Some(scanned)
+    }
+
+    fn scan_codex_sessions_last_30_days(&self) -> Result<f64, String> {
+        let home =
+            std::env::var("HOME").map_err(|error| format!("failed to read HOME: {error}"))?;
+        let roots = [
+            PathBuf::from(&home).join(".codex").join("sessions"),
+            PathBuf::from(home).join(".codex").join("archived_sessions"),
+        ];
+
+        let now = Utc::now();
+        let mut totals_by_model: BTreeMap<String, TokenTotals> = BTreeMap::new();
+
+        for root in roots {
+            if !root.exists() {
+                continue;
+            }
+            let files = collect_jsonl_files(root.as_path())?;
+            for file in files {
+                let modified = fs::metadata(&file)
+                    .and_then(|meta| meta.modified())
+                    .unwrap_or(SystemTime::UNIX_EPOCH);
+                let modified_at: DateTime<Utc> = DateTime::<Utc>::from(modified);
+                if now.signed_duration_since(modified_at).num_days() > 30 {
+                    continue;
+                }
+
+                let content = fs::read_to_string(&file).map_err(|error| {
+                    format!("failed to read codex session {}: {error}", file.display())
+                })?;
+
+                for line in content.lines() {
+                    let value: Value = match serde_json::from_str(line) {
+                        Ok(value) => value,
+                        Err(_) => continue,
+                    };
+                    if value.get("type").and_then(Value::as_str) != Some("event_msg") {
+                        continue;
+                    }
+                    if value.pointer("/payload/type").and_then(Value::as_str) != Some("token_count")
+                    {
+                        continue;
+                    }
+
+                    let model = value
+                        .pointer("/payload/model")
+                        .and_then(Value::as_str)
+                        .or_else(|| {
+                            value
+                                .pointer("/payload/last_token_usage/model")
+                                .and_then(Value::as_str)
+                        })
+                        .unwrap_or("gpt-4o")
+                        .to_string();
+
+                    let input = value
+                        .pointer("/payload/last_token_usage/input_tokens")
+                        .and_then(Value::as_u64)
+                        .unwrap_or(0);
+                    let output = value
+                        .pointer("/payload/last_token_usage/output_tokens")
+                        .and_then(Value::as_u64)
+                        .unwrap_or(0);
+                    let reasoning = value
+                        .pointer("/payload/last_token_usage/reasoning_output_tokens")
+                        .and_then(Value::as_u64)
+                        .unwrap_or(0);
+
+                    let totals = totals_by_model.entry(model).or_default();
+                    totals.input += input;
+                    totals.output += output;
+                    totals.reasoning_output += reasoning;
+                }
+            }
+        }
+
+        Ok(calculate_cost_from_totals(&totals_by_model))
+    }
+}
+
+fn collect_jsonl_files(root: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut stack = vec![root.to_path_buf()];
+    let mut files = Vec::new();
+
+    while let Some(current) = stack.pop() {
+        let entries = fs::read_dir(&current)
+            .map_err(|error| format!("failed to read directory {}: {error}", current.display()))?;
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().and_then(|ext| ext.to_str()) == Some("jsonl") {
+                files.push(path);
+            }
+        }
+    }
+
+    Ok(files)
+}
+
+fn pricing_for_model(model: &str) -> (f64, f64, f64) {
+    let model = model.to_lowercase();
+    if model.starts_with("o1") || model.starts_with("o3") {
+        (2.50, 10.00, 10.00)
+    } else if model.starts_with("gpt-4o-mini") {
+        (0.15, 0.60, 0.60)
+    } else if model.starts_with("gpt-4.1-mini") {
+        (0.40, 1.60, 1.60)
+    } else if model.starts_with("gpt-4.1") {
+        (2.00, 8.00, 8.00)
+    } else {
+        (2.50, 10.00, 10.00)
+    }
+}
+
+fn calculate_cost_from_totals(totals_by_model: &BTreeMap<String, TokenTotals>) -> f64 {
+    totals_by_model
+        .iter()
+        .map(|(model, totals)| {
+            let (input_price, output_price, reasoning_price) = pricing_for_model(model);
+            (totals.input as f64 / 1_000_000.0) * input_price
+                + (totals.output as f64 / 1_000_000.0) * output_price
+                + (totals.reasoning_output as f64 / 1_000_000.0) * reasoning_price
+        })
+        .sum::<f64>()
 }
 
 fn trim_history(mut history: Vec<MonthlyCostHistory>) -> Vec<MonthlyCostHistory> {
@@ -255,6 +413,21 @@ fn trim_history(mut history: Vec<MonthlyCostHistory>) -> Vec<MonthlyCostHistory>
         history.split_off(keep_from)
     } else {
         history
+    }
+}
+
+fn days_in_month(year: i32, month: u32) -> u32 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => {
+            if (year % 4 == 0 && year % 100 != 0) || year % 400 == 0 {
+                29
+            } else {
+                28
+            }
+        }
+        _ => 30,
     }
 }
 
@@ -307,27 +480,30 @@ mod tests {
                 by_provider: Vec::new(),
             });
         }
-        items.sort_by(|a, b| a.month.cmp(&b.month));
-        let keep_from = items.len() - 12;
-        let trimmed = items.split_off(keep_from);
-        assert_eq!(trimmed.len(), 12);
+        let trimmed = trim_history(items);
+        assert!(trimmed.len() <= 12);
     }
 
     #[test]
-    fn trim_history_removes_stale_entries() {
-        let items = vec![
-            MonthlyCostHistory {
-                month: "2023-01".to_string(),
-                total: 1.0,
-                by_provider: Vec::new(),
+    fn pricing_table_matches_expected_tiers() {
+        assert_eq!(pricing_for_model("o3"), (2.50, 10.00, 10.00));
+        assert_eq!(pricing_for_model("gpt-4o-mini"), (0.15, 0.60, 0.60));
+        assert_eq!(pricing_for_model("gpt-4.1-mini"), (0.40, 1.60, 1.60));
+        assert_eq!(pricing_for_model("gpt-4.1"), (2.00, 8.00, 8.00));
+    }
+
+    #[test]
+    fn calculates_cost_from_totals() {
+        let mut totals = BTreeMap::new();
+        totals.insert(
+            "gpt-4o-mini".to_string(),
+            TokenTotals {
+                input: 1_000_000,
+                output: 1_000_000,
+                reasoning_output: 1_000_000,
             },
-            MonthlyCostHistory {
-                month: format!("{:04}-{:02}", Utc::now().year(), Utc::now().month()),
-                total: 2.0,
-                by_provider: Vec::new(),
-            },
-        ];
-        let trimmed = trim_history(items);
-        assert_eq!(trimmed.len(), 1);
+        );
+        let cost = calculate_cost_from_totals(&totals);
+        assert!((cost - 1.35).abs() < 0.001);
     }
 }

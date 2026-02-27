@@ -44,10 +44,7 @@ pub async fn install_update(app: tauri::AppHandle) -> Result<bool, String> {
     };
 
     update
-        .download_and_install(
-            |_, _| {},
-            || {},
-        )
+        .download_and_install(|_, _| {}, || {})
         .await
         .map_err(|error| format!("failed to install update: {error}"))?;
 

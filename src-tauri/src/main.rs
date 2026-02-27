@@ -10,14 +10,17 @@ mod notifications;
 mod plugin_registry;
 mod polling;
 mod providers;
+mod quota_cache;
+mod service_status;
 mod telemetry;
 mod tray;
 mod updater;
 
 use anyhow::{anyhow, Result};
 use commands::{
-    check_provider_health, delete_credential, get_all_dashboard_data, get_cost, get_provider_info,
-    get_providers, get_quota, get_usage, save_credential, AppState,
+    check_provider_health, clear_provider_data, delete_credential, get_all_dashboard_data,
+    get_cost, get_provider_info, get_providers, get_quota, get_usage, save_credential,
+    save_manual_input, AppState,
 };
 use config::{get_config, update_config};
 use cost_engine::{get_cost_history, get_cost_summary, get_pace_analysis, get_roi_analysis};
@@ -25,6 +28,7 @@ use export::{export_data, export_to_file};
 use keyboard::{get_keyboard_shortcuts, register_shortcuts};
 use plugin_registry::{get_plugins, register_plugin};
 use polling::PollingManager;
+use service_status::get_service_statuses;
 use tauri::{Emitter, Manager};
 use telemetry::{get_telemetry_status, set_telemetry_enabled};
 use tray::init_tray;
@@ -43,8 +47,8 @@ fn run() -> Result<()> {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, shortcut, _event| {
-                    match shortcut.to_string().as_str() {
+                .with_handler(
+                    |app, shortcut, _event| match shortcut.to_string().as_str() {
                         "CommandOrControl+Shift+G" => {
                             if let Some(window) = app.get_webview_window("main") {
                                 if window.is_visible().unwrap_or(false) {
@@ -59,8 +63,8 @@ fn run() -> Result<()> {
                             let _ = app.emit("force-refresh", true);
                         }
                         _ => {}
-                    }
-                })
+                    },
+                )
                 .build(),
         )
         .plugin(tauri_plugin_notification::init())
@@ -82,6 +86,8 @@ fn run() -> Result<()> {
             check_provider_health,
             save_credential,
             delete_credential,
+            save_manual_input,
+            clear_provider_data,
             get_config,
             update_config,
             get_cost_summary,
@@ -96,7 +102,8 @@ fn run() -> Result<()> {
             get_plugins,
             register_plugin,
             get_telemetry_status,
-            set_telemetry_enabled
+            set_telemetry_enabled,
+            get_service_statuses
         ])
         .run(tauri::generate_context!())
         .map_err(|error| anyhow!("failed to run tauri app: {error}"))?;

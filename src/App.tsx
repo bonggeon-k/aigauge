@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Plus, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AppShell } from "@/components/layout/AppShell";
 import { TrayView } from "@/components/layout/TrayView";
 import { SettingsView } from "@/components/layout/SettingsView";
@@ -15,6 +16,7 @@ import { ROICalculator } from "@/components/analytics/ROICalculator";
 import { WelcomeFlow } from "@/components/onboarding/WelcomeFlow";
 import { ProviderSetup } from "@/components/providers/ProviderSetup";
 import { ProviderSettings } from "@/components/providers/ProviderSettings";
+import { TrayApp } from "@/tray/TrayApp";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
@@ -31,7 +33,18 @@ const pageMotion = {
   exit: { opacity: 0, y: -12 },
 };
 
-function App() {
+const isTrayRoute = (): boolean =>
+  typeof window !== "undefined" &&
+  (window.location.pathname.startsWith("/tray") ||
+    (() => {
+      try {
+        return getCurrentWindow().label === "tray-popup";
+      } catch {
+        return false;
+      }
+    })());
+
+function DashboardApp() {
   const { t } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const providerApi = useProvider();
@@ -269,6 +282,13 @@ function App() {
       </AppShell>
     </TooltipProvider>
   );
+}
+
+function App() {
+  if (isTrayRoute()) {
+    return <TrayApp />;
+  }
+  return <DashboardApp />;
 }
 
 export default App;

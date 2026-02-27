@@ -64,6 +64,13 @@
     "save": "저장",
     "jetbrains": "JetBrains AI Assistant"
   },
+  "tray": {
+    "title": "빠른 보기",
+    "refresh": "새로고침",
+    "manualInput": "수동 입력",
+    "clearData": "프로바이더 데이터 지우기",
+    "notConfiguredGuide": "프로바이더 설정이 필요합니다"
+  },
   "empty": {
     "title": "설정된 프로바이더가 없습니다",
     "cta": "시작하기"

@@ -9,6 +9,7 @@
 ## Highlights
 
 - Usage/quota/cost dashboard for major AI coding providers
+- Dual-mode UI: full dashboard window + tray widget popup (`/tray`)
 - Cost analytics (trend, breakdown, ROI, pace)
 - System tray quick status + alerts
 - Auto-update support with signed metadata
@@ -29,6 +30,14 @@
 2. Install and launch AIGauge.
 3. Run onboarding and configure provider credentials.
 4. Monitor usage and cost in dashboard + analytics.
+5. Use tray icon click to open the compact Quick View widget.
+
+## Provider Setup Guide (Tray Widget)
+
+- `codex`: `~/.codex/auth.json` available from Codex CLI login.
+- `claude`: `~/.claude/.credentials.json` available after Claude CLI OAuth login.
+- `gemini`: `~/.gemini/oauth_creds.json` available after Gemini CLI OAuth login.
+- `kiro`: `kiro-cli chat --no-interactive /usage` must work in your shell.
 
 ## Build From Source
 
