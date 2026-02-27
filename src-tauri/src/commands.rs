@@ -116,6 +116,10 @@ pub async fn get_usage(
     provider: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<UsageData, String> {
+    let _credential_available = state
+        .credential_manager
+        .has_credential(provider.as_str())
+        .unwrap_or(false);
     state
         .providers
         .usage_for(provider.as_str())
@@ -128,6 +132,10 @@ pub async fn get_cost(
     provider: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<Option<CostData>, String> {
+    let _credential_available = state
+        .credential_manager
+        .has_credential(provider.as_str())
+        .unwrap_or(false);
     state
         .providers
         .cost_for(provider.as_str())

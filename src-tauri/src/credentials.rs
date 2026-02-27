@@ -48,17 +48,6 @@ impl KeyringBackend for OsKeyringBackend {
 }
 
 #[derive(Clone)]
-pub struct Credential {
-    value: Zeroizing<String>,
-}
-
-impl Credential {
-    pub fn expose(&self) -> &str {
-        self.value.as_str()
-    }
-}
-
-#[derive(Clone)]
 pub struct CredentialManager {
     service_name: Zeroizing<String>,
     backend: Arc<dyn KeyringBackend>,
@@ -105,20 +94,24 @@ impl CredentialManager {
     }
 
     #[instrument(skip(self), fields(provider = provider))]
-    pub fn get_credential(&self, provider: &str) -> Result<Option<Credential>> {
+    pub fn has_credential(&self, provider: &str) -> Result<bool> {
         let account = Self::account_name(provider);
-        let credential = self
+        let mut credential = self
             .backend
-            .get_password(self.service_name.as_str(), account.as_str())?
-            .map(|value| Credential {
-                value: Zeroizing::new(value),
-            });
+            .get_password(self.service_name.as_str(), account.as_str())?;
+        let has_credential = credential
+            .as_ref()
+            .map(|value| !value.is_empty())
+            .unwrap_or(false);
+        if let Some(value) = credential.as_mut() {
+            value.zeroize();
+        }
         info!(
             provider = provider,
-            found = credential.is_some(),
-            "credential loaded"
+            found = has_credential,
+            "credential presence checked"
         );
-        Ok(credential)
+        Ok(has_credential)
     }
 
     #[instrument(skip(self), fields(provider = provider))]
@@ -176,7 +169,7 @@ mod tests {
     }
 
     #[test]
-    fn save_get_delete_roundtrip() {
+    fn save_has_delete_roundtrip() {
         let backend = Arc::new(MockKeyring::default());
         let manager = CredentialManager::with_backend("test.aigauge", backend);
 
@@ -185,17 +178,16 @@ mod tests {
             .expect("save should succeed");
 
         let loaded = manager
-            .get_credential("codex")
-            .expect("load should succeed")
-            .expect("credential should exist");
-        assert_eq!(loaded.expose(), "super-secret");
+            .has_credential("codex")
+            .expect("lookup should succeed");
+        assert!(loaded);
 
         manager
             .delete_credential("codex")
             .expect("delete should succeed");
         let missing = manager
-            .get_credential("codex")
-            .expect("load after delete should succeed");
-        assert!(missing.is_none());
+            .has_credential("codex")
+            .expect("lookup after delete should succeed");
+        assert!(!missing);
     }
 }

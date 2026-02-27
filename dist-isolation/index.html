@@ -4,13 +4,16 @@
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self'"
+      content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self'"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AIGauge Isolation</title>
   </head>
   <body>
     <script>
+      window.__TAURI_ISOLATION_HOOK__ = (payload) => {
+        return payload;
+      };
       window.__AIGAUGE_ISOLATION__ = true;
     </script>
   </body>
