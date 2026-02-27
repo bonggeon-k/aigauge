@@ -9,7 +9,7 @@ interface PaceIndicatorProps {
 export const PaceIndicator = ({ pace }: PaceIndicatorProps) => {
   if (!pace) {
     return (
-      <Card className="p-4">
+      <Card className="border-border/70 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)]">
         <p className="text-sm text-muted-foreground">No pace data yet.</p>
       </Card>
     );
@@ -22,7 +22,7 @@ export const PaceIndicator = ({ pace }: PaceIndicatorProps) => {
   const daysRemaining = Math.max(0, new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() - new Date().getDate());
 
   return (
-    <Card className="space-y-3 p-4">
+    <Card className="space-y-3 border-border/70 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)]">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium">
           <Icon className="h-4 w-4" />
@@ -34,7 +34,7 @@ export const PaceIndicator = ({ pace }: PaceIndicatorProps) => {
         </div>
       </div>
       <div className="h-2 w-full rounded-full bg-muted">
-        <div className="h-2 rounded-full bg-[var(--quota-warn)]" style={{ width }} />
+        <div className="h-2 rounded-full bg-gradient-to-r from-[var(--chart-3)] to-[var(--chart-4)]" style={{ width }} />
       </div>
       <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
         <p>Projected: ${pace.projected_monthly_total.toFixed(2)}</p>

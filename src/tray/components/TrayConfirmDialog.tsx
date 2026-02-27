@@ -23,14 +23,15 @@ export const TrayConfirmDialog = ({
   onClose,
 }: TrayConfirmDialogProps) => (
   <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : null)}>
-    <DialogContent>
+    <DialogContent className="border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-hard)]">
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
       </DialogHeader>
       <p className="text-sm text-muted-foreground">{description}</p>
       <DialogFooter>
-        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <Button variant="outline" className="rounded-full" onClick={onClose}>Cancel</Button>
         <Button
+          className="rounded-full"
           onClick={() => {
             onConfirm();
             onClose();

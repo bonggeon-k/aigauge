@@ -18,7 +18,7 @@ const items: Array<{ id: AppRoute; label: string; icon: ComponentType<{ classNam
 export const Navigation = ({ route, onNavigate }: NavigationProps) => {
   return (
     <>
-      <nav role="navigation" aria-label="Primary navigation" className="hidden w-48 shrink-0 border-r border-border/60 p-3 md:block">
+      <nav role="navigation" aria-label="Primary navigation" className="hidden w-56 shrink-0 border-r border-border/60 bg-[var(--nav-bg)] p-3 backdrop-blur-sm md:block">
         <ul className="space-y-2">
           {items.map((item) => {
             const Icon = item.icon;
@@ -28,15 +28,15 @@ export const Navigation = ({ route, onNavigate }: NavigationProps) => {
                 {active ? (
                   <motion.span
                     layoutId="nav-active-indicator"
-                    className="absolute inset-0 rounded-md bg-primary"
+                    className="absolute inset-0 rounded-xl bg-[var(--nav-active)] shadow-[0_12px_24px_rgba(15,118,110,0.35)]"
                     transition={{ type: "spring", stiffness: 420, damping: 30 }}
                   />
                 ) : null}
                 <button
                   type="button"
                   aria-label={`Navigate to ${item.label}`}
-                  className={`relative z-10 flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${
-                    active ? "text-primary-foreground" : "hover:bg-muted"
+                  className={`relative z-10 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium ${
+                    active ? "text-[var(--nav-active-fg)]" : "text-foreground/80 hover:bg-muted"
                   }`}
                   onClick={() => onNavigate(item.id)}
                 >
@@ -49,7 +49,7 @@ export const Navigation = ({ route, onNavigate }: NavigationProps) => {
         </ul>
       </nav>
 
-      <nav role="navigation" aria-label="Primary navigation mobile" className="fixed inset-x-4 bottom-4 z-30 rounded-xl border border-border bg-background/95 p-2 backdrop-blur md:hidden">
+      <nav role="navigation" aria-label="Primary navigation mobile" className="fixed inset-x-4 bottom-4 z-30 rounded-2xl border border-border bg-[var(--nav-bg)] p-2 shadow-lg backdrop-blur md:hidden">
         <div className="grid grid-cols-3 gap-1">
           {items.map((item) => {
             const Icon = item.icon;
@@ -67,7 +67,7 @@ export const Navigation = ({ route, onNavigate }: NavigationProps) => {
                 {active ? (
                   <motion.span
                     layoutId="nav-active-indicator-mobile"
-                    className="absolute inset-0 rounded-md bg-primary"
+                    className="absolute inset-0 rounded-xl bg-[var(--nav-active)]"
                     transition={{ type: "spring", stiffness: 420, damping: 30 }}
                   />
                 ) : null}

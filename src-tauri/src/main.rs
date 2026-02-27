@@ -7,6 +7,7 @@ mod credentials;
 mod export;
 mod keyboard;
 mod notifications;
+mod platform;
 mod plugin_registry;
 mod polling;
 mod providers;
@@ -19,11 +20,14 @@ mod updater;
 use anyhow::{anyhow, Result};
 use commands::{
     check_provider_health, clear_provider_data, delete_credential, get_all_dashboard_data,
-    get_cost, get_provider_info, get_providers, get_quota, get_usage, save_credential,
-    save_manual_input, AppState,
+    get_cost, get_provider_info, get_providers, get_quota, get_usage, poll_copilot_device_flow,
+    save_credential, save_manual_input, start_copilot_device_flow, AppState,
 };
 use config::{get_config, update_config};
-use cost_engine::{get_cost_history, get_cost_summary, get_pace_analysis, get_roi_analysis};
+use cost_engine::{
+    get_codex_cost_breakdown, get_cost_history, get_cost_summary, get_pace_analysis,
+    get_roi_analysis,
+};
 use export::{export_data, export_to_file};
 use keyboard::{get_keyboard_shortcuts, register_shortcuts};
 use plugin_registry::{get_plugins, register_plugin};
@@ -86,6 +90,8 @@ fn run() -> Result<()> {
             check_provider_health,
             save_credential,
             delete_credential,
+            start_copilot_device_flow,
+            poll_copilot_device_flow,
             save_manual_input,
             clear_provider_data,
             get_config,
@@ -94,6 +100,7 @@ fn run() -> Result<()> {
             get_cost_history,
             get_roi_analysis,
             get_pace_analysis,
+            get_codex_cost_breakdown,
             export_data,
             export_to_file,
             check_for_update,

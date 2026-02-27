@@ -38,11 +38,15 @@
 - `claude`: `~/.claude/.credentials.json` available after Claude CLI OAuth login.
 - `gemini`: `~/.gemini/oauth_creds.json` available after Gemini CLI OAuth login.
 - `kiro`: `kiro-cli chat --no-interactive /usage` must work in your shell.
+- `copilot`: use GitHub Device Flow in setup dialog, or provide token via `gh` auth / env.
+- `cursor`: provide Cookie header manually, or rely on auto session import (CodexBar cache / Firefox / Chromium plaintext cookies).
+- `jetbrains`: no token required by default; AIGauge auto-detects local JetBrains AI quota file.
 
 ## Build From Source
 
 ```bash
 pnpm install
+pnpm doctor:providers
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
 pnpm lint
@@ -50,17 +54,25 @@ pnpm build
 pnpm tauri dev
 ```
 
+Environment preflight checklist: [docs/ENVIRONMENT_CHECKLIST.md](docs/ENVIRONMENT_CHECKLIST.md)
+
+Release gate (local):
+
+```bash
+pnpm release:check
+```
+
 ## Supported Providers
 
 | Provider | Auth Method | Tracks |
 | --- | --- | --- |
-| OpenAI Codex | API key / session token | Usage, quota, cost |
-| Anthropic Claude | API key / org cookie | Usage, quota, cost |
-| Google Gemini | API key | Usage, quota, cost |
-| GitHub Copilot | OAuth token | Usage, quota, cost |
-| Cursor | Access token | Usage, quota, cost |
-| Kiro | Access token | Usage, quota, cost |
-| JetBrains AI Assistant | API key | Usage, quota, cost |
+| OpenAI Codex | OAuth/session token | Usage, quota, cost |
+| Anthropic Claude | OAuth token | Usage, quota, cost |
+| Google Gemini | OAuth token | Usage, quota, cost |
+| GitHub Copilot | GitHub token / Device Flow | Usage, quota |
+| Cursor | Session cookie | Usage, quota, on-demand cost |
+| Kiro | Local CLI | Usage, quota |
+| JetBrains AI Assistant | Local quota file | Usage, quota |
 | Community Plugins | Manifest-defined | Endpoint-dependent |
 
 ## Keyboard Shortcuts
@@ -84,6 +96,8 @@ pnpm tauri dev
 ## Contributing
 
 See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) and [docs/PLUGIN_GUIDE.md](docs/PLUGIN_GUIDE.md).
+For cross-platform execution and quality gates, see [docs/AGENT_WORKSTREAMS.md](docs/AGENT_WORKSTREAMS.md) and [docs/PLATFORM_DELIVERY_PLAYBOOK.md](docs/PLATFORM_DELIVERY_PLAYBOOK.md).
+For visual baseline capture across OS targets, see [docs/PLATFORM_VISUAL_QA.md](docs/PLATFORM_VISUAL_QA.md).
 
 ## License
 

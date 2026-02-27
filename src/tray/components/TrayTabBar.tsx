@@ -27,15 +27,16 @@ export const TrayTabBar = ({ entries, activeProvider, onSelect }: TrayTabBarProp
         aria-selected={activeProvider === entry.info.id}
         onClick={() => onSelect(entry.info.id)}
         className={cn(
-          "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition",
+          "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
           activeProvider === entry.info.id
-            ? "border-primary/80 bg-primary/15"
+            ? "border-transparent text-[var(--nav-active-fg)] shadow-[0_10px_20px_rgba(15,118,110,0.28)]"
             : "border-border/70 bg-[var(--surface-1)] hover:bg-[var(--surface-2)]",
         )}
+        style={activeProvider === entry.info.id ? { backgroundColor: providerColors[entry.info.id] ?? "var(--nav-active)" } : undefined}
       >
         <span
           className="h-2.5 w-2.5 rounded-full"
-          style={{ backgroundColor: providerColors[entry.info.id] ?? "#9ca3af" }}
+          style={{ backgroundColor: activeProvider === entry.info.id ? "rgba(255,255,255,0.92)" : (providerColors[entry.info.id] ?? "#9ca3af") }}
         />
         {entry.info.name}
       </button>

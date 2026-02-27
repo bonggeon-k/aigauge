@@ -20,42 +20,56 @@ export const TrayManualInput = ({ open, providerId, onClose, onSave }: TrayManua
   const [used, setUsed] = useState("0");
   const [limit, setLimit] = useState("100");
   const [cost, setCost] = useState("0");
+  const [trackKind, setTrackKind] = useState<"subscription" | "api" | "manual">("subscription");
 
   return (
     <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : null)}>
-      <DialogContent>
+      <DialogContent className="border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-hard)]">
         <DialogHeader>
           <DialogTitle>Manual Input · {providerId}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-3 text-sm">
-          <label className="grid gap-1">
+          <label className="grid gap-1 rounded-xl bg-[var(--surface-1)] p-3">
+            Track
+            <select
+              className="rounded-lg border border-input bg-background px-3 py-2"
+              value={trackKind}
+              onChange={(event) => setTrackKind(event.target.value as "subscription" | "api" | "manual")}
+            >
+              <option value="subscription">Subscription</option>
+              <option value="api">API</option>
+              <option value="manual">Manual</option>
+            </select>
+          </label>
+          <label className="grid gap-1 rounded-xl bg-[var(--surface-1)] p-3">
             Used
             <input
-              className="rounded-md border border-input bg-background px-3 py-2"
+              className="rounded-lg border border-input bg-background px-3 py-2"
               value={used}
               onChange={(event) => setUsed(event.target.value)}
             />
           </label>
-          <label className="grid gap-1">
+          <label className="grid gap-1 rounded-xl bg-[var(--surface-1)] p-3">
             Limit
             <input
-              className="rounded-md border border-input bg-background px-3 py-2"
+              className="rounded-lg border border-input bg-background px-3 py-2"
               value={limit}
               onChange={(event) => setLimit(event.target.value)}
             />
           </label>
-          <label className="grid gap-1">
+          <label className="grid gap-1 rounded-xl bg-[var(--surface-1)] p-3">
             Cost (USD)
             <input
-              className="rounded-md border border-input bg-background px-3 py-2"
+              className="rounded-lg border border-input bg-background px-3 py-2"
               value={cost}
               onChange={(event) => setCost(event.target.value)}
             />
           </label>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" className="rounded-full" onClick={onClose}>Cancel</Button>
           <Button
+            className="rounded-full"
             onClick={async () => {
               const usedValue = Number(used) || 0;
               const limitValue = Number(limit) || 0;
@@ -69,6 +83,7 @@ export const TrayManualInput = ({ open, providerId, onClose, onSave }: TrayManua
                 reset_at: "manual",
                 cost_total: Number(cost) || 0,
                 plan_name: "Manual",
+                track_kind: trackKind,
               });
               onClose();
             }}

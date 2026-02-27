@@ -1,7 +1,7 @@
 use crate::credentials::CredentialManager;
 use reqwest::header::AUTHORIZATION;
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
@@ -17,16 +17,20 @@ use super::{
 
 static LAST_PLAN: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("Unknown".to_string()));
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct CodexAuth {
     #[serde(rename = "OPENAI_API_KEY")]
     openai_api_key: Option<String>,
     tokens: Option<CodexTokens>,
+    last_refresh: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct CodexTokens {
     access_token: Option<String>,
+    refresh_token: Option<String>,
+    id_token: Option<String>,
+    account_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +38,13 @@ struct CodexQuotaState {
     five_hour_session_pct: f64,
     weekly_limit_pct: f64,
     reset_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CodexTokenRefreshResponse {
+    access_token: Option<String>,
+    refresh_token: Option<String>,
+    id_token: Option<String>,
 }
 
 pub struct CodexProvider {
@@ -50,22 +61,201 @@ impl CodexProvider {
         }
     }
 
-    fn auth_path() -> Option<PathBuf> {
-        home_dir().map(|home| home.join(".codex").join("auth.json"))
+    fn codex_root() -> Option<PathBuf> {
+        std::env::var("CODEX_HOME")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .map(PathBuf::from)
+            .or_else(|| home_dir().map(|home| home.join(".codex")))
     }
 
-    fn read_token_from_auth_file() -> Option<String> {
+    fn auth_path() -> Option<PathBuf> {
+        Self::codex_root().map(|root| root.join("auth.json"))
+    }
+
+    fn config_path() -> Option<PathBuf> {
+        Self::codex_root().map(|root| root.join("config.toml"))
+    }
+
+    fn read_auth_from_file() -> Option<CodexAuth> {
         let path = Self::auth_path()?;
         let raw = fs::read_to_string(path).ok()?;
-        let auth: CodexAuth = serde_json::from_str(raw.as_str()).ok()?;
-        auth.openai_api_key
-            .or_else(|| auth.tokens.and_then(|tokens| tokens.access_token))
+        serde_json::from_str(raw.as_str()).ok()
+    }
+
+    fn parse_config_base_url() -> Option<String> {
+        let path = Self::config_path()?;
+        let raw = fs::read_to_string(path).ok()?;
+
+        for line in raw.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+            if let Some(rest) = trimmed.strip_prefix("chatgpt_base_url") {
+                let (_, value) = rest.split_once('=')?;
+                let normalized = value
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .trim_end_matches('/')
+                    .to_string();
+                if !normalized.is_empty() {
+                    return Some(normalized);
+                }
+            }
+        }
+        None
+    }
+
+    fn resolve_usage_url() -> String {
+        let base = Self::parse_config_base_url()
+            .unwrap_or_else(|| "https://chatgpt.com/backend-api".to_string());
+        let mut normalized = base.trim_end_matches('/').to_string();
+        if (normalized.starts_with("https://chatgpt.com")
+            || normalized.starts_with("https://chat.openai.com"))
+            && !normalized.contains("/backend-api")
+        {
+            normalized.push_str("/backend-api");
+        }
+        format!("{normalized}/wham/usage")
+    }
+
+    fn parse_last_refresh(last_refresh: Option<&str>) -> Option<chrono::DateTime<chrono::Utc>> {
+        let value = last_refresh?.trim();
+        if value.is_empty() {
+            return None;
+        }
+        chrono::DateTime::parse_from_rfc3339(value)
+            .ok()
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+    }
+
+    fn needs_refresh(last_refresh: Option<&str>) -> bool {
+        let Some(last) = Self::parse_last_refresh(last_refresh) else {
+            return true;
+        };
+        chrono::Utc::now().signed_duration_since(last).num_days() >= 8
+    }
+
+    async fn refresh_access_token(
+        &self,
+        refresh_token: &str,
+    ) -> std::result::Result<CodexTokenRefreshResponse, ()> {
+        let response = self
+            .client
+            .post("https://auth.openai.com/oauth/token")
+            .json(&serde_json::json!({
+                "client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
+                "scope": "openid profile email",
+            }))
+            .send()
+            .await
+            .map_err(|_| ())?;
+
+        if !response.status().is_success() {
+            return Err(());
+        }
+
+        response
+            .json::<CodexTokenRefreshResponse>()
+            .await
+            .map_err(|_| ())
+    }
+
+    fn persist_refreshed_auth(
+        auth: &CodexAuth,
+        refreshed: &CodexTokenRefreshResponse,
+    ) -> std::result::Result<(), ()> {
+        let path = Self::auth_path().ok_or(())?;
+        let mut value = serde_json::to_value(auth).map_err(|_| ())?;
+
+        let tokens = value
+            .as_object_mut()
+            .and_then(|object| object.get_mut("tokens"))
+            .and_then(|tokens| tokens.as_object_mut())
+            .ok_or(())?;
+
+        if let Some(access) = refreshed.access_token.as_ref() {
+            tokens.insert(
+                "access_token".to_string(),
+                serde_json::Value::String(access.to_string()),
+            );
+        }
+        if let Some(refresh) = refreshed.refresh_token.as_ref() {
+            tokens.insert(
+                "refresh_token".to_string(),
+                serde_json::Value::String(refresh.to_string()),
+            );
+        }
+        if let Some(id_token) = refreshed.id_token.as_ref() {
+            tokens.insert(
+                "id_token".to_string(),
+                serde_json::Value::String(id_token.to_string()),
+            );
+        }
+
+        value.as_object_mut().ok_or(())?.insert(
+            "last_refresh".to_string(),
+            serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+        );
+
+        let serialized = serde_json::to_string_pretty(&value).map_err(|_| ())?;
+        fs::write(path, serialized).map_err(|_| ())
+    }
+
+    async fn auth_header_value(&self) -> Option<(String, Option<String>)> {
+        if let Some(auth) = Self::read_auth_from_file() {
+            if let Some(api_key) = auth
+                .openai_api_key
+                .as_ref()
+                .filter(|value| !value.is_empty())
+            {
+                return Some((api_key.to_string(), None));
+            }
+
+            if let Some(tokens) = auth.tokens.as_ref() {
+                let mut access = tokens.access_token.clone();
+                if let (Some(refresh), true) = (
+                    tokens
+                        .refresh_token
+                        .as_ref()
+                        .filter(|value| !value.is_empty()),
+                    Self::needs_refresh(auth.last_refresh.as_deref()),
+                ) {
+                    if let Ok(refreshed) = self.refresh_access_token(refresh).await {
+                        if let Some(new_access) = refreshed.access_token.as_ref() {
+                            access = Some(new_access.to_string());
+                        }
+                        let _ = Self::persist_refreshed_auth(&auth, &refreshed);
+                    }
+                }
+
+                if let Some(access_token) = access.filter(|value| !value.is_empty()) {
+                    return Some((access_token, tokens.account_id.clone()));
+                }
+            }
+        }
+
+        self.credential_manager
+            .get_credential("codex")
+            .ok()
+            .flatten()
+            .map(|value| (value.to_string(), None))
     }
 
     fn parse_plan(value: &Value) -> String {
         let raw = value
             .pointer("/rate_limit/plan")
             .and_then(Value::as_str)
+            .or_else(|| {
+                value
+                    .pointer("/rate_limit/plan_type")
+                    .and_then(Value::as_str)
+            })
+            .or_else(|| value.pointer("/plan_type").and_then(Value::as_str))
             .or_else(|| value.pointer("/plan").and_then(Value::as_str))
             .or_else(|| value.pointer("/subscription/plan").and_then(Value::as_str))
             .unwrap_or("unknown")
@@ -84,6 +274,14 @@ impl CodexProvider {
         }
     }
 
+    fn normalize_percent(value: f64) -> f64 {
+        if value <= 1.0 {
+            (value * 100.0).clamp(0.0, 100.0)
+        } else {
+            value.clamp(0.0, 100.0)
+        }
+    }
+
     fn window_percent(window: &Value) -> Option<f64> {
         window
             .get("used_percent")
@@ -94,7 +292,7 @@ impl CodexProvider {
                     .and_then(Value::as_f64)
                     .map(|remaining| 100.0 - remaining)
             })
-            .map(|pct| pct.clamp(0.0, 100.0))
+            .map(Self::normalize_percent)
     }
 
     fn first_limit_match(value: &Value, names: &[&str]) -> Option<f64> {
@@ -117,38 +315,55 @@ impl CodexProvider {
             })
     }
 
+    fn limit_by_index(value: &Value, index: usize) -> Option<f64> {
+        value
+            .get("rate_limits")
+            .and_then(Value::as_array)
+            .and_then(|items| items.get(index))
+            .and_then(Self::window_percent)
+    }
+
     fn parse_quota_state(value: &Value) -> CodexQuotaState {
         let five_hour_session_pct = value
             .pointer("/rate_limit/primary_window")
             .and_then(Self::window_percent)
             .or_else(|| Self::first_limit_match(value, &["primary", "five", "session"]))
+            .or_else(|| Self::limit_by_index(value, 0))
             .or_else(|| value.get("used_percent").and_then(Value::as_f64))
-            .unwrap_or(0.0)
-            .clamp(0.0, 100.0);
+            .map(Self::normalize_percent)
+            .unwrap_or(0.0);
 
         let weekly_limit_pct = value
             .pointer("/rate_limit/secondary_window")
             .and_then(Self::window_percent)
             .or_else(|| Self::first_limit_match(value, &["secondary", "week", "weekly"]))
-            .unwrap_or(five_hour_session_pct)
-            .clamp(0.0, 100.0);
+            .or_else(|| Self::limit_by_index(value, 1))
+            .map(Self::normalize_percent)
+            .unwrap_or(five_hour_session_pct);
 
         let reset_at = value
             .pointer("/rate_limit/secondary_window/reset_at")
-            .and_then(Value::as_str)
+            .and_then(Self::format_reset_at)
             .or_else(|| {
                 value
                     .pointer("/rate_limit/primary_window/reset_at")
-                    .and_then(Value::as_str)
+                    .and_then(Self::format_reset_at)
             })
-            .unwrap_or("")
-            .to_string();
+            .unwrap_or_default();
 
         CodexQuotaState {
             five_hour_session_pct,
             weekly_limit_pct,
             reset_at,
         }
+    }
+
+    fn format_reset_at(raw: &Value) -> Option<String> {
+        raw.as_str().map(|value| value.to_string()).or_else(|| {
+            raw.as_i64().and_then(|timestamp| {
+                chrono::DateTime::from_timestamp(timestamp, 0).map(|value| value.to_rfc3339())
+            })
+        })
     }
 }
 
@@ -174,30 +389,34 @@ impl Provider for CodexProvider {
     }
 
     async fn fetch_usage(&self) -> Result<UsageData> {
-        let token = Self::read_token_from_auth_file().or_else(|| {
-            self.credential_manager
-                .get_credential("codex")
-                .ok()
-                .flatten()
-                .map(|value| value.to_string())
-        });
-
-        let Some(token) = token else {
+        let Some((token, account_id)) = self.auth_header_value().await else {
             return Ok(not_configured_usage("codex"));
         };
 
-        let response = self
+        let mut request = self
             .client
-            .get("https://chatgpt.com/backend-api/wham/usage")
+            .get(Self::resolve_usage_url())
             .header(AUTHORIZATION, format!("Bearer {token}"))
-            .send()
-            .await;
+            .header("Accept", "application/json");
 
-        let value = match response {
-            Ok(response) => match response.json::<Value>().await {
-                Ok(value) => value,
-                Err(_) => return Ok(unreachable_usage("codex")),
-            },
+        if let Some(account_id) = account_id.as_ref().filter(|value| !value.is_empty()) {
+            request = request.header("ChatGPT-Account-Id", account_id);
+        }
+
+        let response = match request.send().await {
+            Ok(response) => response,
+            Err(_) => return Ok(unreachable_usage("codex")),
+        };
+
+        if response.status().as_u16() == 401 || response.status().as_u16() == 403 {
+            return Ok(not_configured_usage("codex"));
+        }
+        if !response.status().is_success() {
+            return Ok(unreachable_usage("codex"));
+        }
+
+        let value = match response.json::<Value>().await {
+            Ok(value) => value,
             Err(_) => return Ok(unreachable_usage("codex")),
         };
 
@@ -276,5 +495,32 @@ mod tests {
         let state = CodexProvider::parse_quota_state(&value);
         assert_eq!(state.five_hour_session_pct, 55.0);
         assert_eq!(state.weekly_limit_pct, 80.0);
+    }
+
+    #[test]
+    fn falls_back_to_rate_limits_by_index_without_names() {
+        let value = serde_json::json!({
+            "rate_limits": [
+                {"used_percent": 42.0},
+                {"used_percent": 77.0}
+            ]
+        });
+        let state = CodexProvider::parse_quota_state(&value);
+        assert_eq!(state.five_hour_session_pct, 42.0);
+        assert_eq!(state.weekly_limit_pct, 77.0);
+    }
+
+    #[test]
+    fn converts_fractional_percent_and_timestamp_reset() {
+        let value = serde_json::json!({
+            "rate_limit": {
+                "primary_window": {"used_percent": 0.25},
+                "secondary_window": {"used_percent": 0.5, "reset_at": 1_767_308_800}
+            }
+        });
+        let state = CodexProvider::parse_quota_state(&value);
+        assert_eq!(state.five_hour_session_pct, 25.0);
+        assert_eq!(state.weekly_limit_pct, 50.0);
+        assert!(!state.reset_at.is_empty());
     }
 }

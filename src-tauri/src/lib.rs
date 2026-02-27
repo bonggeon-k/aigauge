@@ -5,6 +5,7 @@ pub mod credentials;
 pub mod export;
 pub mod keyboard;
 pub mod notifications;
+pub mod platform;
 pub mod plugin_registry;
 pub mod polling;
 pub mod providers;

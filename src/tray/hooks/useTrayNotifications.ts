@@ -26,26 +26,39 @@ export const useTrayNotifications = ({ enabled, cooldownMs = 5 * 60 * 1000 }: No
         }
 
         for (const entry of entries) {
-          if (entry.quota.limit <= 0) {
-            continue;
-          }
-          const usagePct = (entry.quota.used / entry.quota.limit) * 100;
-          if (usagePct < 80) {
-            continue;
-          }
+          const tracks = entry.tracks.length > 0
+            ? entry.tracks
+            : [{
+                id: "subscription:primary",
+                kind: "subscription",
+                used: entry.quota.used,
+                limit: entry.quota.limit,
+              }];
 
-          const now = Date.now();
-          const key = `${entry.info.id}:${usagePct >= 95 ? "critical" : "warning"}`;
-          const last = lastNotifiedRef.current[key] ?? 0;
-          if (now - last < cooldownMs) {
-            continue;
-          }
+          for (const track of tracks) {
+            if (track.limit <= 0) {
+              continue;
+            }
 
-          const levelLabel = usagePct >= 95 ? "Critical" : "Warning";
-          new window.Notification(`AIGauge ${levelLabel}`, {
-            body: `${entry.info.name} quota is at ${Math.round(usagePct)}%`,
-          });
-          lastNotifiedRef.current[key] = now;
+            const usagePct = (track.used / track.limit) * 100;
+            if (usagePct < 80) {
+              continue;
+            }
+
+            const now = Date.now();
+            const key = `${entry.info.id}:${track.id}:${usagePct >= 95 ? "critical" : "warning"}`;
+            const last = lastNotifiedRef.current[key] ?? 0;
+            if (now - last < cooldownMs) {
+              continue;
+            }
+
+            const levelLabel = usagePct >= 95 ? "Critical" : "Warning";
+            const trackLabel = track.kind === "api" ? "API" : "Subscription";
+            new window.Notification(`AIGauge ${levelLabel}`, {
+              body: `${entry.info.name} ${trackLabel} quota is at ${Math.round(usagePct)}%`,
+            });
+            lastNotifiedRef.current[key] = now;
+          }
         }
       },
     }),

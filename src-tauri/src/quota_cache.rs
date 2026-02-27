@@ -17,7 +17,15 @@ pub struct ProviderSnapshot {
 #[derive(Debug, Clone)]
 struct CacheEntry {
     snapshot: ProviderSnapshot,
+    stored_at: Instant,
     expires_at: Instant,
+}
+
+#[derive(Debug, Clone)]
+pub struct CachedSnapshot {
+    pub snapshot: ProviderSnapshot,
+    pub stale: bool,
+    pub age_seconds: u64,
 }
 
 #[derive(Clone, Default)]
@@ -26,25 +34,25 @@ pub struct QuotaCache {
 }
 
 impl QuotaCache {
-    pub fn get(&self, provider: &str) -> Option<ProviderSnapshot> {
-        let mut guard = self.inner.lock().ok()?;
+    pub fn get(&self, provider: &str) -> Option<CachedSnapshot> {
+        let guard = self.inner.lock().ok()?;
         let now = Instant::now();
-        if let Some(entry) = guard.get(provider) {
-            if entry.expires_at > now {
-                return Some(entry.snapshot.clone());
-            }
-        }
-        guard.remove(provider);
-        None
+        guard.get(provider).map(|entry| CachedSnapshot {
+            snapshot: entry.snapshot.clone(),
+            stale: entry.expires_at <= now,
+            age_seconds: now.saturating_duration_since(entry.stored_at).as_secs(),
+        })
     }
 
     pub fn set(&self, provider: &str, snapshot: ProviderSnapshot) {
         if let Ok(mut guard) = self.inner.lock() {
+            let now = Instant::now();
             guard.insert(
                 provider.to_string(),
                 CacheEntry {
                     snapshot,
-                    expires_at: Instant::now() + Duration::from_secs(300),
+                    stored_at: now,
+                    expires_at: now + Duration::from_secs(300),
                 },
             );
         }
@@ -100,7 +108,9 @@ mod tests {
     fn stores_and_reads_until_ttl() {
         let cache = QuotaCache::default();
         cache.set("codex", snapshot());
-        assert!(cache.get("codex").is_some());
+        let cached = cache.get("codex");
+        assert!(cached.is_some());
+        assert!(!cached.expect("cache should exist").stale);
         cache.clear(Some("codex"));
         assert!(cache.get("codex").is_none());
     }

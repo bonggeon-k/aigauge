@@ -14,6 +14,26 @@ export default defineConfig(async () => ({
     },
   },
   clearScreen: false,
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("recharts") || id.includes("d3-")) {
+              return "vendor-charts";
+            }
+            if (id.includes("@tauri-apps") || id.includes("tauri-plugin")) {
+              return "vendor-tauri";
+            }
+            if (id.includes("framer-motion")) {
+              return "vendor-motion";
+            }
+          }
+          return undefined;
+        },
+      },
+    },
+  },
   server: {
     port: 1420,
     strictPort: true,

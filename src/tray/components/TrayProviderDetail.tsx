@@ -1,10 +1,12 @@
 import { useMemo } from "react";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 import type { DashboardEntry } from "@/hooks/useProvider";
+import type { CodexCostBreakdown } from "@/tray/hooks/useTrayProviders";
 
 interface TrayProviderDetailProps {
   entry: DashboardEntry;
   status?: { indicator: string; description: string };
+  codexCost?: CodexCostBreakdown | null;
   onOpenManualInput: () => void;
 }
 
@@ -52,11 +54,22 @@ const computeCountdown = (resetAt: string): string => {
   return `${days}d`;
 };
 
-export const TrayProviderDetail = ({ entry, status, onOpenManualInput }: TrayProviderDetailProps) => {
+export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput }: TrayProviderDetailProps) => {
+  const subscriptionTrack =
+    entry.tracks.find((track) => track.kind === "subscription") ?? {
+      used: entry.quota.used,
+      limit: entry.quota.limit,
+      unit: entry.quota.unit,
+      reset_at: entry.quota.reset_at || entry.usage.period_end,
+      status: entry.quota.status,
+      label: "Subscription quota",
+    };
+  const apiTrack = entry.tracks.find((track) => track.kind === "api");
+
   const usedPct = useMemo(() => {
-    if (entry.quota.limit <= 0) return 0;
-    return Math.min(100, (entry.quota.used / entry.quota.limit) * 100);
-  }, [entry.quota.limit, entry.quota.used]);
+    if (subscriptionTrack.limit <= 0) return 0;
+    return Math.min(100, (subscriptionTrack.used / subscriptionTrack.limit) * 100);
+  }, [subscriptionTrack.limit, subscriptionTrack.used]);
 
   const remainingPct = Math.max(0, 100 - usedPct);
   const elapsedPct = 50;
@@ -64,12 +77,12 @@ export const TrayProviderDetail = ({ entry, status, onOpenManualInput }: TrayPro
 
   if (entry.usage.status === "not_configured") {
     return (
-      <div className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-4 text-sm">
-        <p className="font-medium">{entry.info.name}</p>
+      <div className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-4 text-sm shadow-[var(--shadow-soft)]">
+        <p className="font-medium tracking-tight">{entry.info.name}</p>
         <p className="mt-2 text-muted-foreground">{setupGuide[entry.info.id] ?? "Provider setup required"}</p>
         <button
           type="button"
-          className="mt-4 rounded-md border border-primary/50 px-3 py-1.5 text-xs text-primary"
+          className="mt-4 rounded-full border border-primary/50 px-3 py-1.5 text-xs text-primary transition hover:bg-primary/10"
           onClick={onOpenManualInput}
         >
           Manual input
@@ -79,13 +92,13 @@ export const TrayProviderDetail = ({ entry, status, onOpenManualInput }: TrayPro
   }
 
   return (
-    <div className="space-y-4 rounded-xl border border-border/70 bg-[var(--surface-1)] p-4 text-sm">
+    <div className="space-y-4 rounded-xl border border-border/70 bg-[var(--surface-1)] p-4 text-sm shadow-[var(--shadow-soft)]">
       <div className="flex items-center justify-between">
         <div>
-          <p className="font-medium">{entry.info.name}</p>
+          <p className="font-medium tracking-tight">{entry.info.name}</p>
           <p className="text-xs text-muted-foreground">{entry.info.plan_name}</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 rounded-full bg-[var(--surface-2)] px-2 py-1 text-xs text-muted-foreground">
           <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: statusColor(status?.indicator) }} />
           {status?.indicator ?? "none"}
         </div>
@@ -97,27 +110,49 @@ export const TrayProviderDetail = ({ entry, status, onOpenManualInput }: TrayPro
           <span>{remainingPct.toFixed(0)}%</span>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-black/20">
-          <div className="h-full rounded-full" style={{ width: `${remainingPct}%`, backgroundColor: barColor(remainingPct) }} />
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${remainingPct}%`,
+              backgroundColor: barColor(remainingPct),
+            }}
+          />
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3 text-xs">
-        <div>
+        <div className="rounded-lg bg-[var(--surface-2)] p-2">
           <p className="text-muted-foreground">Used</p>
-          <p className="font-medium">{entry.quota.used.toLocaleString()}</p>
+          <p className="font-medium">{subscriptionTrack.used.toLocaleString()}</p>
         </div>
-        <div>
+        <div className="rounded-lg bg-[var(--surface-2)] p-2">
           <p className="text-muted-foreground">Limit</p>
-          <p className="font-medium">{entry.quota.limit.toLocaleString()}</p>
+          <p className="font-medium">{subscriptionTrack.limit.toLocaleString()}</p>
         </div>
-        <div>
+        <div className="rounded-lg bg-[var(--surface-2)] p-2">
           <p className="text-muted-foreground">Reset</p>
-          <p className="font-medium">{computeCountdown(entry.quota.reset_at || entry.usage.period_end)}</p>
+          <p className="font-medium">{computeCountdown(subscriptionTrack.reset_at || entry.usage.period_end)}</p>
         </div>
       </div>
 
+      {apiTrack ? (
+        <div className="rounded-lg border border-border/60 bg-[var(--surface-2)] px-3 py-2 text-xs">
+          <p className="mb-1 text-muted-foreground">API track</p>
+          {apiTrack.limit > 0 || apiTrack.used > 0 ? (
+            <p className="font-medium">
+              {apiTrack.used.toLocaleString()}
+              {apiTrack.limit > 0 ? ` / ${apiTrack.limit.toLocaleString()}` : ""} {apiTrack.unit}
+            </p>
+          ) : (
+            <p className="font-medium text-muted-foreground">
+              {apiTrack.status === "not_configured" ? "Not configured" : "Unavailable"}
+            </p>
+          )}
+        </div>
+      ) : null}
+
       <div className="rounded-lg border border-border/60 bg-[var(--surface-2)] px-3 py-2 text-xs">
-        Pace: <span className="font-medium">{paceLabel}</span>
+        Pace: <span className={`font-medium ${paceLabel === "Behind" ? "text-rose-500" : paceLabel === "Ahead" ? "text-emerald-500" : "text-amber-500"}`}>{paceLabel}</span>
       </div>
 
       <details className="rounded-lg border border-border/60 bg-[var(--surface-2)] p-2">
@@ -127,10 +162,43 @@ export const TrayProviderDetail = ({ entry, status, onOpenManualInput }: TrayPro
         </summary>
         <div className="mt-2 space-y-2 text-xs">
           {entry.info.id === "codex" ? (
-            <p className="text-muted-foreground">Input/output/reasoning breakdown shown when cost data is available.</p>
+            <div className="space-y-1 text-muted-foreground">
+              <p>
+                Input: {codexCost?.input_tokens_30d.toLocaleString() ?? 0} / Output:{" "}
+                {codexCost?.output_tokens_30d.toLocaleString() ?? 0} / Reasoning:{" "}
+                {codexCost?.reasoning_tokens_30d.toLocaleString() ?? 0}
+              </p>
+              <p>
+                Sessions: {codexCost?.session_files_30d ?? 0} · Events:{" "}
+                {codexCost?.token_events_30d ?? 0}
+              </p>
+            </div>
           ) : null}
-          <p>Monthly: ${entry.cost?.total?.toFixed(2) ?? "0.00"}</p>
-          {(entry.cost?.total ?? 0) > 500 ? (
+          <p>
+            Monthly:{" "}
+            {entry.cost_view.mode === "included"
+              ? "Included"
+              : `$${(
+                  entry.cost_view.total ??
+                  (entry.info.id === "codex"
+                    ? codexCost?.estimated_cost_usd_30d
+                    : undefined) ??
+                  0
+                ).toFixed(2)}`}
+          </p>
+          {entry.cost_view.mode === "included" ? (
+            <p className="text-muted-foreground">No additional charge within plan quota.</p>
+          ) : null}
+          {entry.info.id === "codex" && codexCost ? (
+            <p className="text-muted-foreground">
+              API-equivalent estimate (30d): ${codexCost.estimated_cost_usd_30d.toFixed(2)}
+            </p>
+          ) : null}
+          {((entry.cost_view.total ??
+            (entry.info.id === "codex"
+              ? codexCost?.estimated_cost_usd_30d
+              : undefined) ??
+            0) > 500) ? (
             <div className="flex items-center gap-2 text-[var(--quota-critical)]">
               <AlertTriangle className="h-3.5 w-3.5" />
               High cost warning

@@ -1,4 +1,5 @@
 use crate::credentials::CredentialManager;
+use crate::platform;
 use regex::Regex;
 use reqwest::Client;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -8,6 +9,7 @@ use tracing::instrument;
 
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
+use std::time::{Duration as StdDuration, Instant};
 
 use super::{
     not_configured_quota, not_configured_usage, unreachable_quota, unreachable_usage, AuthMethod,
@@ -16,8 +18,11 @@ use super::{
 
 static CONSECUTIVE_FAILURES: AtomicU32 = AtomicU32::new(0);
 static LAST_PLAN: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("KIRO".to_string()));
-static ANSI_RE: Lazy<Regex> =
+static LAST_PARSED_USAGE: Lazy<Mutex<Option<ParsedUsageCache>>> = Lazy::new(|| Mutex::new(None));
+static CSI_ANSI_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"\x1B\[[0-?]*[ -/]*[@-~]").expect("valid ansi regex"));
+static OSC_ANSI_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\x1B\][^\x07]*(?:\x07|\x1B\\)").expect("valid osc ansi regex"));
 static PLAN_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"\|\s+(KIRO\s+\w+)").expect("valid plan regex"));
 static CREDITS_RE: Lazy<Regex> =
@@ -33,6 +38,18 @@ struct ParsedKiroUsage {
     limit_credits: f64,
     percent_used: u64,
     reset_at: String,
+}
+
+#[derive(Debug, Clone)]
+struct ParsedUsageCache {
+    parsed: ParsedKiroUsage,
+    cached_at: Instant,
+}
+
+enum ParsedUsageResult {
+    Ok(ParsedKiroUsage),
+    NotConfigured,
+    Unreachable,
 }
 
 pub struct KiroProvider {
@@ -52,13 +69,9 @@ impl KiroProvider {
     }
 
     async fn run_usage_command() -> std::result::Result<String, String> {
-        #[cfg(target_os = "windows")]
-        let command = "wsl bash -lc \"kiro-cli chat --no-interactive /usage\"";
-        #[cfg(not(target_os = "windows"))]
-        let command = "kiro-cli chat --no-interactive /usage";
-
-        let mut process = Command::new("bash");
-        process.arg("-lc").arg(command);
+        let (program, args) = platform::kiro_usage_command();
+        let mut process = Command::new(program);
+        process.args(args);
 
         let output = timeout(Duration::from_secs(10), process.output())
             .await
@@ -70,11 +83,25 @@ impl KiroProvider {
             return Err(stderr);
         }
 
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let combined = if stdout.trim().is_empty() {
+            stderr.to_string()
+        } else {
+            format!("{stdout}{stderr}")
+        };
+        if combined.trim().is_empty() {
+            return Err("kiro usage command returned no output".to_string());
+        }
+
+        Ok(combined)
     }
 
     fn strip_ansi(raw: &str) -> String {
-        ANSI_RE.replace_all(raw, "").to_string()
+        let without_osc = OSC_ANSI_RE.replace_all(raw, "");
+        CSI_ANSI_RE
+            .replace_all(without_osc.as_ref(), "")
+            .to_string()
     }
 
     fn parse_output(raw: &str) -> Option<ParsedKiroUsage> {
@@ -134,6 +161,73 @@ impl KiroProvider {
     fn reset_failures() {
         CONSECUTIVE_FAILURES.store(0, Ordering::Relaxed);
     }
+
+    fn cache_is_fresh(cached_at: Instant) -> bool {
+        cached_at.elapsed() < StdDuration::from_secs(20)
+    }
+
+    fn cached_usage() -> Option<ParsedKiroUsage> {
+        let guard = LAST_PARSED_USAGE.lock().ok()?;
+        let entry = guard.as_ref()?;
+        if Self::cache_is_fresh(entry.cached_at) {
+            Some(entry.parsed.clone())
+        } else {
+            None
+        }
+    }
+
+    fn set_cached_usage(parsed: &ParsedKiroUsage) {
+        if let Ok(mut guard) = LAST_PARSED_USAGE.lock() {
+            *guard = Some(ParsedUsageCache {
+                parsed: parsed.clone(),
+                cached_at: Instant::now(),
+            });
+        }
+    }
+
+    fn classify_command_error(error: &str) -> ParsedUsageResult {
+        let lowered = error.to_lowercase();
+        if lowered.contains("command not found")
+            || lowered.contains("kiro-cli")
+            || lowered.contains("wsl:")
+            || lowered.contains("wsl.exe")
+            || lowered.contains("is not recognized")
+        {
+            ParsedUsageResult::NotConfigured
+        } else {
+            ParsedUsageResult::Unreachable
+        }
+    }
+
+    async fn fetch_parsed_usage() -> ParsedUsageResult {
+        if CONSECUTIVE_FAILURES.load(Ordering::Relaxed) >= 3 {
+            return ParsedUsageResult::Unreachable;
+        }
+
+        if let Some(parsed) = Self::cached_usage() {
+            return ParsedUsageResult::Ok(parsed);
+        }
+
+        let output = match Self::run_usage_command().await {
+            Ok(output) => output,
+            Err(error) => {
+                Self::register_failure();
+                return Self::classify_command_error(error.as_str());
+            }
+        };
+
+        let Some(parsed) = Self::parse_output(output.as_str()) else {
+            Self::register_failure();
+            return ParsedUsageResult::Unreachable;
+        };
+
+        Self::reset_failures();
+        Self::set_cached_usage(&parsed);
+        if let Ok(mut plan) = LAST_PLAN.lock() {
+            *plan = parsed.plan.clone();
+        }
+        ParsedUsageResult::Ok(parsed)
+    }
 }
 
 impl Provider for KiroProvider {
@@ -158,31 +252,11 @@ impl Provider for KiroProvider {
     }
 
     async fn fetch_usage(&self) -> Result<UsageData> {
-        if CONSECUTIVE_FAILURES.load(Ordering::Relaxed) >= 3 {
-            return Ok(unreachable_usage("kiro"));
-        }
-
-        let output = match Self::run_usage_command().await {
-            Ok(output) => output,
-            Err(error) => {
-                Self::register_failure();
-                let lowered = error.to_lowercase();
-                if lowered.contains("command not found") || lowered.contains("kiro-cli") {
-                    return Ok(not_configured_usage("kiro"));
-                }
-                return Ok(unreachable_usage("kiro"));
-            }
+        let parsed = match Self::fetch_parsed_usage().await {
+            ParsedUsageResult::Ok(parsed) => parsed,
+            ParsedUsageResult::NotConfigured => return Ok(not_configured_usage("kiro")),
+            ParsedUsageResult::Unreachable => return Ok(unreachable_usage("kiro")),
         };
-
-        let Some(parsed) = Self::parse_output(output.as_str()) else {
-            Self::register_failure();
-            return Ok(unreachable_usage("kiro"));
-        };
-
-        Self::reset_failures();
-        if let Ok(mut plan) = LAST_PLAN.lock() {
-            *plan = parsed.plan.clone();
-        }
 
         Ok(UsageData {
             provider: "kiro".to_string(),
@@ -199,31 +273,11 @@ impl Provider for KiroProvider {
     }
 
     async fn fetch_quota(&self) -> Result<QuotaLimit> {
-        if CONSECUTIVE_FAILURES.load(Ordering::Relaxed) >= 3 {
-            return Ok(unreachable_quota("credits"));
-        }
-
-        let output = match Self::run_usage_command().await {
-            Ok(output) => output,
-            Err(error) => {
-                Self::register_failure();
-                let lowered = error.to_lowercase();
-                if lowered.contains("command not found") || lowered.contains("kiro-cli") {
-                    return Ok(not_configured_quota());
-                }
-                return Ok(unreachable_quota("credits"));
-            }
+        let parsed = match Self::fetch_parsed_usage().await {
+            ParsedUsageResult::Ok(parsed) => parsed,
+            ParsedUsageResult::NotConfigured => return Ok(not_configured_quota()),
+            ParsedUsageResult::Unreachable => return Ok(unreachable_quota("credits")),
         };
-
-        let Some(parsed) = Self::parse_output(output.as_str()) else {
-            Self::register_failure();
-            return Ok(unreachable_quota("credits"));
-        };
-
-        Self::reset_failures();
-        if let Ok(mut plan) = LAST_PLAN.lock() {
-            *plan = parsed.plan.clone();
-        }
 
         Ok(QuotaLimit {
             used: parsed.used_credits.round() as u64,
@@ -257,5 +311,21 @@ resets on 03/15
         assert_eq!(parsed.percent_used, 54);
         assert_eq!(parsed.limit_credits.round() as u64, 100);
         assert_eq!(parsed.reset_at, "03/15");
+    }
+
+    #[test]
+    fn strips_csi_and_osc_sequences() {
+        let sample = "\u{1b}]0;title\u{7}\u{1b}[32mEstimated Usage\u{1b}[0m";
+        assert_eq!(KiroProvider::strip_ansi(sample), "Estimated Usage");
+    }
+
+    #[test]
+    fn parse_output_handles_stderr_style_cli_text() {
+        let sample = "\x1b[1mEstimated Usage\x1b[0m | resets on 03/01 | \x1b[0mKIRO PRO\x1b[0m\n\x1b[1mCredits\x1b[0m (275.57 of 1000 covered in plan)\n\x1b[0m█████████████████████\x1b[0m 27%\n";
+        let parsed = KiroProvider::parse_output(sample).expect("should parse stderr style output");
+        assert_eq!(parsed.plan, "KIRO PRO");
+        assert_eq!(parsed.percent_used, 27);
+        assert_eq!(parsed.reset_at, "03/01");
+        assert_eq!(parsed.limit_credits.round() as u64, 1000);
     }
 }

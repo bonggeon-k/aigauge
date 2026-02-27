@@ -17,18 +17,18 @@ interface TraySettingsProps {
 
 export const TraySettings = ({ open, settings, onClose, onPatchSettings }: TraySettingsProps) => (
   <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : null)}>
-    <DialogContent>
+    <DialogContent className="border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-hard)]">
       <DialogHeader>
         <DialogTitle>Tray Settings</DialogTitle>
       </DialogHeader>
       <div className="grid gap-3 text-sm">
-        <label className="grid gap-1">
+        <label className="grid gap-1 rounded-xl bg-[var(--surface-1)] p-3">
           Refresh interval (minutes)
           <input
             type="number"
             min={1}
             max={60}
-            className="rounded-md border border-input bg-background px-3 py-2"
+            className="rounded-lg border border-input bg-background px-3 py-2"
             value={settings.refreshIntervalMinutes}
             onChange={(event) =>
               onPatchSettings({ refreshIntervalMinutes: Number(event.target.value) || 5 })
@@ -36,7 +36,7 @@ export const TraySettings = ({ open, settings, onClose, onPatchSettings }: TrayS
           />
         </label>
 
-        <label className="inline-flex items-center gap-2">
+        <label className="inline-flex items-center gap-2 rounded-xl bg-[var(--surface-1)] p-3">
           <input
             type="checkbox"
             checked={settings.notifications}

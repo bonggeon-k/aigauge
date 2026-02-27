@@ -10,15 +10,21 @@ pub struct UpdateInfo {
 #[tauri::command]
 #[instrument(skip(app))]
 pub async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, String> {
-    let updater = tauri_plugin_updater::UpdaterExt::updater_builder(&app)
-        .build()
-        .map_err(|error| format!("failed to initialize updater: {error}"))?;
+    let updater = match tauri_plugin_updater::UpdaterExt::updater_builder(&app).build() {
+        Ok(updater) => updater,
+        Err(error) => {
+            tracing::warn!("updater unavailable during check: {error}");
+            return Ok(None);
+        }
+    };
 
-    let Some(update) = updater
-        .check()
-        .await
-        .map_err(|error| format!("failed to check for update: {error}"))?
-    else {
+    let Some(update) = (match updater.check().await {
+        Ok(update) => update,
+        Err(error) => {
+            tracing::warn!("updater check failed: {error}");
+            return Ok(None);
+        }
+    }) else {
         return Ok(None);
     };
 
@@ -31,22 +37,28 @@ pub async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo
 #[tauri::command]
 #[instrument(skip(app))]
 pub async fn install_update(app: tauri::AppHandle) -> Result<bool, String> {
-    let updater = tauri_plugin_updater::UpdaterExt::updater_builder(&app)
-        .build()
-        .map_err(|error| format!("failed to initialize updater: {error}"))?;
+    let updater = match tauri_plugin_updater::UpdaterExt::updater_builder(&app).build() {
+        Ok(updater) => updater,
+        Err(error) => {
+            tracing::warn!("updater unavailable during install: {error}");
+            return Ok(false);
+        }
+    };
 
-    let Some(update) = updater
-        .check()
-        .await
-        .map_err(|error| format!("failed to check for update: {error}"))?
-    else {
+    let Some(update) = (match updater.check().await {
+        Ok(update) => update,
+        Err(error) => {
+            tracing::warn!("updater check failed before install: {error}");
+            return Ok(false);
+        }
+    }) else {
         return Ok(false);
     };
 
-    update
-        .download_and_install(|_, _| {}, || {})
-        .await
-        .map_err(|error| format!("failed to install update: {error}"))?;
+    if let Err(error) = update.download_and_install(|_, _| {}, || {}).await {
+        tracing::warn!("updater install failed: {error}");
+        return Ok(false);
+    }
 
     Ok(true)
 }

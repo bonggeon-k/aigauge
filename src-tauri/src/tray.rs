@@ -6,7 +6,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tracing::instrument;
 
-use crate::commands::DashboardEntry;
+use crate::commands::{track_usage_pct, DashboardEntry, TrackKind};
 
 pub const TRAY_EVENT_UPDATE: &str = "tray-update";
 pub const TRAY_EVENT_REFRESH: &str = "tray-refresh";
@@ -136,25 +136,67 @@ fn derive_status(entries: &[DashboardEntry]) -> (TrayStatus, f64, f64) {
     let mut top_pct = 0.0_f64;
     let mut bottom_pct = 0.0_f64;
 
-    if let Some(codex) = entries.iter().find(|entry| entry.info.id == "codex") {
-        top_pct = codex.usage.requests as f64;
-        if codex.quota.limit > 0 {
-            bottom_pct = (codex.quota.used as f64 / codex.quota.limit as f64) * 100.0;
-        } else {
-            bottom_pct = codex.usage.tokens as f64;
-        }
+    if let Some(codex) = entries
+        .iter()
+        .find(|entry| entry.info.id == "codex" && !entry.tracks.is_empty())
+    {
+        let session = codex
+            .tracks
+            .iter()
+            .find(|track| track.kind == TrackKind::Subscription && track.id.contains("5-hour"))
+            .and_then(track_usage_pct);
+        let weekly = codex
+            .tracks
+            .iter()
+            .find(|track| track.kind == TrackKind::Subscription && track.id.contains("weekly"))
+            .and_then(track_usage_pct);
+
+        top_pct = session
+            .map(|value| value * 100.0)
+            .unwrap_or(codex.usage.requests as f64);
+        bottom_pct = weekly
+            .map(|value| value * 100.0)
+            .or_else(|| {
+                codex
+                    .tracks
+                    .iter()
+                    .find(|track| track.kind == TrackKind::Subscription)
+                    .and_then(track_usage_pct)
+                    .map(|value| value * 100.0)
+            })
+            .unwrap_or_else(|| {
+                if codex.quota.limit > 0 {
+                    (codex.quota.used as f64 / codex.quota.limit as f64) * 100.0
+                } else {
+                    codex.usage.tokens as f64
+                }
+            });
     } else if let Some(first) = entries.first() {
-        if first.quota.limit > 0 {
-            let used = (first.quota.used as f64 / first.quota.limit as f64) * 100.0;
-            top_pct = used;
-            bottom_pct = used;
-        }
+        let used = first
+            .tracks
+            .iter()
+            .find(|track| track.kind == TrackKind::Subscription)
+            .and_then(track_usage_pct)
+            .map(|value| value * 100.0)
+            .or_else(|| {
+                if first.quota.limit > 0 {
+                    Some((first.quota.used as f64 / first.quota.limit as f64) * 100.0)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0.0);
+        top_pct = used;
+        bottom_pct = used;
     }
 
     let worst_pct = top_pct.max(bottom_pct);
     if worst_pct >= 95.0 {
         status = TrayStatus::Critical;
     } else if worst_pct >= 80.0 {
+        status = TrayStatus::Warning;
+    }
+    if status == TrayStatus::Ok && entries.iter().any(|entry| entry.stale) {
         status = TrayStatus::Warning;
     }
 
@@ -264,6 +306,7 @@ pub fn update_tray_menu(app: &AppHandle, entries: &[DashboardEntry]) {
     };
 
     let shown_pct = top_pct.max(bottom_pct).round();
+    let stale_count = entries.iter().filter(|entry| entry.stale).count();
     let mut fingerprint = format!("{status_label}|{total:.2}|{top_pct:.0}|{bottom_pct:.0}");
     for entry in entries {
         let pct = if entry.quota.limit > 0 {
@@ -291,14 +334,27 @@ pub fn update_tray_menu(app: &AppHandle, entries: &[DashboardEntry]) {
             .separator();
 
         for entry in entries {
-            let pct = if entry.quota.limit > 0 {
-                (entry.quota.used as f64 / entry.quota.limit as f64) * 100.0
-            } else {
-                0.0
-            };
+            let pct = entry
+                .tracks
+                .iter()
+                .find(|track| track.kind == TrackKind::Subscription)
+                .and_then(track_usage_pct)
+                .map(|value| value * 100.0)
+                .or_else(|| {
+                    if entry.quota.limit > 0 {
+                        Some((entry.quota.used as f64 / entry.quota.limit as f64) * 100.0)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(0.0);
             menu_builder = menu_builder.text(
                 format!("provider-{}", entry.info.id),
-                format!("{}: {pct:.0}% used", entry.info.name),
+                format!(
+                    "{}: {pct:.0}% used{}",
+                    entry.info.name,
+                    if entry.stale { " (stale)" } else { "" }
+                ),
             );
         }
 
@@ -321,7 +377,14 @@ pub fn update_tray_menu(app: &AppHandle, entries: &[DashboardEntry]) {
             let _ = tray.set_menu(Some(menu));
         }
 
-        let _ = tray.set_tooltip(Some(format!("AIGauge — {status_label} {shown_pct:.0}%")));
+        let stale_suffix = if stale_count > 0 {
+            format!(" · stale {stale_count}")
+        } else {
+            String::new()
+        };
+        let _ = tray.set_tooltip(Some(format!(
+            "AIGauge — {status_label} {shown_pct:.0}%{stale_suffix}"
+        )));
         let _ = tray.set_icon(Some(render_tray_icon(top_pct, bottom_pct, status)));
     }
 

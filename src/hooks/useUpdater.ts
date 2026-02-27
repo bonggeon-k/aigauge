@@ -23,9 +23,15 @@ export const useUpdater = () => {
           if (!isTauriRuntime) {
             return null;
           }
-          const info = await invoke<UpdateInfo | null>("check_for_update");
-          setUpdateAvailable(info);
-          return info;
+          try {
+            const info = await invoke<UpdateInfo | null>("check_for_update");
+            setUpdateAvailable(info);
+            return info;
+          } catch (error) {
+            console.warn("update check failed", error);
+            setUpdateAvailable(null);
+            return null;
+          }
         } finally {
           setLoading(false);
         }
@@ -39,9 +45,15 @@ export const useUpdater = () => {
             setProgress(100);
             return false;
           }
-          const installed = await invoke<boolean>("install_update");
-          setProgress(installed ? 100 : 0);
-          return installed;
+          try {
+            const installed = await invoke<boolean>("install_update");
+            setProgress(installed ? 100 : 0);
+            return installed;
+          } catch (error) {
+            console.warn("update install failed", error);
+            setProgress(0);
+            return false;
+          }
         } finally {
           setLoading(false);
         }

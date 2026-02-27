@@ -11,6 +11,8 @@ import { useTraySettings } from "@/tray/hooks/useTraySettings";
 import { useTrayAutoRefresh } from "@/tray/hooks/useTrayAutoRefresh";
 import { useTrayNotifications } from "@/tray/hooks/useTrayNotifications";
 import { useTauriEvent, type DashboardEntry } from "@/hooks/useProvider";
+import { applyPlatformDataAttribute, detectPlatform } from "@/lib/platform";
+import type { CodexCostBreakdown } from "@/tray/hooks/useTrayProviders";
 
 const isInteractiveElement = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) {
@@ -27,6 +29,7 @@ export const TrayApp = () => {
   const [entries, setEntries] = useState<DashboardEntry[]>([]);
   const [activeProviderId, setActiveProviderId] = useState("codex");
   const [statuses, setStatuses] = useState<Record<string, { indicator: string; description: string }>>({});
+  const [codexCost, setCodexCost] = useState<CodexCostBreakdown | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -39,8 +42,12 @@ export const TrayApp = () => {
   );
 
   const refreshProviders = useCallback(async () => {
-    const data = await providerApi.fetchAllProviders();
+    const [data, codexBreakdown] = await Promise.all([
+      providerApi.fetchAllProviders(),
+      providerApi.fetchCodexCostBreakdown(),
+    ]);
     setEntries(data);
+    setCodexCost(codexBreakdown);
     if (data.length > 0 && !data.some((entry) => entry.info.id === activeProviderId)) {
       setActiveProviderId(data[0].info.id);
     }
@@ -83,6 +90,10 @@ export const TrayApp = () => {
   }, [settings.pinned]);
 
   useEffect(() => {
+    applyPlatformDataAttribute(detectPlatform());
+  }, []);
+
+  useEffect(() => {
     const currentWindow = getCurrentWindow();
     let unlisten: (() => void) | undefined;
 
@@ -116,7 +127,7 @@ export const TrayApp = () => {
 
   return (
     <div
-      className="mx-auto h-[540px] w-[420px] overflow-hidden rounded-2xl border border-border/70 bg-[var(--surface-0)] p-3 text-foreground"
+      className="mx-auto h-[540px] w-[420px] overflow-hidden rounded-2xl border border-border/70 bg-[var(--glass-bg)] p-3 text-foreground shadow-[var(--shadow-hard)] backdrop-blur"
       onMouseDown={(event) => {
         if (event.button !== 0 || isInteractiveElement(event.target)) {
           return;
@@ -124,12 +135,12 @@ export const TrayApp = () => {
         void getCurrentWindow().startDragging();
       }}
     >
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm font-semibold">AIGauge Quick View</p>
+      <div className="mb-3 flex items-center justify-between rounded-xl bg-[var(--surface-1)] px-2 py-1.5">
+        <p className="text-sm font-semibold tracking-tight">AIGauge Quick View</p>
         <div className="flex items-center gap-1">
           <button
             type="button"
-            className="rounded-md p-1.5 hover:bg-[var(--surface-2)]"
+            className="rounded-full p-1.5 transition hover:bg-[var(--surface-2)]"
             onClick={() => void refreshProviders()}
             aria-label="Refresh"
           >
@@ -137,7 +148,7 @@ export const TrayApp = () => {
           </button>
           <button
             type="button"
-            className="rounded-md p-1.5 hover:bg-[var(--surface-2)]"
+            className="rounded-full p-1.5 transition hover:bg-[var(--surface-2)]"
             onClick={() => patchSettings({ pinned: !settings.pinned })}
             aria-label="Toggle pin"
           >
@@ -145,7 +156,7 @@ export const TrayApp = () => {
           </button>
           <button
             type="button"
-            className="rounded-md p-1.5 hover:bg-[var(--surface-2)]"
+            className="rounded-full p-1.5 transition hover:bg-[var(--surface-2)]"
             onClick={() => setManualOpen(true)}
             aria-label="Manual input"
           >
@@ -153,7 +164,7 @@ export const TrayApp = () => {
           </button>
           <button
             type="button"
-            className="rounded-md p-1.5 hover:bg-[var(--surface-2)]"
+            className="rounded-full p-1.5 transition hover:bg-[var(--surface-2)]"
             onClick={() => setSettingsOpen(true)}
             aria-label="Settings"
           >
@@ -173,6 +184,7 @@ export const TrayApp = () => {
           <TrayProviderDetail
             entry={activeEntry}
             status={statuses[activeEntry.info.id]}
+            codexCost={activeEntry.info.id === "codex" ? codexCost : null}
             onOpenManualInput={() => setManualOpen(true)}
           />
         ) : (
@@ -183,7 +195,7 @@ export const TrayApp = () => {
 
         <button
           type="button"
-          className="mt-3 w-full rounded-lg border border-border/70 bg-[var(--surface-1)] px-3 py-2 text-xs"
+          className="mt-3 w-full rounded-xl border border-border/70 bg-[var(--surface-1)] px-3 py-2 text-xs transition hover:bg-[var(--surface-2)]"
           onClick={() => setConfirmOpen(true)}
         >
           Clear provider data

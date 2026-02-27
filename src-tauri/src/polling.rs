@@ -5,7 +5,9 @@ use tauri::Emitter;
 use tauri::Manager;
 use tracing::instrument;
 
-use crate::commands::{resolve_dashboard_entry, AppState, PROVIDER_IDS};
+use crate::commands::{
+    resolve_dashboard_entry, track_usage_pct, AppState, TrackKind, PROVIDER_IDS,
+};
 use crate::config::AppConfig;
 use crate::notifications::{notify_quota_critical, notify_quota_warning};
 use crate::providers::ProviderStatus;
@@ -82,28 +84,74 @@ impl PollingManager {
                         Ok((dashboard, _source)) => {
                             let _ = app_handle.emit("usage-updated", &dashboard);
 
-                            let usage_pct = if dashboard.quota.limit > 0 {
-                                dashboard.quota.used as f64 / dashboard.quota.limit as f64
-                            } else {
-                                0.0
-                            };
-
                             let config = app_state
                                 .config_store
                                 .load(&app_handle)
                                 .unwrap_or_else(|_| AppConfig::default());
 
-                            if dashboard.quota.status == ProviderStatus::Ok && usage_pct >= 0.95 {
-                                let _ = app_handle.emit("quota-critical", &dashboard);
-                                if config.notifications.quota_critical {
-                                    notify_quota_critical(&app_handle, &config, &dashboard);
+                            if dashboard.stale {
+                                let _ = app_handle.emit("data-stale", &dashboard);
+                            }
+
+                            let mut subscription_usage_pct = None;
+                            for track in &dashboard.tracks {
+                                if track.kind == TrackKind::Subscription
+                                    && subscription_usage_pct.is_none()
+                                {
+                                    subscription_usage_pct = track_usage_pct(track);
                                 }
-                            } else if dashboard.quota.status == ProviderStatus::Ok
-                                && usage_pct >= 0.8
-                            {
-                                let _ = app_handle.emit("quota-warning", &dashboard);
-                                if config.notifications.quota_warning {
-                                    notify_quota_warning(&app_handle, &config, &dashboard);
+                                if track.status != ProviderStatus::Ok {
+                                    continue;
+                                }
+                                let Some(usage_pct) = track_usage_pct(track) else {
+                                    continue;
+                                };
+
+                                if usage_pct >= 0.95 {
+                                    let _ = app_handle.emit(
+                                        "quota-critical-track",
+                                        serde_json::json!({
+                                            "provider_id": dashboard.info.id,
+                                            "track_id": track.id,
+                                            "usage_pct": usage_pct,
+                                            "track_kind": track.kind,
+                                        }),
+                                    );
+                                } else if usage_pct >= 0.8 {
+                                    let _ = app_handle.emit(
+                                        "quota-warning-track",
+                                        serde_json::json!({
+                                            "provider_id": dashboard.info.id,
+                                            "track_id": track.id,
+                                            "usage_pct": usage_pct,
+                                            "track_kind": track.kind,
+                                        }),
+                                    );
+                                }
+                            }
+
+                            let usage_pct = subscription_usage_pct.or_else(|| {
+                                if dashboard.quota.limit > 0 {
+                                    Some(dashboard.quota.used as f64 / dashboard.quota.limit as f64)
+                                } else {
+                                    None
+                                }
+                            });
+
+                            if let Some(usage_pct) = usage_pct {
+                                if dashboard.quota.status == ProviderStatus::Ok && usage_pct >= 0.95
+                                {
+                                    let _ = app_handle.emit("quota-critical", &dashboard);
+                                    if config.notifications.quota_critical {
+                                        notify_quota_critical(&app_handle, &config, &dashboard);
+                                    }
+                                } else if dashboard.quota.status == ProviderStatus::Ok
+                                    && usage_pct >= 0.8
+                                {
+                                    let _ = app_handle.emit("quota-warning", &dashboard);
+                                    if config.notifications.quota_warning {
+                                        notify_quota_warning(&app_handle, &config, &dashboard);
+                                    }
                                 }
                             }
 

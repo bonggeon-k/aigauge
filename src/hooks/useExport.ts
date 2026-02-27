@@ -46,17 +46,19 @@ export const useExport = () => {
         }
       },
 
-      async exportToFile(request: ExportRequest, path: string): Promise<void> {
+      async exportToFile(request: ExportRequest, path: string): Promise<string> {
         setLoading(true);
         setError(null);
         setSuccess(null);
         try {
           if (!isTauriRuntime) {
-            setSuccess(`export saved to ${path}`);
-            return;
+            const fallbackPath = path || "/tmp/aigauge-export.mock";
+            setSuccess(`export saved to ${fallbackPath}`);
+            return fallbackPath;
           }
-          await invoke("export_to_file", { request, path });
-          setSuccess(`export saved to ${path}`);
+          const savedPath = await invoke<string>("export_to_file", { request, path });
+          setSuccess(`export saved to ${savedPath}`);
+          return savedPath;
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           setError(message);

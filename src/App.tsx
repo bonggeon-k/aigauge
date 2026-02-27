@@ -1,22 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Plus, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AppShell } from "@/components/layout/AppShell";
 import { TrayView } from "@/components/layout/TrayView";
-import { SettingsView } from "@/components/layout/SettingsView";
 import { AlertBanner } from "@/components/dashboard/AlertBanner";
 import { CostSummary } from "@/components/dashboard/CostSummary";
 import { ProviderCard } from "@/components/dashboard/ProviderCard";
 import { QuotaTimeline } from "@/components/dashboard/QuotaTimeline";
-import { CostDashboard } from "@/components/analytics/CostDashboard";
-import { ExportPanel } from "@/components/analytics/ExportPanel";
-import { ROICalculator } from "@/components/analytics/ROICalculator";
-import { WelcomeFlow } from "@/components/onboarding/WelcomeFlow";
-import { ProviderSetup } from "@/components/providers/ProviderSetup";
-import { ProviderSettings } from "@/components/providers/ProviderSettings";
-import { TrayApp } from "@/tray/TrayApp";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
@@ -27,11 +19,43 @@ import { useTheme } from "@/hooks/useTheme";
 import { useUpdater } from "@/hooks/useUpdater";
 import type { AppRoute } from "@/components/layout/Navigation";
 
+const SettingsView = lazy(() =>
+  import("@/components/layout/SettingsView").then((module) => ({ default: module.SettingsView })),
+);
+const CostDashboard = lazy(() =>
+  import("@/components/analytics/CostDashboard").then((module) => ({ default: module.CostDashboard })),
+);
+const ExportPanel = lazy(() =>
+  import("@/components/analytics/ExportPanel").then((module) => ({ default: module.ExportPanel })),
+);
+const ROICalculator = lazy(() =>
+  import("@/components/analytics/ROICalculator").then((module) => ({ default: module.ROICalculator })),
+);
+const WelcomeFlow = lazy(() =>
+  import("@/components/onboarding/WelcomeFlow").then((module) => ({ default: module.WelcomeFlow })),
+);
+const ProviderSetup = lazy(() =>
+  import("@/components/providers/ProviderSetup").then((module) => ({ default: module.ProviderSetup })),
+);
+const ProviderSettings = lazy(() =>
+  import("@/components/providers/ProviderSettings").then((module) => ({ default: module.ProviderSettings })),
+);
+const TrayApp = lazy(() =>
+  import("@/tray/TrayApp").then((module) => ({ default: module.TrayApp })),
+);
+
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -12 },
 };
+
+interface TrackAlertPayload {
+  provider_id: string;
+  track_id: string;
+  usage_pct: number;
+  track_kind: "subscription" | "api" | "manual";
+}
 
 const isTrayRoute = (): boolean => {
   if (typeof window === "undefined") return false;
@@ -135,6 +159,27 @@ function DashboardApp() {
     setAlert({ level: "critical", message: `${payload.info.name}: quota usage is above 95%` });
   });
 
+  useTauriEvent<TrackAlertPayload>("quota-warning-track", (payload) => {
+    setAlert({
+      level: "warning",
+      message: `${payload.provider_id} ${payload.track_kind} track is above 80%`,
+    });
+  });
+
+  useTauriEvent<TrackAlertPayload>("quota-critical-track", (payload) => {
+    setAlert({
+      level: "critical",
+      message: `${payload.provider_id} ${payload.track_kind} track is above 95%`,
+    });
+  });
+
+  useTauriEvent<DashboardEntry>("data-stale", (payload) => {
+    setAlert({
+      level: "warning",
+      message: `${payload.info.name}: showing cached data older than 5 minutes`,
+    });
+  });
+
   useTauriEvent<boolean>("open-settings", () => {
     setRoute("settings");
   });
@@ -159,23 +204,25 @@ function DashboardApp() {
     return (
       <TooltipProvider>
         <AppShell theme={theme} onToggleTheme={toggleTheme} route={route} onNavigate={setRoute} updateBanner={updateBanner}>
-          <WelcomeFlow
-            providerIds={["codex", "claude", "gemini", "kiro", "copilot", "cursor", "jetbrains"]}
-            onComplete={async (selected) => {
-              const config = await providerApi.getConfig();
-              await providerApi.updateConfig({
-                ...config,
-                onboarding_complete: true,
-                enabled_providers: selected,
-              });
-              setShowOnboarding(false);
-            }}
-            onSkip={async () => {
-              const config = await providerApi.getConfig();
-              await providerApi.updateConfig({ ...config, onboarding_complete: true });
-              setShowOnboarding(false);
-            }}
-          />
+          <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading onboarding...</div>}>
+            <WelcomeFlow
+              providerIds={["codex", "claude", "gemini", "kiro", "copilot", "cursor", "jetbrains"]}
+              onComplete={async (selected) => {
+                const config = await providerApi.getConfig();
+                await providerApi.updateConfig({
+                  ...config,
+                  onboarding_complete: true,
+                  enabled_providers: selected,
+                });
+                setShowOnboarding(false);
+              }}
+              onSkip={async () => {
+                const config = await providerApi.getConfig();
+                await providerApi.updateConfig({ ...config, onboarding_complete: true });
+                setShowOnboarding(false);
+              }}
+            />
+          </Suspense>
         </AppShell>
       </TooltipProvider>
     );
@@ -253,38 +300,46 @@ function DashboardApp() {
             ) : null}
 
             {route === "analytics" ? (
-              <section className="grid gap-4">
-                <CostDashboard summary={costSummary} history={costHistory} pace={paceAnalysis} />
-                <div className="grid gap-4 xl:grid-cols-2">
-                  <ROICalculator roi={roiAnalysis} />
-                  <ExportPanel providers={entries.map((entry) => entry.info.id)} />
-                </div>
-              </section>
+              <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading analytics...</div>}>
+                <section className="grid gap-4">
+                  <CostDashboard summary={costSummary} history={costHistory} pace={paceAnalysis} />
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <ROICalculator roi={roiAnalysis} />
+                    <ExportPanel providers={entries.map((entry) => entry.info.id)} />
+                  </div>
+                </section>
+              </Suspense>
             ) : null}
 
-            {route === "settings" ? <SettingsView /> : null}
+            {route === "settings" ? (
+              <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading settings...</div>}>
+                <SettingsView />
+              </Suspense>
+            ) : null}
           </motion.div>
         </AnimatePresence>
 
-        <ProviderSetup
-          open={setupOpen}
-          providerId={activeProviderId}
-          authMethod={activeProviderAuth}
-          onClose={() => setSetupOpen(false)}
-          onSaved={() => {
-            setSetupOpen(false);
-            void loadDashboard();
-          }}
-        />
+        <Suspense fallback={null}>
+          <ProviderSetup
+            open={setupOpen}
+            providerId={activeProviderId}
+            authMethod={activeProviderAuth}
+            onClose={() => setSetupOpen(false)}
+            onSaved={() => {
+              setSetupOpen(false);
+              void loadDashboard();
+            }}
+          />
 
-        <ProviderSettings
-          open={settingsOpen}
-          providerId={activeProviderId}
-          onClose={() => {
-            setSettingsOpen(false);
-            void loadDashboard();
-          }}
-        />
+          <ProviderSettings
+            open={settingsOpen}
+            providerId={activeProviderId}
+            onClose={() => {
+              setSettingsOpen(false);
+              void loadDashboard();
+            }}
+          />
+        </Suspense>
       </AppShell>
     </TooltipProvider>
   );
@@ -292,7 +347,11 @@ function DashboardApp() {
 
 function App() {
   if (isTrayRoute()) {
-    return <TrayApp />;
+    return (
+      <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading tray...</div>}>
+        <TrayApp />
+      </Suspense>
+    );
   }
   return <DashboardApp />;
 }

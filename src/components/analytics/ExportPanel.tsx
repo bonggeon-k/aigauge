@@ -21,14 +21,16 @@ export const ExportPanel = ({ providers }: ExportPanelProps) => {
   );
 
   return (
-    <Card className="space-y-4 p-4">
-      <h3 className="text-base font-semibold">Export</h3>
-      <div className="flex flex-wrap gap-2">
+    <Card className="space-y-4 overflow-hidden border-border/70 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)]">
+      <div className="pointer-events-none h-1 rounded-full bg-gradient-to-r from-[var(--chart-4)] via-[var(--chart-2)] to-[var(--chart-6)]" />
+      <h3 className="text-base font-semibold tracking-tight">Export</h3>
+      <div className="flex flex-wrap gap-2 rounded-full bg-[var(--surface-1)] p-1">
         {(["csv", "json", "pdf"] as ExportFormat[]).map((option) => (
           <Button
             key={option}
-            variant={format === option ? "default" : "outline"}
+            variant={format === option ? "default" : "ghost"}
             size="sm"
+            className={format === option ? "rounded-full" : "rounded-full"}
             onClick={() => setFormat(option)}
           >
             {option.toUpperCase()}
@@ -36,7 +38,7 @@ export const ExportPanel = ({ providers }: ExportPanelProps) => {
         ))}
       </div>
 
-      <div className="space-y-2 text-xs">
+      <div className="space-y-2 rounded-xl bg-[var(--surface-1)] p-3 text-xs">
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -50,7 +52,7 @@ export const ExportPanel = ({ providers }: ExportPanelProps) => {
           {providers.map((provider) => {
             const checked = selectedProviders.includes(provider);
             return (
-              <label key={provider} className="flex items-center gap-1 rounded border px-2 py-1">
+              <label key={provider} className="flex items-center gap-1 rounded-full border border-border/70 bg-background/50 px-2 py-1">
                 <input
                   type="checkbox"
                   checked={checked}
@@ -86,14 +88,11 @@ export const ExportPanel = ({ providers }: ExportPanelProps) => {
         <Button
           variant="outline"
           onClick={async () => {
-            await exporter.exportToFile(
-              {
-                format,
-                include_cost: includeCost,
-                providers: selectedProviders,
-              },
-              `/tmp/aigauge-export.${format}`,
-            );
+            await exporter.exportToFile({
+              format,
+              include_cost: includeCost,
+              providers: selectedProviders,
+            }, "");
           }}
           disabled={exporter.loading}
         >
@@ -102,7 +101,7 @@ export const ExportPanel = ({ providers }: ExportPanelProps) => {
         </Button>
       </div>
 
-      <pre className="max-h-40 overflow-auto rounded-md bg-muted p-3 text-[11px]">{previewRows}</pre>
+      <pre className="max-h-40 overflow-auto rounded-xl border border-border/70 bg-[var(--surface-2)] p-3 font-mono text-[11px]">{previewRows}</pre>
       {exporter.error ? <p className="text-xs text-destructive">{exporter.error}</p> : null}
       {exporter.success ? <p className="text-xs text-muted-foreground">{exporter.success}</p> : null}
     </Card>

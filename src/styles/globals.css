@@ -2,6 +2,62 @@ html {
   scroll-behavior: smooth;
 }
 
+body {
+  font-family: var(--font-ui);
+  background: var(--app-bg);
+  background-attachment: fixed;
+  min-height: 100vh;
+  text-rendering: geometricPrecision;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+:root[data-platform="windows"] {
+  --font-display: "Segoe UI Variable", "Bahnschrift", "Pretendard Variable", sans-serif;
+  --font-ui: "Segoe UI Variable", "Pretendard Variable", "Noto Sans", sans-serif;
+}
+
+:root[data-platform="macos"] {
+  --font-display: "SF Pro Display", "Avenir Next", "Pretendard Variable", sans-serif;
+  --font-ui: "SF Pro Text", "Avenir Next", "Pretendard Variable", sans-serif;
+}
+
+:root[data-platform="linux"] {
+  --font-display: "Noto Sans", "Ubuntu", "Pretendard Variable", sans-serif;
+  --font-ui: "Noto Sans", "Ubuntu", "Pretendard Variable", sans-serif;
+}
+
+:root[data-platform="windows"] .premium-shell {
+  border-radius: 1.1rem;
+}
+
+:root[data-platform="windows"] .premium-shell header {
+  min-height: 50px;
+}
+
+:root[data-platform="macos"] .premium-shell {
+  border-radius: 1.25rem;
+}
+
+:root[data-platform="macos"] .premium-shell header {
+  min-height: 54px;
+  padding-left: 0.875rem;
+}
+
+:root[data-platform="linux"] .premium-shell {
+  border-radius: 1rem;
+}
+
+:root[data-platform="linux"] .premium-shell header {
+  min-height: 48px;
+}
+
 .skip-link {
   position: absolute;
   left: 0.5rem;
@@ -40,6 +96,33 @@ html {
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08));
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.2s linear infinite;
+}
+
+.premium-shell {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-soft);
+}
+
+.premium-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--color-primary) 20%, transparent), transparent 38%),
+    radial-gradient(500px 180px at 100% 0%, color-mix(in srgb, var(--chart-3) 14%, transparent), transparent 64%);
+  opacity: 0.8;
+}
+
+.anim-rise {
+  animation: rise-fade var(--transition-page) both;
+}
+
+.anim-aurora {
+  animation: aurora-float 8s ease-in-out infinite;
 }
 
 @media print {

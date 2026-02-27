@@ -6,6 +6,7 @@ pub mod gemini;
 pub mod jetbrains;
 pub mod kiro;
 
+use crate::platform;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -129,16 +130,7 @@ pub fn build_shared_http_client() -> Result<Client> {
 }
 
 pub fn home_dir() -> Option<PathBuf> {
-    std::env::var("USERPROFILE")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var("HOME")
-                .ok()
-                .filter(|value| !value.trim().is_empty())
-                .map(PathBuf::from)
-        })
+    platform::home_dir()
 }
 
 #[allow(async_fn_in_trait)]

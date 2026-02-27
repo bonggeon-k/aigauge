@@ -66,13 +66,46 @@ struct TokenTotals {
     reasoning_output: u64,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CodexTokenSnapshot {
+    pub total_tokens: u64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub reasoning_output_tokens: u64,
+    pub session_files: u64,
+    pub token_events: u64,
+}
+
+#[derive(Debug, Clone, Default)]
+struct CodexThirtyDayStats {
+    total_cost: f64,
+    tokens: CodexTokenSnapshot,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CodexCostBreakdown {
+    pub estimated_cost_usd_30d: f64,
+    pub total_tokens_30d: u64,
+    pub input_tokens_30d: u64,
+    pub output_tokens_30d: u64,
+    pub reasoning_tokens_30d: u64,
+    pub session_files_30d: u64,
+    pub token_events_30d: u64,
+}
+
 #[derive(Debug, Clone)]
 struct CachedCodexCost {
     computed_at: Instant,
-    total_cost: f64,
+    stats: CodexThirtyDayStats,
 }
 
 static CODEX_COST_CACHE: Lazy<Mutex<Option<CachedCodexCost>>> = Lazy::new(|| Mutex::new(None));
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct CostHistoryDocument {
+    schema_version: u32,
+    entries: Vec<MonthlyCostHistory>,
+}
 
 impl CostEngine {
     #[instrument(skip(self, state))]
@@ -138,8 +171,11 @@ impl CostEngine {
         history.push(entry);
         history = trim_history(history);
 
-        let data = serde_json::to_string_pretty(&history)
-            .map_err(|error| format!("failed to serialize cost history: {error}"))?;
+        let data = serde_json::to_string_pretty(&CostHistoryDocument {
+            schema_version: 2,
+            entries: history.clone(),
+        })
+        .map_err(|error| format!("failed to serialize cost history: {error}"))?;
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)
                 .map_err(|error| format!("failed to create cost history dir: {error}"))?;
@@ -169,10 +205,17 @@ impl CostEngine {
             return Ok(Vec::new());
         }
 
-        let raw = fs::read_to_string(path)
+        let raw = fs::read_to_string(path.as_path())
             .map_err(|error| format!("failed to read cost history: {error}"))?;
+        if let Ok(document) = serde_json::from_str::<CostHistoryDocument>(&raw) {
+            if document.schema_version >= 2 {
+                return Ok(trim_history(document.entries));
+            }
+        }
+
         let history: Vec<MonthlyCostHistory> = serde_json::from_str(&raw)
             .map_err(|error| format!("failed to parse cost history: {error}"))?;
+        backup_legacy_history(path.as_path())?;
         Ok(trim_history(history))
     }
 
@@ -255,11 +298,31 @@ impl CostEngine {
         })
     }
 
+    pub fn codex_token_snapshot(&self) -> Option<CodexTokenSnapshot> {
+        self.codex_stats_cached().map(|stats| stats.tokens)
+    }
+
+    pub fn codex_cost_breakdown(&self) -> Option<CodexCostBreakdown> {
+        self.codex_stats_cached().map(|stats| CodexCostBreakdown {
+            estimated_cost_usd_30d: stats.total_cost,
+            total_tokens_30d: stats.tokens.total_tokens,
+            input_tokens_30d: stats.tokens.input_tokens,
+            output_tokens_30d: stats.tokens.output_tokens,
+            reasoning_tokens_30d: stats.tokens.reasoning_output_tokens,
+            session_files_30d: stats.tokens.session_files,
+            token_events_30d: stats.tokens.token_events,
+        })
+    }
+
     fn codex_monthly_cost(&self) -> Option<f64> {
+        self.codex_stats_cached().map(|stats| stats.total_cost)
+    }
+
+    fn codex_stats_cached(&self) -> Option<CodexThirtyDayStats> {
         if let Ok(cache) = CODEX_COST_CACHE.lock() {
             if let Some(cached) = cache.as_ref() {
                 if cached.computed_at.elapsed() < Duration::from_secs(30 * 60) {
-                    return Some(cached.total_cost);
+                    return Some(cached.stats.clone());
                 }
             }
         }
@@ -268,13 +331,13 @@ impl CostEngine {
         if let Ok(mut cache) = CODEX_COST_CACHE.lock() {
             *cache = Some(CachedCodexCost {
                 computed_at: Instant::now(),
-                total_cost: scanned,
+                stats: scanned.clone(),
             });
         }
         Some(scanned)
     }
 
-    fn scan_codex_sessions_last_30_days(&self) -> Result<f64, String> {
+    fn scan_codex_sessions_last_30_days(&self) -> Result<CodexThirtyDayStats, String> {
         let home = home_dir()
             .ok_or_else(|| "failed to resolve home directory (USERPROFILE/HOME)".to_string())?;
         let roots = [
@@ -284,6 +347,8 @@ impl CostEngine {
 
         let now = Utc::now();
         let mut totals_by_model: BTreeMap<String, TokenTotals> = BTreeMap::new();
+        let mut session_files = 0_u64;
+        let mut token_events = 0_u64;
 
         for root in roots {
             if !root.exists() {
@@ -298,6 +363,7 @@ impl CostEngine {
                 if now.signed_duration_since(modified_at).num_days() > 30 {
                     continue;
                 }
+                session_files += 1;
 
                 let content = fs::read_to_string(&file).map_err(|error| {
                     format!("failed to read codex session {}: {error}", file.display())
@@ -315,6 +381,7 @@ impl CostEngine {
                     {
                         continue;
                     }
+                    token_events += 1;
 
                     let model = value
                         .pointer("/payload/model")
@@ -348,7 +415,31 @@ impl CostEngine {
             }
         }
 
-        Ok(calculate_cost_from_totals(&totals_by_model))
+        let input_tokens = totals_by_model
+            .values()
+            .map(|totals| totals.input)
+            .sum::<u64>();
+        let output_tokens = totals_by_model
+            .values()
+            .map(|totals| totals.output)
+            .sum::<u64>();
+        let reasoning_output_tokens = totals_by_model
+            .values()
+            .map(|totals| totals.reasoning_output)
+            .sum::<u64>();
+        let total_tokens = input_tokens + output_tokens + reasoning_output_tokens;
+
+        Ok(CodexThirtyDayStats {
+            total_cost: calculate_cost_from_totals(&totals_by_model),
+            tokens: CodexTokenSnapshot {
+                total_tokens,
+                input_tokens,
+                output_tokens,
+                reasoning_output_tokens,
+                session_files,
+                token_events,
+            },
+        })
     }
 }
 
@@ -402,6 +493,17 @@ fn calculate_cost_from_totals(totals_by_model: &BTreeMap<String, TokenTotals>) -
                 + (totals.reasoning_output as f64 / 1_000_000.0) * reasoning_price
         })
         .sum::<f64>()
+}
+
+fn backup_legacy_history(path: &Path) -> Result<(), String> {
+    let backup = path.with_extension("v1.bak");
+    if backup.exists() {
+        return Ok(());
+    }
+
+    fs::copy(path, backup)
+        .map(|_| ())
+        .map_err(|error| format!("failed to backup legacy cost history: {error}"))
 }
 
 fn trim_history(mut history: Vec<MonthlyCostHistory>) -> Vec<MonthlyCostHistory> {
@@ -471,9 +573,16 @@ pub async fn get_pace_analysis(
         .await
 }
 
+#[tauri::command]
+#[instrument]
+pub fn get_codex_cost_breakdown() -> Result<CodexCostBreakdown, String> {
+    Ok(CostEngine.codex_cost_breakdown().unwrap_or_default())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
     fn history_is_capped_to_twelve() {
@@ -513,5 +622,54 @@ mod tests {
         );
         let cost = calculate_cost_from_totals(&totals);
         assert!((cost - 1.35).abs() < 0.001);
+    }
+
+    #[test]
+    fn codex_breakdown_defaults_when_no_cache() {
+        let breakdown = CostEngine.codex_cost_breakdown().unwrap_or_default();
+        assert!(breakdown.estimated_cost_usd_30d >= 0.0);
+    }
+
+    #[test]
+    fn loads_v2_cost_history_document() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("cost-history.json");
+        let payload = CostHistoryDocument {
+            schema_version: 2,
+            entries: vec![MonthlyCostHistory {
+                month: "2026-02".to_string(),
+                total: 10.0,
+                by_provider: vec![],
+            }],
+        };
+        fs::write(
+            path.as_path(),
+            serde_json::to_string_pretty(&payload).expect("serialize"),
+        )
+        .expect("write");
+
+        let loaded = CostEngine::load_history_from_path(path).expect("load");
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].month, "2026-02");
+    }
+
+    #[test]
+    fn migrates_legacy_cost_history_and_keeps_backup() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("cost-history.json");
+        let legacy = vec![MonthlyCostHistory {
+            month: "2026-01".to_string(),
+            total: 7.0,
+            by_provider: vec![],
+        }];
+        fs::write(
+            path.as_path(),
+            serde_json::to_string_pretty(&legacy).expect("serialize"),
+        )
+        .expect("write");
+
+        let loaded = CostEngine::load_history_from_path(path.clone()).expect("load");
+        assert_eq!(loaded.len(), 1);
+        assert!(path.with_extension("v1.bak").exists());
     }
 }

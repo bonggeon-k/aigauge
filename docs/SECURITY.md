@@ -45,6 +45,17 @@ Telemetry excludes:
 - Updater endpoint serves signed `latest.json` metadata from GitHub Releases.
 - `tauri.conf.json` defines updater pubkey.
 - Update install is user-initiated from app UI.
+- If updater initialization fails (for example during unsigned development builds),
+  the app degrades gracefully and continues without update actions.
+
+## Dependency Audit Notes
+
+- `pnpm audit --audit-level=high` is required before release.
+- `cargo audit` is required before release.
+- Current RustSec output includes known *transitive* warnings from the Linux GTK3
+  stack pulled by Tauri/WRY (`gtk`, `gdk`, `atk`, related `-sys` crates) and
+  `unic-*` crates via `tauri-utils`.
+- These are tracked upstream; no direct vulnerable app code path was identified.
 
 ## CSP Rationale
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { detectPlatform, platformDataKey } from "@/lib/platform";
 
 export type AuthMethod = "api_key" | "oauth" | "token" | "none";
 export type ProviderStatus = "ok" | "not_configured" | "unreachable";
@@ -39,6 +40,29 @@ export interface CostData {
   status: ProviderStatus;
 }
 
+export type TrackKind = "subscription" | "api" | "manual";
+export type DataSource = "oauth" | "cli" | "cache" | "manual" | "snapshot";
+export type CostDisplayMode = "included" | "metered" | "unavailable";
+
+export interface UsageTrack {
+  id: string;
+  kind: TrackKind;
+  label: string;
+  used: number;
+  limit: number;
+  unit: string;
+  reset_at: string;
+  status: ProviderStatus;
+  source: DataSource;
+}
+
+export interface CostView {
+  mode: CostDisplayMode;
+  currency: string;
+  total: number | null;
+  note: string;
+}
+
 export interface QuotaLimit {
   used: number;
   limit: number;
@@ -58,6 +82,10 @@ export interface DashboardEntry {
   usage: UsageData;
   quota: QuotaLimit;
   cost: CostData | null;
+  tracks: UsageTrack[];
+  preferred_track: TrackKind;
+  cost_view: CostView;
+  stale: boolean;
   health: HealthStatus;
 }
 
@@ -97,6 +125,16 @@ export interface TelemetryStatus {
   os: string;
 }
 
+export interface CodexCostBreakdown {
+  estimated_cost_usd_30d: number;
+  total_tokens_30d: number;
+  input_tokens_30d: number;
+  output_tokens_30d: number;
+  reasoning_tokens_30d: number;
+  session_files_30d: number;
+  token_events_30d: number;
+}
+
 export interface ManualProviderInput {
   provider: string;
   requests: number;
@@ -107,6 +145,7 @@ export interface ManualProviderInput {
   reset_at: string;
   cost_total?: number;
   plan_name?: string;
+  track_kind?: TrackKind;
 }
 
 export interface ServiceStatus {
@@ -115,9 +154,25 @@ export interface ServiceStatus {
   description: string;
 }
 
+export interface CopilotDeviceFlowStart {
+  device_code: string;
+  user_code: string;
+  verification_uri: string;
+  verification_uri_complete?: string | null;
+  expires_in: number;
+  interval: number;
+}
+
+export interface CopilotDeviceFlowPoll {
+  status: string;
+  message?: string | null;
+  interval?: number | null;
+}
+
 const isTauriRuntime =
   typeof window !== "undefined" &&
   "__TAURI_INTERNALS__" in (window as unknown as Record<string, unknown>);
+const fallbackOs = platformDataKey(detectPlatform());
 
 const fallbackDashboard: DashboardEntry[] = [
   {
@@ -153,6 +208,38 @@ const fallbackDashboard: DashboardEntry[] = [
       period_end: "2026-02-27T23:59:59Z",
       status: "ok",
     },
+    tracks: [
+      {
+        id: "subscription:weekly_limit",
+        kind: "subscription",
+        label: "Weekly limit",
+        used: 62,
+        limit: 100,
+        unit: "percent",
+        reset_at: "2026-02-27T23:59:59Z",
+        status: "ok",
+        source: "oauth",
+      },
+      {
+        id: "api:primary",
+        kind: "api",
+        label: "API usage",
+        used: 48200,
+        limit: 1000000,
+        unit: "tokens",
+        reset_at: "2026-02-27T23:59:59Z",
+        status: "ok",
+        source: "snapshot",
+      },
+    ],
+    preferred_track: "subscription",
+    cost_view: {
+      mode: "metered",
+      currency: "USD",
+      total: 42.15,
+      note: "Usage-based charges",
+    },
+    stale: false,
     health: { configured: true, reachable: true, last_checked: "2026-02-27T12:00:00Z" },
   },
   {
@@ -160,7 +247,7 @@ const fallbackDashboard: DashboardEntry[] = [
       id: "jetbrains",
       name: "JetBrains AI Assistant",
       icon: "brain-circuit",
-      auth_method: "api_key",
+      auth_method: "none",
       plan_name: "AI Pro",
       quota_limit: 150000,
       reset_period: "monthly",
@@ -188,6 +275,27 @@ const fallbackDashboard: DashboardEntry[] = [
       period_end: "2026-02-27T23:59:59Z",
       status: "ok",
     },
+    tracks: [
+      {
+        id: "subscription:primary",
+        kind: "subscription",
+        label: "Monthly credits",
+        used: 12600,
+        limit: 150000,
+        unit: "credits",
+        reset_at: "2026-02-27T23:59:59Z",
+        status: "ok",
+        source: "snapshot",
+      },
+    ],
+    preferred_track: "subscription",
+    cost_view: {
+      mode: "included",
+      currency: "USD",
+      total: null,
+      note: "No additional charge within plan quota",
+    },
+    stale: false,
     health: { configured: true, reachable: true, last_checked: "2026-02-27T12:00:00Z" },
   },
 ];
@@ -275,6 +383,27 @@ export const useProvider = () =>
         }
       },
 
+      async startCopilotDeviceFlow(): Promise<CopilotDeviceFlowStart> {
+        if (!isTauriRuntime) {
+          return {
+            device_code: "dev-device-code",
+            user_code: "ABCD-EFGH",
+            verification_uri: "https://github.com/login/device",
+            verification_uri_complete: "https://github.com/login/device",
+            expires_in: 900,
+            interval: 5,
+          };
+        }
+        return invoke<CopilotDeviceFlowStart>("start_copilot_device_flow");
+      },
+
+      async pollCopilotDeviceFlow(deviceCode: string): Promise<CopilotDeviceFlowPoll> {
+        if (!isTauriRuntime) {
+          return { status: "authorization_pending", message: "Mock pending", interval: 5 };
+        }
+        return invoke<CopilotDeviceFlowPoll>("poll_copilot_device_flow", { deviceCode });
+      },
+
       async deleteCredential(provider: string): Promise<void> {
         if (isTauriRuntime) {
           await invoke("delete_credential", { provider });
@@ -333,7 +462,7 @@ export const useProvider = () =>
             enabled: false,
             configured_provider_count: fallbackDashboard.length,
             app_version: "1.0.0",
-            os: "linux",
+            os: fallbackOs,
           };
         }
         return invoke<TelemetryStatus>("get_telemetry_status");
@@ -345,7 +474,7 @@ export const useProvider = () =>
             enabled,
             configured_provider_count: fallbackDashboard.length,
             app_version: "1.0.0",
-            os: "linux",
+            os: fallbackOs,
           };
         }
         return invoke<TelemetryStatus>("set_telemetry_enabled", { enabled });
@@ -382,6 +511,21 @@ export const useProvider = () =>
           return config;
         }
         return invoke<AppConfig>("update_config", { config });
+      },
+
+      async getCodexCostBreakdown(): Promise<CodexCostBreakdown> {
+        if (!isTauriRuntime) {
+          return {
+            estimated_cost_usd_30d: 42.15,
+            total_tokens_30d: 48200,
+            input_tokens_30d: 22000,
+            output_tokens_30d: 21000,
+            reasoning_tokens_30d: 5200,
+            session_files_30d: 12,
+            token_events_30d: 83,
+          };
+        }
+        return invoke<CodexCostBreakdown>("get_codex_cost_breakdown");
       },
     }),
     [],
