@@ -1,0 +1,33 @@
+# Node / frontend
+node_modules/
+dist/
+.pnpm-store/
+*.tsbuildinfo
+
+# Rust / Tauri
+src-tauri/target/
+target/
+**/*.rs.bk
+src-tauri/gen/
+
+# Logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Linux temp files
+*~
+*.swp

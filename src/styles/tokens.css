@@ -1,0 +1,61 @@
+:root {
+  --font-sans: "Space Grotesk", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Consolas", monospace;
+
+  --color-bg: #f5f7fa;
+  --color-bg-elevated: #ffffff;
+  --color-fg: #1f2937;
+  --color-muted: #6b7280;
+  --color-border: #d0d5dd;
+  --color-primary: #0f766e;
+  --color-primary-contrast: #ecfeff;
+  --color-accent: #ea580c;
+  --color-success: #15803d;
+  --color-warning: #ca8a04;
+  --color-danger: #b91c1c;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 1rem;
+
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.08);
+  --shadow-md: 0 8px 24px rgb(15 23 42 / 0.08);
+}
+
+:root.dark {
+  --color-bg: #090c11;
+  --color-bg-elevated: #111826;
+  --color-fg: #f3f4f6;
+  --color-muted: #9ca3af;
+  --color-border: #253042;
+  --color-primary: #2dd4bf;
+  --color-primary-contrast: #052e2b;
+  --color-accent: #fb923c;
+  --color-success: #22c55e;
+  --color-warning: #facc15;
+  --color-danger: #ef4444;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-md: 0 10px 30px rgb(0 0 0 / 0.45);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  color: var(--color-fg);
+  background:
+    radial-gradient(circle at 10% 10%, rgb(45 212 191 / 0.12), transparent 30%),
+    radial-gradient(circle at 80% 0%, rgb(251 146 60 / 0.14), transparent 25%),
+    var(--color-bg);
+}
