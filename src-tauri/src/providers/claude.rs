@@ -1,4 +1,5 @@
 use crate::credentials::CredentialManager;
+use crate::platform;
 use reqwest::header::AUTHORIZATION;
 use reqwest::Client;
 use serde::Deserialize;
@@ -64,12 +65,18 @@ impl ClaudeProvider {
     }
 
     fn credentials_path() -> Option<PathBuf> {
-        home_dir().map(|home| home.join(".claude").join(".credentials.json"))
+        home_dir()
+            .map(|home| home.join(".claude").join(".credentials.json"))
+            .or_else(|| platform::wsl_to_windows_path("~/.claude/.credentials.json"))
     }
 
     fn read_oauth() -> Option<ClaudeOauth> {
-        let path = Self::credentials_path()?;
-        let raw = fs::read_to_string(path).ok()?;
+        let raw = if let Some(path) = Self::credentials_path() {
+            fs::read_to_string(path).ok()
+        } else {
+            None
+        }
+        .or_else(|| platform::read_wsl_text_file("~/.claude/.credentials.json"))?;
         let credentials: ClaudeCredentials = serde_json::from_str(raw.as_str()).ok()?;
         credentials.claude_ai_oauth
     }

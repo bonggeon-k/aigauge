@@ -1,4 +1,5 @@
 use crate::credentials::CredentialManager;
+use crate::platform;
 use reqwest::header::AUTHORIZATION;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -69,6 +70,7 @@ impl CodexProvider {
             .filter(|value| !value.trim().is_empty())
             .map(PathBuf::from)
             .or_else(|| home_dir().map(|home| home.join(".codex")))
+            .or_else(|| platform::wsl_to_windows_path("~/.codex"))
     }
 
     fn auth_path() -> Option<PathBuf> {
@@ -80,14 +82,22 @@ impl CodexProvider {
     }
 
     fn read_auth_from_file() -> Option<CodexAuth> {
-        let path = Self::auth_path()?;
-        let raw = fs::read_to_string(path).ok()?;
+        let raw = if let Some(path) = Self::auth_path() {
+            fs::read_to_string(path).ok()
+        } else {
+            None
+        }
+        .or_else(|| platform::read_wsl_text_file("~/.codex/auth.json"))?;
         serde_json::from_str(raw.as_str()).ok()
     }
 
     fn parse_config_base_url() -> Option<String> {
-        let path = Self::config_path()?;
-        let raw = fs::read_to_string(path).ok()?;
+        let raw = if let Some(path) = Self::config_path() {
+            fs::read_to_string(path).ok()
+        } else {
+            None
+        }
+        .or_else(|| platform::read_wsl_text_file("~/.codex/config.toml"))?;
 
         for line in raw.lines() {
             let trimmed = line.trim();

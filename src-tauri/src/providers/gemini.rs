@@ -1,4 +1,5 @@
 use crate::credentials::CredentialManager;
+use crate::platform;
 use reqwest::header::AUTHORIZATION;
 use reqwest::Client;
 use serde::Deserialize;
@@ -33,12 +34,18 @@ impl GeminiProvider {
     }
 
     fn creds_path() -> Option<PathBuf> {
-        home_dir().map(|home| home.join(".gemini").join("oauth_creds.json"))
+        home_dir()
+            .map(|home| home.join(".gemini").join("oauth_creds.json"))
+            .or_else(|| platform::wsl_to_windows_path("~/.gemini/oauth_creds.json"))
     }
 
     fn read_creds() -> Option<GeminiOauthCreds> {
-        let path = Self::creds_path()?;
-        let raw = fs::read_to_string(path).ok()?;
+        let raw = if let Some(path) = Self::creds_path() {
+            fs::read_to_string(path).ok()
+        } else {
+            None
+        }
+        .or_else(|| platform::read_wsl_text_file("~/.gemini/oauth_creds.json"))?;
         serde_json::from_str(raw.as_str()).ok()
     }
 

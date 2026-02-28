@@ -1,4 +1,6 @@
 use std::path::PathBuf;
+#[cfg(target_os = "windows")]
+use std::process::Command;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostPlatform {
@@ -54,6 +56,72 @@ pub fn home_dir() -> Option<PathBuf> {
             .or_else(windows_home_from_drive_path),
         _ => env_path("HOME").or_else(|| env_path("USERPROFILE")),
     }
+}
+
+#[cfg(target_os = "windows")]
+fn shell_single_quote(value: &str) -> String {
+    value.replace('\'', "'\\''")
+}
+
+#[cfg(target_os = "windows")]
+pub fn wsl_to_windows_path(unix_path: &str) -> Option<PathBuf> {
+    let trimmed = unix_path.trim();
+    if trimmed.is_empty() || !has_wsl() {
+        return None;
+    }
+
+    let quoted = shell_single_quote(trimmed);
+    let command = format!("wslpath -w '{quoted}'");
+    let output = Command::new("wsl.exe")
+        .args(["-e", "bash", "-lc", command.as_str()])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let raw = String::from_utf8(output.stdout).ok()?;
+    let path = raw.trim();
+    if path.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(path))
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn wsl_to_windows_path(_unix_path: &str) -> Option<PathBuf> {
+    None
+}
+
+#[cfg(target_os = "windows")]
+pub fn read_wsl_text_file(unix_path: &str) -> Option<String> {
+    let trimmed = unix_path.trim();
+    if trimmed.is_empty() || !has_wsl() {
+        return None;
+    }
+
+    let quoted = shell_single_quote(trimmed);
+    let command = format!("test -f '{quoted}' && cat '{quoted}'");
+    let output = Command::new("wsl.exe")
+        .args(["-e", "bash", "-lc", command.as_str()])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let raw = String::from_utf8(output.stdout).ok()?;
+    if raw.trim().is_empty() {
+        None
+    } else {
+        Some(raw)
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn read_wsl_text_file(_unix_path: &str) -> Option<String> {
+    None
 }
 
 #[cfg(target_os = "windows")]
@@ -127,5 +195,14 @@ mod tests {
         let (program, args) = kiro_usage_command();
         assert!(!program.trim().is_empty());
         assert!(!args.is_empty());
+    }
+
+    #[test]
+    fn non_windows_wsl_helpers_return_none() {
+        #[cfg(not(target_os = "windows"))]
+        {
+            assert!(wsl_to_windows_path("~/.codex").is_none());
+            assert!(read_wsl_text_file("~/.codex/auth.json").is_none());
+        }
     }
 }

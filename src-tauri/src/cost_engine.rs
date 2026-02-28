@@ -11,6 +11,7 @@ use tauri::Manager;
 use tracing::instrument;
 
 use crate::commands::{AppState, PROVIDER_IDS};
+use crate::platform;
 use crate::providers::home_dir;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -340,10 +341,16 @@ impl CostEngine {
     fn scan_codex_sessions_last_30_days(&self) -> Result<CodexThirtyDayStats, String> {
         let home = home_dir()
             .ok_or_else(|| "failed to resolve home directory (USERPROFILE/HOME)".to_string())?;
-        let roots = [
+        let mut roots = vec![
             home.join(".codex").join("sessions"),
             home.join(".codex").join("archived_sessions"),
         ];
+        if let Some(wsl_sessions) = platform::wsl_to_windows_path("~/.codex/sessions") {
+            roots.push(wsl_sessions);
+        }
+        if let Some(wsl_archived) = platform::wsl_to_windows_path("~/.codex/archived_sessions") {
+            roots.push(wsl_archived);
+        }
 
         let now = Utc::now();
         let mut totals_by_model: BTreeMap<String, TokenTotals> = BTreeMap::new();
