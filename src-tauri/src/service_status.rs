@@ -11,6 +11,16 @@ pub struct ServiceStatus {
     pub description: String,
 }
 
+fn normalize_indicator(indicator: &str) -> &'static str {
+    match indicator.to_ascii_lowercase().as_str() {
+        "none" | "ok" | "operational" => "none",
+        "minor" | "degraded" | "partial_outage" => "minor",
+        "major" | "major_outage" => "major",
+        "critical" => "critical",
+        _ => "unknown",
+    }
+}
+
 fn parse_codex_status(value: &Value) -> ServiceStatus {
     let incidents = value
         .get("ongoing_incidents")
@@ -39,7 +49,7 @@ fn parse_claude_status(value: &Value) -> ServiceStatus {
         .unwrap_or("unknown");
     ServiceStatus {
         provider_id: "claude".to_string(),
-        indicator: indicator.to_string(),
+        indicator: normalize_indicator(indicator).to_string(),
         description: value
             .pointer("/status/description")
             .and_then(Value::as_str)
@@ -87,7 +97,7 @@ fn parse_copilot_status(value: &Value) -> ServiceStatus {
         .unwrap_or("unknown");
     ServiceStatus {
         provider_id: "copilot".to_string(),
-        indicator: indicator.to_string(),
+        indicator: normalize_indicator(indicator).to_string(),
         description: value
             .pointer("/status/description")
             .and_then(Value::as_str)
@@ -97,14 +107,18 @@ fn parse_copilot_status(value: &Value) -> ServiceStatus {
 }
 
 fn status_from_head(provider_id: &str, status: Option<u16>, description: &str) -> ServiceStatus {
-    if status == Some(200) {
-        ServiceStatus {
+    match status {
+        Some(code) if (200..400).contains(&code) => ServiceStatus {
             provider_id: provider_id.to_string(),
             indicator: "none".to_string(),
             description: description.to_string(),
-        }
-    } else {
-        unknown_status(provider_id, "status endpoint unavailable")
+        },
+        Some(code) => ServiceStatus {
+            provider_id: provider_id.to_string(),
+            indicator: "unknown".to_string(),
+            description: format!("status endpoint returned HTTP {code}"),
+        },
+        None => unknown_status(provider_id, "status endpoint unavailable"),
     }
 }
 
@@ -237,6 +251,8 @@ mod tests {
 
         let cursor = status_from_head("cursor", Some(200), "Cursor reachable");
         assert_eq!(cursor.indicator, "none");
+        let redirect = status_from_head("cursor", Some(302), "Cursor reachable");
+        assert_eq!(redirect.indicator, "none");
         let unknown = status_from_head("cursor", Some(503), "Cursor reachable");
         assert_eq!(unknown.indicator, "unknown");
     }

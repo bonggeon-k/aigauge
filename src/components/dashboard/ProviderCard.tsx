@@ -38,6 +38,11 @@ interface ProviderCardProps {
   onOpenSettings: (providerId: string) => void;
 }
 
+interface DataStatusBadge {
+  label: string;
+  className: string;
+}
+
 const iconMap = {
   codex: Bot,
   claude: Brain,
@@ -136,6 +141,31 @@ const formatAuthMethod = (value: string): string => {
   }
 };
 
+const getDataStatusBadge = (entry: DashboardEntry): DataStatusBadge => {
+  if (entry.usage.status === "not_configured") {
+    return {
+      label: "Not configured",
+      className: "border-slate-500/30 text-slate-600 dark:text-slate-300",
+    };
+  }
+  if (entry.stale) {
+    return {
+      label: "Stale",
+      className: "border-amber-500/30 text-amber-600 dark:text-amber-300",
+    };
+  }
+  if (entry.health.reachable) {
+    return {
+      label: "Live",
+      className: "border-emerald-500/30 text-emerald-600 dark:text-emerald-400",
+    };
+  }
+  return {
+    label: "Offline",
+    className: "border-rose-500/30 text-rose-600 dark:text-rose-400",
+  };
+};
+
 export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardProps) => {
   const Icon = iconMap[entry.info.id as keyof typeof iconMap] ?? Bot;
 
@@ -186,6 +216,7 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
   const quotaPct = Math.min(100, Math.round(quotaRatio * 100));
 
   const isNotConfigured = entry.usage.status === "not_configured";
+  const dataStatusBadge = getDataStatusBadge(entry);
 
   const costLabel = useMemo(() => {
     if (entry.cost_view.mode === "included") {
@@ -243,14 +274,9 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
             <Badge variant="outline" className="max-w-full truncate">
               {formatAuthMethod(entry.info.auth_method)}
             </Badge>
-            <Badge variant="outline" className={entry.health.reachable ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400" : "border-rose-500/30 text-rose-600 dark:text-rose-400"}>
-              {entry.health.reachable ? "Live" : "Offline"}
+            <Badge variant="outline" className={dataStatusBadge.className}>
+              {dataStatusBadge.label}
             </Badge>
-            {entry.stale ? (
-              <Badge variant="outline" className="border-amber-500/30 text-amber-600 dark:text-amber-400">
-                Stale
-              </Badge>
-            ) : null}
           </div>
         </CardHeader>
 

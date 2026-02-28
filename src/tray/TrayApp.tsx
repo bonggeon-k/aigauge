@@ -90,9 +90,9 @@ export const TrayApp = () => {
     notify.notifyThresholds(data);
   }, [providerApi, notify, activeProviderId]);
 
-  const refreshStatuses = useCallback(async () => {
+  const refreshStatuses = useCallback(async (force = false) => {
     const now = Date.now();
-    if (now - statusCacheAt.current < 5 * 60 * 1000) {
+    if (!force && now - statusCacheAt.current < 5 * 60 * 1000) {
       return;
     }
     const serviceStatuses = await providerApi.fetchServiceStatuses();
@@ -120,7 +120,7 @@ export const TrayApp = () => {
         .catch(() => {
           setActionNotice(t("tray.status.initialRefreshFailed"));
         });
-      void refreshStatuses();
+      void refreshStatuses(true);
     }, 0);
     return () => {
       window.clearTimeout(initTimer);
@@ -145,7 +145,7 @@ export const TrayApp = () => {
 
   useTauriEvent<boolean>("tray-refresh", () => {
     void refreshProviders();
-    void refreshStatuses();
+    void refreshStatuses(true);
   });
 
   const refreshNow = useCallback(async () => {
@@ -155,7 +155,7 @@ export const TrayApp = () => {
     setIsRefreshing(true);
     setActionNotice(null);
     try {
-      await Promise.all([refreshProviders(), refreshStatuses()]);
+      await Promise.all([refreshProviders(), refreshStatuses(true)]);
       setLastRefreshedAt(Date.now());
     } catch {
       setActionNotice(t("tray.status.refreshFailed"));

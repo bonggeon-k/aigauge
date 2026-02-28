@@ -16,10 +16,65 @@ const setupGuide: Record<string, string> = {
   kiro: "Kiro CLI 설치 필요 (WSL)",
 };
 
-const statusColor = (indicator?: string): string => {
-  if (indicator === "major" || indicator === "critical") return "#ef4444";
-  if (indicator === "minor" || indicator === "degraded") return "#eab308";
-  return "#22c55e";
+interface StatusMeta {
+  label: string;
+  color: string;
+  toneClass: string;
+}
+
+const serviceStatusMeta = (indicator?: string): StatusMeta => {
+  const normalized = (indicator ?? "unknown").toLowerCase();
+  if (normalized === "major" || normalized === "critical" || normalized === "major_outage") {
+    return {
+      label: "Disrupted",
+      color: "#ef4444",
+      toneClass: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300",
+    };
+  }
+  if (normalized === "minor" || normalized === "degraded" || normalized === "partial_outage") {
+    return {
+      label: "Degraded",
+      color: "#eab308",
+      toneClass: "border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    };
+  }
+  if (normalized === "none" || normalized === "ok" || normalized === "operational") {
+    return {
+      label: "Operational",
+      color: "#22c55e",
+      toneClass: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+    };
+  }
+  return {
+    label: "Unknown",
+    color: "#94a3b8",
+    toneClass: "border-slate-400/30 bg-slate-400/10 text-slate-700 dark:text-slate-300",
+  };
+};
+
+const dataStateMeta = (entry: DashboardEntry): Omit<StatusMeta, "color"> => {
+  if (entry.usage.status === "not_configured") {
+    return {
+      label: "Not configured",
+      toneClass: "border-slate-400/30 bg-slate-400/10 text-slate-700 dark:text-slate-300",
+    };
+  }
+  if (entry.stale) {
+    return {
+      label: "Stale",
+      toneClass: "border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    };
+  }
+  if (entry.health.reachable) {
+    return {
+      label: "Live",
+      toneClass: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+    };
+  }
+  return {
+    label: "Offline",
+    toneClass: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300",
+  };
 };
 
 const barColor = (remainingPct: number): string => {
@@ -38,6 +93,16 @@ const trackUsageLabel = (used: number, limit: number, unit: string): string => {
     return `${used.toLocaleString()} / ${limit.toLocaleString()} ${unit}`;
   }
   return `${used.toLocaleString()} ${unit}`;
+};
+
+const computeElapsedPercent = (periodStart: string, periodEnd: string): number => {
+  const start = periodStart ? new Date(periodStart).getTime() : NaN;
+  const end = periodEnd ? new Date(periodEnd).getTime() : NaN;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return 50;
+  }
+  const ratio = (Date.now() - start) / (end - start);
+  return Math.max(0, Math.min(100, ratio * 100));
 };
 
 const computeCountdown = (resetAt: string): string => {
@@ -81,17 +146,32 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
   const visibleTracks = (subscriptionTracks.length > 0 ? subscriptionTracks : [fallbackTrack]).slice(0, 2);
   const primaryTrack = visibleTracks[0];
   const apiTrack = entry.tracks.find((track) => track.kind === "api");
+  const serviceStatus = serviceStatusMeta(status?.indicator);
+  const dataStatus = dataStateMeta(entry);
 
   const usedPct = !primaryTrack || primaryTrack.limit <= 0 ? 0 : trackPercent(primaryTrack.used, primaryTrack.limit);
 
   const remainingPct = Math.max(0, 100 - usedPct);
-  const elapsedPct = 50;
+  const elapsedPct = computeElapsedPercent(
+    primaryTrack?.reset_at ? entry.usage.period_start : "",
+    primaryTrack?.reset_at || entry.usage.period_end,
+  );
   const paceLabel = usedPct > elapsedPct + 10 ? "Behind" : usedPct < elapsedPct - 10 ? "Ahead" : "On pace";
 
   if (entry.usage.status === "not_configured") {
     return (
       <div className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-4 text-sm shadow-[var(--shadow-soft)]">
         <p className="font-medium tracking-tight">{entry.info.name}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${serviceStatus.toneClass}`}>
+            <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: serviceStatus.color }} />
+            {serviceStatus.label}
+          </span>
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 ${dataStatus.toneClass}`}>{dataStatus.label}</span>
+        </div>
+        {status?.description ? (
+          <p className="mt-1 text-[11px] text-muted-foreground">{status.description}</p>
+        ) : null}
         <p className="mt-2 text-muted-foreground">{setupGuide[entry.info.id] ?? "Provider setup required"}</p>
         <button
           type="button"
@@ -110,10 +190,18 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
         <div>
           <p className="font-medium tracking-tight">{entry.info.name}</p>
           <p className="text-xs text-muted-foreground">{entry.info.plan_name}</p>
+          {status?.description ? (
+            <p className="mt-1 text-[11px] text-muted-foreground">{status.description}</p>
+          ) : null}
         </div>
-        <div className="flex items-center gap-2 rounded-full bg-[var(--surface-2)] px-2 py-1 text-xs text-muted-foreground">
-          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: statusColor(status?.indicator) }} />
-          {status?.indicator ?? "none"}
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] ${serviceStatus.toneClass}`}>
+            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: serviceStatus.color }} />
+            {serviceStatus.label}
+          </span>
+          <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] ${dataStatus.toneClass}`}>
+            {dataStatus.label}
+          </span>
         </div>
       </div>
 
