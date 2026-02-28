@@ -255,7 +255,7 @@ function DashboardApp() {
                 </section>
 
                 {loading ? (
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid gap-4 sm:auto-rows-fr sm:grid-cols-2 xl:grid-cols-3">
                     {Array.from({ length: 6 }).map((_, index) => (
                       <SkeletonCard key={`skeleton-${index}`} />
                     ))}
@@ -265,7 +265,7 @@ function DashboardApp() {
                 ) : (
                   <>
                     <TrayView>
-                      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-live="polite">
+                      <div className="grid gap-4 sm:auto-rows-fr sm:grid-cols-2 xl:grid-cols-3" aria-live="polite">
                         {entries.map((entry) => (
                           <ProviderCard
                             key={entry.info.id}

@@ -13,7 +13,7 @@ const defaultSettings: TraySettings = {
   refreshIntervalMinutes: 5,
   notifications: true,
   enabledProviders: ["codex", "claude", "gemini", "kiro"],
-  pinned: false,
+  pinned: true,
 };
 
 export const useTraySettings = () => {

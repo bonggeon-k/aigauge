@@ -131,10 +131,17 @@ impl JetBrainsProvider {
     }
 
     fn detect_latest_quota_path() -> Option<PathBuf> {
+        Self::detect_latest_quota_path_in(Self::candidate_base_paths().as_slice())
+    }
+
+    fn detect_latest_quota_path_in(base_paths: &[PathBuf]) -> Option<PathBuf> {
         let mut latest: Option<(PathBuf, SystemTime)> = None;
 
-        for base in Self::candidate_base_paths() {
-            let entries = fs::read_dir(base).ok()?;
+        for base in base_paths {
+            let entries = match fs::read_dir(base) {
+                Ok(entries) => entries,
+                Err(_) => continue,
+            };
             for entry in entries.flatten() {
                 let path = entry.path();
                 if !path.is_dir() {
@@ -389,5 +396,25 @@ mod tests {
             JetBrainsProvider::decode_html_entities("{&quot;x&quot;:&quot;y&quot;}&amp;"),
             "{\"x\":\"y\"}&"
         );
+    }
+
+    #[test]
+    fn finds_latest_quota_even_when_first_base_is_missing() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let missing = temp.path().join("missing");
+        let base = temp.path().join("base");
+        let ide_dir = base.join("IntelliJIdea2025.1");
+        let quota = ide_dir.join("options").join("AIAssistantQuotaManager2.xml");
+        fs::create_dir_all(quota.parent().expect("parent")).expect("create dirs");
+        fs::write(
+            &quota,
+            r#"<application><component name="AIAssistantQuotaManager2"><option name="quotaInfo" value="{&quot;type&quot;:&quot;free&quot;,&quot;current&quot;:&quot;10&quot;,&quot;maximum&quot;:&quot;100&quot;}" /></component></application>"#,
+        )
+        .expect("write quota file");
+
+        let bases = vec![missing, base];
+        let found = JetBrainsProvider::detect_latest_quota_path_in(bases.as_slice())
+            .expect("expected quota path");
+        assert_eq!(found, quota);
     }
 }

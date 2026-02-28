@@ -1,9 +1,10 @@
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use tauri::image::Image;
 use tauri::menu::MenuBuilder;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, Runtime};
 use tracing::instrument;
 
 use crate::commands::{track_usage_pct, DashboardEntry, TrackKind};
@@ -12,6 +13,7 @@ pub const TRAY_EVENT_UPDATE: &str = "tray-update";
 pub const TRAY_EVENT_REFRESH: &str = "tray-refresh";
 
 static LAST_TRAY_FINGERPRINT: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
+static LAST_TOGGLE_AT: Lazy<Mutex<Option<Instant>>> = Lazy::new(|| Mutex::new(None));
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TrayStatus {
@@ -50,10 +52,11 @@ pub fn init_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
+                position,
                 ..
             } = event
             {
-                toggle_tray_popup(tray.app_handle());
+                toggle_tray_popup(tray.app_handle(), Some((position.x, position.y)));
             }
         })
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -108,12 +111,52 @@ pub fn init_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
     Ok(())
 }
 
-fn toggle_tray_popup<R: Runtime>(app: &AppHandle<R>) {
+fn should_skip_toggle() -> bool {
+    if let Ok(mut guard) = LAST_TOGGLE_AT.lock() {
+        if let Some(last) = guard.as_ref() {
+            if last.elapsed() < Duration::from_millis(220) {
+                return true;
+            }
+        }
+        *guard = Some(Instant::now());
+    }
+    false
+}
+
+fn position_popup_window<R: Runtime>(window: &tauri::WebviewWindow<R>, click: Option<(f64, f64)>) {
+    let Some((x, y)) = click else {
+        return;
+    };
+
+    let size = window
+        .outer_size()
+        .ok()
+        .map(|value| (value.width as f64, value.height as f64))
+        .unwrap_or((420.0, 540.0));
+
+    let mut target_x = (x - (size.0 / 2.0)).round();
+    let mut target_y = (y - size.1 - 12.0).round();
+    if target_y < 12.0 {
+        target_y = (y + 12.0).round();
+    }
+    if target_x < 8.0 {
+        target_x = 8.0;
+    }
+
+    let _ = window.set_position(PhysicalPosition::new(target_x as i32, target_y as i32));
+}
+
+fn toggle_tray_popup<R: Runtime>(app: &AppHandle<R>, click: Option<(f64, f64)>) {
+    if should_skip_toggle() {
+        return;
+    }
+
     if let Some(window) = app.get_webview_window("tray-popup") {
         let visible = window.is_visible().unwrap_or(false);
         if visible {
             let _ = window.hide();
         } else {
+            position_popup_window(&window, click);
             let _ = window.show();
             let _ = window.set_focus();
         }

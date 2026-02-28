@@ -108,14 +108,16 @@ export const TrayApp = () => {
   return (
     <div
       className="mx-auto h-[540px] w-[420px] overflow-hidden rounded-2xl border border-border/70 bg-[var(--glass-bg)] p-3 text-foreground shadow-[var(--shadow-hard)] backdrop-blur"
-      onMouseDown={(event) => {
-        if (event.button !== 0 || isInteractiveElement(event.target)) {
-          return;
-        }
-        void getCurrentWindow().startDragging();
-      }}
     >
-      <div className="mb-3 flex items-center justify-between rounded-xl bg-[var(--surface-1)] px-2 py-1.5">
+      <div
+        className="mb-3 flex items-center justify-between rounded-xl bg-[var(--surface-1)] px-2 py-1.5"
+        onMouseDown={(event) => {
+          if (event.button !== 0 || isInteractiveElement(event.target)) {
+            return;
+          }
+          void getCurrentWindow().startDragging();
+        }}
+      >
         <p className="text-sm font-semibold tracking-tight">AIGauge Quick View</p>
         <div className="flex items-center gap-1">
           <button
