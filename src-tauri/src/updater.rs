@@ -10,6 +10,11 @@ pub struct UpdateInfo {
 #[tauri::command]
 #[instrument(skip(app))]
 pub async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, String> {
+    if cfg!(debug_assertions) {
+        tracing::debug!("skip updater check in debug build");
+        return Ok(None);
+    }
+
     let updater = match tauri_plugin_updater::UpdaterExt::updater_builder(&app).build() {
         Ok(updater) => updater,
         Err(error) => {
@@ -37,6 +42,11 @@ pub async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo
 #[tauri::command]
 #[instrument(skip(app))]
 pub async fn install_update(app: tauri::AppHandle) -> Result<bool, String> {
+    if cfg!(debug_assertions) {
+        tracing::debug!("skip updater install in debug build");
+        return Ok(false);
+    }
+
     let updater = match tauri_plugin_updater::UpdaterExt::updater_builder(&app).build() {
         Ok(updater) => updater,
         Err(error) => {

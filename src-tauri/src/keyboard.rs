@@ -27,18 +27,29 @@ pub fn default_shortcuts() -> Vec<ShortcutInfo> {
 
 #[instrument(skip(app))]
 pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
-    let toggle = "CommandOrControl+Shift+G";
-    let refresh = "CommandOrControl+Shift+R";
-
-    app.global_shortcut()
-        .register(toggle)
-        .map_err(|error| format!("failed to register toggle shortcut: {error}"))?;
-
-    app.global_shortcut()
-        .register(refresh)
-        .map_err(|error| format!("failed to register refresh shortcut: {error}"))?;
+    register_shortcut_if_available(app, "CommandOrControl+Shift+G", "toggle")?;
+    register_shortcut_if_available(app, "CommandOrControl+Shift+R", "refresh")?;
 
     Ok(())
+}
+
+fn register_shortcut_if_available<R: Runtime>(
+    app: &AppHandle<R>,
+    shortcut: &str,
+    label: &str,
+) -> Result<(), String> {
+    match app.global_shortcut().register(shortcut) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            let detail = error.to_string();
+            if detail.to_ascii_lowercase().contains("already registered") {
+                tracing::warn!("{label} shortcut already registered by another app instance");
+                Ok(())
+            } else {
+                Err(format!("failed to register {label} shortcut: {detail}"))
+            }
+        }
+    }
 }
 
 #[tauri::command]
