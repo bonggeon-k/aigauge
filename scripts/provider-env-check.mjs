@@ -147,7 +147,7 @@ function checkProviderCommands() {
       "provider",
       "gh",
       "command not found",
-      "Install GitHub CLI for Copilot token auto-discovery."
+      "Install GitHub CLI: `winget install --id GitHub.cli -e`"
     );
   }
 
@@ -159,7 +159,7 @@ function checkProviderCommands() {
       "provider",
       "sqlite3",
       "command not found",
-      "Install sqlite3 to enable Cursor browser-cookie fallback import."
+      "Install sqlite3: `winget install --id SQLite.SQLite -e`"
     );
   }
 }

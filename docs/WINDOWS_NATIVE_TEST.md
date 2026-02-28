@@ -27,6 +27,12 @@ One-command smoke run (recommended):
 powershell -ExecutionPolicy Bypass -File .\scripts\windows-native-smoke.ps1
 ```
 
+Optional tool install (to clear `gh` / `sqlite3` doctor warnings):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\windows-install-optional-tools.ps1
+```
+
 ## 3) Validate Build/Test
 
 ```powershell
