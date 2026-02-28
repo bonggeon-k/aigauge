@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use keyring::{Entry, Error as KeyringError};
 use std::sync::Arc;
-use tracing::{info, instrument};
+use tracing::{debug, info, instrument};
 use zeroize::{Zeroize, Zeroizing};
 
 #[cfg(target_os = "linux")]
@@ -106,7 +106,7 @@ impl CredentialManager {
         if let Some(value) = credential.as_mut() {
             value.zeroize();
         }
-        info!(
+        debug!(
             provider = provider,
             found = has_credential,
             "credential presence checked"
@@ -121,7 +121,7 @@ impl CredentialManager {
             .backend
             .get_password(self.service_name.as_str(), account.as_str())?
             .map(Zeroizing::new);
-        info!(
+        debug!(
             provider = provider,
             found = credential.is_some(),
             "credential loaded"
