@@ -21,6 +21,12 @@ cd C:\Dev\aigauge
 pnpm install
 ```
 
+One-command smoke run (recommended):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\windows-native-smoke.ps1
+```
+
 ## 3) Validate Build/Test
 
 ```powershell
