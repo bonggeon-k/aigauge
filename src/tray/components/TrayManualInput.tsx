@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Cloud, Gauge, PenSquare } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -33,15 +34,44 @@ export const TrayManualInput = ({ open, providerId, onClose, onSave }: TrayManua
         <div className="grid gap-3 text-sm">
           <label className="grid gap-1 rounded-xl bg-[var(--surface-1)] p-3">
             {t("tray.manual.track")}
-            <select
-              className="rounded-lg border border-input bg-background px-3 py-2"
-              value={trackKind}
-              onChange={(event) => setTrackKind(event.target.value as "subscription" | "api" | "manual")}
-            >
-              <option value="subscription">{t("tray.manual.trackSubscription")}</option>
-              <option value="api">{t("tray.manual.trackApi")}</option>
-              <option value="manual">{t("tray.manual.trackManual")}</option>
-            </select>
+            <div className="mt-1 grid grid-cols-3 gap-1.5">
+              <button
+                type="button"
+                className={`inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-2 text-xs font-medium transition ${
+                  trackKind === "subscription"
+                    ? "border-transparent bg-primary text-primary-foreground shadow-[0_10px_22px_rgba(0,0,0,0.28)]"
+                    : "border-border/60 bg-[var(--surface-2)] text-foreground/85 hover:bg-[var(--surface-2)]/80"
+                }`}
+                onClick={() => setTrackKind("subscription")}
+              >
+                <Gauge className="h-3.5 w-3.5" />
+                {t("tray.manual.trackSubscription")}
+              </button>
+              <button
+                type="button"
+                className={`inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-2 text-xs font-medium transition ${
+                  trackKind === "api"
+                    ? "border-transparent bg-primary text-primary-foreground shadow-[0_10px_22px_rgba(0,0,0,0.28)]"
+                    : "border-border/60 bg-[var(--surface-2)] text-foreground/85 hover:bg-[var(--surface-2)]/80"
+                }`}
+                onClick={() => setTrackKind("api")}
+              >
+                <Cloud className="h-3.5 w-3.5" />
+                {t("tray.manual.trackApi")}
+              </button>
+              <button
+                type="button"
+                className={`inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-2 text-xs font-medium transition ${
+                  trackKind === "manual"
+                    ? "border-transparent bg-primary text-primary-foreground shadow-[0_10px_22px_rgba(0,0,0,0.28)]"
+                    : "border-border/60 bg-[var(--surface-2)] text-foreground/85 hover:bg-[var(--surface-2)]/80"
+                }`}
+                onClick={() => setTrackKind("manual")}
+              >
+                <PenSquare className="h-3.5 w-3.5" />
+                {t("tray.manual.trackManual")}
+              </button>
+            </div>
           </label>
           <label className="grid gap-1 rounded-xl bg-[var(--surface-1)] p-3">
             {t("tray.manual.used")}

@@ -20,7 +20,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tracing::instrument;
 
 pub const PROVIDER_IDS: &[&str] = &[
@@ -1082,6 +1082,24 @@ pub fn clear_provider_data(
     let mut manual = load_manual_inputs(&app)?;
     manual.remove(provider.as_str());
     save_manual_inputs(&app, &manual)
+}
+
+#[tauri::command]
+pub fn open_main_dashboard(app: tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main dashboard window not found".to_string())?;
+
+    window
+        .show()
+        .map_err(|error| format!("failed to show main dashboard: {error}"))?;
+    let _ = window.unminimize();
+    let _ = app.emit("open-dashboard", true);
+    window
+        .set_focus()
+        .map_err(|error| format!("failed to focus main dashboard: {error}"))?;
+
+    Ok(())
 }
 
 #[cfg(test)]

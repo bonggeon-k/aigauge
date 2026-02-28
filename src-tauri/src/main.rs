@@ -20,8 +20,9 @@ mod updater;
 use anyhow::{anyhow, Result};
 use commands::{
     check_provider_health, clear_provider_data, delete_credential, get_all_dashboard_data,
-    get_cost, get_provider_info, get_providers, get_quota, get_usage, poll_copilot_device_flow,
-    save_credential, save_manual_input, start_copilot_device_flow, AppState,
+    get_cost, get_provider_info, get_providers, get_quota, get_usage, open_main_dashboard,
+    poll_copilot_device_flow, save_credential, save_manual_input, start_copilot_device_flow,
+    AppState,
 };
 use config::{get_config, update_config};
 use cost_engine::{
@@ -33,16 +34,31 @@ use keyboard::{get_keyboard_shortcuts, register_shortcuts};
 use plugin_registry::{get_plugins, register_plugin};
 use polling::PollingManager;
 use service_status::get_service_statuses;
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Listener, Manager, WindowEvent};
 use telemetry::{get_telemetry_status, set_telemetry_enabled};
 use tray::init_tray;
 use updater::{check_for_update, install_update};
 
 fn init_tracing() {
+    let filter = std::env::var("RUST_LOG")
+        .unwrap_or_else(|_| "info,tao=error,winit=error".to_string());
     let _ = tracing_subscriber::fmt()
-        .with_env_filter("info")
+        .with_env_filter(filter)
         .without_time()
         .try_init();
+}
+
+fn open_main_dashboard_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = app.emit("open-dashboard", true);
+        let _ = window.set_focus();
+    }
+
+    if let Some(popup) = app.get_webview_window("tray-popup") {
+        let _ = popup.hide();
+    }
 }
 
 fn run() -> Result<()> {
@@ -78,6 +94,22 @@ fn run() -> Result<()> {
             init_tray(app.handle())?;
             register_shortcuts(app.handle())?;
             PollingManager::start(app.handle().clone());
+
+            if let Some(main_window) = app.get_webview_window("main") {
+                let main_for_handler = main_window.clone();
+                main_window.on_window_event(move |event| {
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = main_for_handler.hide();
+                    }
+                });
+            }
+
+            let app_handle = app.handle().clone();
+            app.listen("tray-open-dashboard", move |_| {
+                open_main_dashboard_window(&app_handle);
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -94,6 +126,7 @@ fn run() -> Result<()> {
             poll_copilot_device_flow,
             save_manual_input,
             clear_provider_data,
+            open_main_dashboard,
             get_config,
             update_config,
             get_cost_summary,

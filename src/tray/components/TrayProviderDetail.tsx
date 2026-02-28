@@ -22,8 +22,32 @@ interface StatusMeta {
   toneClass: string;
 }
 
-const serviceStatusMeta = (indicator?: string): StatusMeta => {
-  const normalized = (indicator ?? "unknown").toLowerCase();
+const normalizeServiceIndicator = (indicator?: string, description?: string): string => {
+  const normalized = (indicator ?? "").trim().toLowerCase();
+  if (normalized && normalized !== "unknown") {
+    return normalized;
+  }
+
+  const details = (description ?? "").trim().toLowerCase();
+  if (
+    details.includes("no incidents") ||
+    details.includes("no disruptions") ||
+    details.includes("reachable")
+  ) {
+    return "none";
+  }
+  if (details.includes("degraded") || details.includes("partial")) {
+    return "minor";
+  }
+  if (details.includes("outage") || details.includes("incident")) {
+    return "major";
+  }
+
+  return "unknown";
+};
+
+const serviceStatusMeta = (indicator?: string, description?: string): StatusMeta => {
+  const normalized = normalizeServiceIndicator(indicator, description);
   if (normalized === "major" || normalized === "critical" || normalized === "major_outage") {
     return {
       label: "Disrupted",
@@ -146,7 +170,7 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
   const visibleTracks = (subscriptionTracks.length > 0 ? subscriptionTracks : [fallbackTrack]).slice(0, 2);
   const primaryTrack = visibleTracks[0];
   const apiTrack = entry.tracks.find((track) => track.kind === "api");
-  const serviceStatus = serviceStatusMeta(status?.indicator);
+  const serviceStatus = serviceStatusMeta(status?.indicator, status?.description);
   const dataStatus = dataStateMeta(entry);
 
   const usedPct = !primaryTrack || primaryTrack.limit <= 0 ? 0 : trackPercent(primaryTrack.used, primaryTrack.limit);
@@ -169,9 +193,6 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
           </span>
           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 ${dataStatus.toneClass}`}>{dataStatus.label}</span>
         </div>
-        {status?.description ? (
-          <p className="mt-1 text-[11px] text-muted-foreground">{status.description}</p>
-        ) : null}
         <p className="mt-2 text-muted-foreground">{setupGuide[entry.info.id] ?? "Provider setup required"}</p>
         <button
           type="button"
@@ -190,9 +211,6 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
         <div>
           <p className="font-medium tracking-tight">{entry.info.name}</p>
           <p className="text-xs text-muted-foreground">{entry.info.plan_name}</p>
-          {status?.description ? (
-            <p className="mt-1 text-[11px] text-muted-foreground">{status.description}</p>
-          ) : null}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] ${serviceStatus.toneClass}`}>

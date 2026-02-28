@@ -113,6 +113,11 @@ fn status_from_head(provider_id: &str, status: Option<u16>, description: &str) -
             indicator: "none".to_string(),
             description: description.to_string(),
         },
+        Some(code) if matches!(code, 401 | 403 | 405) => ServiceStatus {
+            provider_id: provider_id.to_string(),
+            indicator: "none".to_string(),
+            description: format!("Service reachable (status check restricted, HTTP {code})"),
+        },
         Some(code) => ServiceStatus {
             provider_id: provider_id.to_string(),
             indicator: "unknown".to_string(),
@@ -253,6 +258,8 @@ mod tests {
         assert_eq!(cursor.indicator, "none");
         let redirect = status_from_head("cursor", Some(302), "Cursor reachable");
         assert_eq!(redirect.indicator, "none");
+        let restricted = status_from_head("cursor", Some(403), "Cursor reachable");
+        assert_eq!(restricted.indicator, "none");
         let unknown = status_from_head("cursor", Some(503), "Cursor reachable");
         assert_eq!(unknown.indicator, "unknown");
     }

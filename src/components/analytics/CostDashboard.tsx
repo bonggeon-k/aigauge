@@ -102,74 +102,82 @@ export const CostDashboard = ({ summary, history, pace }: CostDashboardProps) =>
           ))}
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1.35fr_1fr]">
+        <div className="grid gap-4 xl:grid-cols-12">
           <motion.div
-            className="h-64 rounded-xl border border-border/70 bg-[var(--surface-1)] p-3"
+            className="xl:col-span-8 flex h-[22rem] flex-col rounded-xl border border-border/70 bg-[var(--surface-1)] p-3"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35 }}
           >
             <p className="mb-2 text-xs uppercase tracking-[0.08em] text-muted-foreground">{t("analytics.monthlyTrend")}</p>
             <p className="sr-only">Area chart showing monthly cost movement.</p>
-            <ResponsiveContainer>
-              <AreaChart data={historyView}>
-                <defs>
-                  <linearGradient id="costAreaFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.45} />
-                    <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 4" vertical={false} opacity={0.28} />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis
-                  tick={{ fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={56}
-                  tickFormatter={(value) => `$${Number(value).toFixed(0)}`}
-                />
-                <Tooltip formatter={(value: number | string | undefined) => formatCurrency(Number(value ?? 0), currency)} />
-                <Area
-                  type="monotone"
-                  dataKey="total"
-                  stroke="var(--chart-1)"
-                  strokeWidth={2.4}
-                  fill="url(#costAreaFill)"
-                  dot={{ r: 2, strokeWidth: 0, fill: "var(--chart-1)" }}
-                  activeDot={{ r: 4 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <div className="min-h-0 flex-1">
+              <ResponsiveContainer>
+                <AreaChart data={historyView}>
+                  <defs>
+                    <linearGradient id="costAreaFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.45} />
+                      <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 4" vertical={false} opacity={0.28} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tick={{ fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={56}
+                    tickFormatter={(value) => `$${Number(value).toFixed(0)}`}
+                  />
+                  <Tooltip formatter={(value: number | string | undefined) => formatCurrency(Number(value ?? 0), currency)} />
+                  <Area
+                    type="monotone"
+                    dataKey="total"
+                    stroke="var(--chart-1)"
+                    strokeWidth={2.4}
+                    fill="url(#costAreaFill)"
+                    dot={{ r: 2, strokeWidth: 0, fill: "var(--chart-1)" }}
+                    activeDot={{ r: 4 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </motion.div>
 
           <motion.div
-            className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-3"
+            className="xl:col-span-4 flex h-[22rem] flex-col rounded-xl border border-border/70 bg-[var(--surface-1)] p-3"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45 }}
           >
             <p className="mb-2 text-xs uppercase tracking-[0.08em] text-muted-foreground">{t("analytics.providerShare")}</p>
-            <div className="h-44">
+            <div className="h-40 shrink-0">
               <p className="sr-only">Donut chart showing provider cost share.</p>
-              <ResponsiveContainer>
-                <PieChart>
-                  <Pie
-                    data={donutData}
-                    dataKey="amount"
-                    nameKey="provider"
-                    innerRadius={46}
-                    outerRadius={72}
-                    paddingAngle={3}
-                  >
-                    {donutData.map((entry, index) => (
-                      <Cell key={entry.provider} fill={colorAt(index)} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number | string | undefined) => formatCurrency(Number(value ?? 0), currency)} />
-                </PieChart>
-              </ResponsiveContainer>
+              {donutData.length > 0 ? (
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie
+                      data={donutData}
+                      dataKey="amount"
+                      nameKey="provider"
+                      innerRadius={46}
+                      outerRadius={72}
+                      paddingAngle={3}
+                    >
+                      {donutData.map((entry, index) => (
+                        <Cell key={entry.provider} fill={colorAt(index)} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number | string | undefined) => formatCurrency(Number(value ?? 0), currency)} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-border/60 text-xs text-muted-foreground">
+                  {t("analytics.roi.noData")}
+                </div>
+              )}
             </div>
-            <div className="space-y-1.5">
+            <div className="mt-2 min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
               {providerRows.slice(0, 7).map((entry, index) => (
                 <div key={entry.provider} className="space-y-1.5 text-xs">
                   <div className="flex items-center justify-between">

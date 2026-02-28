@@ -38,9 +38,10 @@ interface ProviderCardProps {
   onOpenSettings: (providerId: string) => void;
 }
 
-interface DataStatusBadge {
+interface DataStatusMeta {
   label: string;
-  className: string;
+  toneClass: string;
+  dotColor: string;
 }
 
 const iconMap = {
@@ -141,28 +142,32 @@ const formatAuthMethod = (value: string): string => {
   }
 };
 
-const getDataStatusBadge = (entry: DashboardEntry): DataStatusBadge => {
+const getDataStatusBadge = (entry: DashboardEntry): DataStatusMeta => {
   if (entry.usage.status === "not_configured") {
     return {
       label: "Not configured",
-      className: "border-slate-500/30 text-slate-600 dark:text-slate-300",
+      toneClass: "border-slate-400/30 bg-slate-400/10 text-slate-700 dark:text-slate-300",
+      dotColor: "#94a3b8",
     };
   }
   if (entry.stale) {
     return {
       label: "Stale",
-      className: "border-amber-500/30 text-amber-600 dark:text-amber-300",
+      toneClass: "border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+      dotColor: "#eab308",
     };
   }
   if (entry.health.reachable) {
     return {
       label: "Live",
-      className: "border-emerald-500/30 text-emerald-600 dark:text-emerald-400",
+      toneClass: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+      dotColor: "#22c55e",
     };
   }
   return {
     label: "Offline",
-    className: "border-rose-500/30 text-rose-600 dark:text-rose-400",
+    toneClass: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300",
+    dotColor: "#ef4444",
   };
 };
 
@@ -274,9 +279,12 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
             <Badge variant="outline" className="max-w-full truncate">
               {formatAuthMethod(entry.info.auth_method)}
             </Badge>
-            <Badge variant="outline" className={dataStatusBadge.className}>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${dataStatusBadge.toneClass}`}
+            >
+              <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: dataStatusBadge.dotColor }} />
               {dataStatusBadge.label}
-            </Badge>
+            </span>
           </div>
         </CardHeader>
 

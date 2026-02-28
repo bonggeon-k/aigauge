@@ -39,15 +39,17 @@ const main = async () => {
   }
 
   console.log(`Starting dev server on http://${host}:${port}`);
-  const child = spawn(
-    "pnpm",
-    ["dev", "--host", host, "--port", String(port), "--strictPort"],
-    {
-      stdio: "inherit",
-      shell: true,
-      env: process.env,
-    },
-  );
+  const args = ["dev", "--host", host, "--port", String(port), "--strictPort"];
+  const child =
+    process.platform === "win32"
+      ? spawn("cmd.exe", ["/d", "/s", "/c", `pnpm ${args.join(" ")}`], {
+          stdio: "inherit",
+          env: process.env,
+        })
+      : spawn("pnpm", args, {
+          stdio: "inherit",
+          env: process.env,
+        });
 
   const forward = (signal) => {
     if (!child.killed) {

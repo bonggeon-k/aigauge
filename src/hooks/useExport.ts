@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
-export type ExportFormat = "csv" | "json" | "pdf";
+export type ExportFormat = "csv" | "json";
 
 export interface ExportRequest {
   format: ExportFormat;

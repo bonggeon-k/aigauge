@@ -25,7 +25,7 @@ export const ExportPanel = ({ providers }: ExportPanelProps) => {
       <div className="pointer-events-none h-1 rounded-full bg-gradient-to-r from-[var(--chart-4)] via-[var(--chart-2)] to-[var(--chart-6)]" />
       <h3 className="text-base font-semibold tracking-tight">Export</h3>
       <div className="flex flex-wrap gap-2 rounded-full bg-[var(--surface-1)] p-1">
-        {(["csv", "json", "pdf"] as ExportFormat[]).map((option) => (
+        {(["csv", "json"] as ExportFormat[]).map((option) => (
           <Button
             key={option}
             variant={format === option ? "default" : "ghost"}

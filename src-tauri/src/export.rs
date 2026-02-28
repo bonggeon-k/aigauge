@@ -12,7 +12,6 @@ use crate::commands::{resolve_dashboard_entry, AppState, TrackKind, PROVIDER_IDS
 pub enum ExportFormat {
     Csv,
     Json,
-    Pdf,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -196,7 +195,7 @@ async fn render_export_content(
     let rows = collect_rows(state, app, request).await?;
     match request.format {
         ExportFormat::Csv => Ok(rows_to_csv(&rows, request.include_cost)),
-        ExportFormat::Json | ExportFormat::Pdf => {
+        ExportFormat::Json => {
             serde_json::to_string_pretty(&serde_json::json!({
                 "schema_version": 2,
                 "generated_at": Utc::now().to_rfc3339(),
@@ -218,7 +217,6 @@ fn default_export_path(app: &tauri::AppHandle, format: &ExportFormat) -> Result<
     let extension = match format {
         ExportFormat::Csv => "csv",
         ExportFormat::Json => "json",
-        ExportFormat::Pdf => "pdf",
     };
     let filename = format!(
         "aigauge-export-{}.{}",

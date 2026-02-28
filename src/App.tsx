@@ -351,19 +351,33 @@ function DashboardApp() {
                     />
                   </label>
 
-                  <label className="inline-flex items-center gap-2 rounded-xl border border-border/70 bg-[var(--surface-1)] px-3 text-sm text-muted-foreground">
-                    <span>{t("app.sortBy")}</span>
-                    <select
-                      className="h-10 bg-transparent text-foreground outline-none"
-                      value={providerSort}
-                      onChange={(event) => setProviderSort(event.currentTarget.value as ProviderSortMode)}
-                      aria-label={t("app.sortBy")}
-                    >
-                      <option value="risk">{t("app.sort.risk")}</option>
-                      <option value="name">{t("app.sort.name")}</option>
-                      <option value="cost">{t("app.sort.cost")}</option>
-                    </select>
-                  </label>
+                  <div className="inline-flex items-center gap-2 rounded-xl border border-border/70 bg-[var(--surface-1)] px-2 py-1 text-sm text-muted-foreground">
+                    <span className="px-1">{t("app.sortBy")}</span>
+                    <div className="grid grid-cols-3 gap-1">
+                      {([
+                        ["risk", t("app.sort.risk")],
+                        ["name", t("app.sort.name")],
+                        ["cost", t("app.sort.cost")],
+                      ] as const).map(([value, label]) => {
+                        const selected = providerSort === value;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            aria-label={`${t("app.sortBy")}: ${label}`}
+                            className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
+                              selected
+                                ? "bg-primary text-primary-foreground shadow-[0_10px_22px_rgba(0,0,0,0.2)]"
+                                : "bg-[var(--surface-2)] text-foreground/85 hover:bg-[var(--surface-2)]/80"
+                            }`}
+                            onClick={() => setProviderSort(value)}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                   <div className="inline-flex items-center rounded-xl border border-border/70 bg-[var(--surface-1)] px-3 text-sm text-muted-foreground">
                     {t("app.providersCount", { count: filteredEntries.length })}

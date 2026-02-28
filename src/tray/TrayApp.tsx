@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { Window, getCurrentWindow } from "@tauri-apps/api/window";
 import { emit } from "@tauri-apps/api/event";
 import { useTranslation } from "react-i18next";
@@ -26,12 +27,38 @@ import { useTauriEvent, type DashboardEntry } from "@/hooks/useProvider";
 import { useTheme } from "@/hooks/useTheme";
 import { applyPlatformDataAttribute, detectPlatform } from "@/lib/platform";
 import type { CodexCostBreakdown } from "@/tray/hooks/useTrayProviders";
+import { Button } from "@/components/ui/button";
 
 const isInteractiveElement = (target: EventTarget | null): boolean => {
   if (!(target instanceof Element)) {
     return false;
   }
   return Boolean(target.closest("button, input, select, textarea, a, summary, label, [data-no-drag]"));
+};
+
+const orderTrayEntries = (entries: DashboardEntry[], enabledProviders: string[]): DashboardEntry[] => {
+  const preferredOrder = new Map(enabledProviders.map((providerId, index) => [providerId, index]));
+  return [...entries].sort((a, b) => {
+    const aConfigured = a.health.configured ? 1 : 0;
+    const bConfigured = b.health.configured ? 1 : 0;
+    if (aConfigured !== bConfigured) {
+      return bConfigured - aConfigured;
+    }
+
+    const aPreferred = preferredOrder.get(a.info.id);
+    const bPreferred = preferredOrder.get(b.info.id);
+    if (aPreferred != null && bPreferred != null && aPreferred !== bPreferred) {
+      return aPreferred - bPreferred;
+    }
+    if (aPreferred != null && bPreferred == null) {
+      return -1;
+    }
+    if (aPreferred == null && bPreferred != null) {
+      return 1;
+    }
+
+    return a.info.name.localeCompare(b.info.name);
+  });
 };
 
 export const TrayApp = () => {
@@ -82,13 +109,19 @@ export const TrayApp = () => {
       providerApi.fetchAllProviders(),
       providerApi.fetchCodexCostBreakdown(),
     ]);
-    setEntries(data);
+    const ordered = orderTrayEntries(data, settings.enabledProviders);
+    setEntries(ordered);
     setCodexCost(codexBreakdown);
-    if (data.length > 0 && !data.some((entry) => entry.info.id === activeProviderId)) {
-      setActiveProviderId(data[0].info.id);
+    if (ordered.length > 0 && !ordered.some((entry) => entry.info.id === activeProviderId)) {
+      setActiveProviderId(ordered[0].info.id);
+    } else if (ordered.length > 0 && !ordered.find((entry) => entry.info.id === activeProviderId)?.health.configured) {
+      const firstConfigured = ordered.find((entry) => entry.health.configured);
+      if (firstConfigured) {
+        setActiveProviderId(firstConfigured.info.id);
+      }
     }
-    notify.notifyThresholds(data);
-  }, [providerApi, notify, activeProviderId]);
+    notify.notifyThresholds(ordered);
+  }, [providerApi, notify, activeProviderId, settings.enabledProviders]);
 
   const refreshStatuses = useCallback(async (force = false) => {
     const now = Date.now();
@@ -173,12 +206,22 @@ export const TrayApp = () => {
 
   const openMainDashboard = useCallback(async () => {
     setActionNotice(null);
-    const main = await Window.getByLabel("main");
+    try {
+      await invoke("open_main_dashboard");
+      await getCurrentWindow().hide().catch(() => undefined);
+      return;
+    } catch {
+      // Fallback path below.
+    }
+
+    const main = await Window.getByLabel("main").catch(() => null);
     if (!main) {
+      await emit("tray-open-dashboard", true).catch(() => undefined);
       await emit("open-dashboard", true).catch(() => undefined);
       setActionNotice(t("tray.status.mainNotFound"));
       return;
     }
+
     try {
       await main.show();
       await main.unminimize().catch(() => undefined);
@@ -223,39 +266,49 @@ export const TrayApp = () => {
           <p className="text-[11px] text-muted-foreground">{actionNotice ?? refreshedLabel}</p>
         </div>
         <div className="flex items-center gap-1">
-          <button
+          <Button
             type="button"
-            className="rounded-full p-1.5 transition hover:bg-[var(--surface-2)]"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full text-foreground/85 hover:bg-[var(--surface-2)] hover:text-foreground"
             onClick={() => void openMainDashboard()}
             aria-label={t("tray.actions.openDashboard")}
             title={t("tray.actions.openDashboard")}
             data-no-drag
           >
             <LayoutDashboard className="h-4 w-4" />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="rounded-full p-1.5 transition hover:bg-[var(--surface-2)]"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full text-foreground/85 hover:bg-[var(--surface-2)] hover:text-foreground"
             onClick={() => void refreshNow()}
             aria-label={t("tray.actions.refresh")}
             title={t("tray.actions.refresh")}
             data-no-drag
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className={`rounded-full p-1.5 transition hover:bg-[var(--surface-2)] ${settings.pinned ? "text-primary" : "text-muted-foreground"}`}
+            variant="ghost"
+            size="icon"
+            className={`h-8 w-8 rounded-full hover:bg-[var(--surface-2)] ${
+              settings.pinned ? "text-primary" : "text-muted-foreground hover:text-foreground"
+            }`}
             onClick={() => patchSettings({ pinned: !settings.pinned })}
             aria-label={settings.pinned ? t("tray.actions.pinOff") : t("tray.actions.pinOn")}
             title={settings.pinned ? t("tray.actions.pinOff") : t("tray.actions.pinOn")}
             data-no-drag
           >
             {settings.pinned ? <Pin className="h-4 w-4" /> : <PinOff className="h-4 w-4" />}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="rounded-full p-1.5 transition hover:bg-[var(--surface-2)]"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full text-foreground/85 hover:bg-[var(--surface-2)] hover:text-foreground"
             onClick={toggleTheme}
             aria-label={t("tray.actions.toggleTheme")}
             title={
@@ -266,37 +319,43 @@ export const TrayApp = () => {
             data-no-drag
           >
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="rounded-full p-1.5 transition hover:bg-[var(--surface-2)]"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full text-foreground/85 hover:bg-[var(--surface-2)] hover:text-foreground"
             onClick={() => setManualOpen(true)}
             aria-label={t("tray.actions.manualInput")}
             title={t("tray.actions.manualInput")}
             data-no-drag
           >
             <SlidersHorizontal className="h-4 w-4" />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="rounded-full p-1.5 transition hover:bg-[var(--surface-2)]"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full text-foreground/85 hover:bg-[var(--surface-2)] hover:text-foreground"
             onClick={() => setSettingsOpen(true)}
             aria-label={t("tray.actions.settings")}
             title={t("tray.actions.settings")}
             data-no-drag
           >
             <Settings2 className="h-4 w-4" />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="rounded-full p-1.5 transition hover:bg-[var(--surface-2)]"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full text-foreground/85 hover:bg-[var(--surface-2)] hover:text-foreground"
             onClick={() => void closeQuickView()}
             aria-label={t("tray.actions.close")}
             title={t("tray.actions.close")}
             data-no-drag
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
       </div>
 

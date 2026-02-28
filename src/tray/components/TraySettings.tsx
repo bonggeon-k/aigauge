@@ -16,6 +16,8 @@ interface TraySettingsProps {
   onPatchSettings: (patch: Partial<TraySettingsType>) => void;
 }
 
+const refreshIntervals = [1, 3, 5, 10, 15, 30] as const;
+
 export const TraySettings = ({ open, settings, onClose, onPatchSettings }: TraySettingsProps) => {
   const { t } = useTranslation();
 
@@ -28,16 +30,25 @@ export const TraySettings = ({ open, settings, onClose, onPatchSettings }: TrayS
         <div className="grid gap-3 text-sm">
           <label className="grid gap-1 rounded-xl bg-[var(--surface-1)] p-3">
             {t("tray.settings.refreshInterval")}
-            <input
-              type="number"
-              min={1}
-              max={60}
-              className="rounded-lg border border-input bg-background px-3 py-2"
-              value={settings.refreshIntervalMinutes}
-              onChange={(event) =>
-                onPatchSettings({ refreshIntervalMinutes: Number(event.target.value) || 5 })
-              }
-            />
+            <div className="mt-1 grid grid-cols-6 gap-1.5">
+              {refreshIntervals.map((value) => {
+                const selected = settings.refreshIntervalMinutes === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`rounded-lg border px-0 py-2 text-xs font-medium transition ${
+                      selected
+                        ? "border-transparent bg-primary text-primary-foreground shadow-[0_10px_22px_rgba(0,0,0,0.28)]"
+                        : "border-border/60 bg-[var(--surface-2)] text-foreground/85 hover:bg-[var(--surface-2)]/80"
+                    }`}
+                    onClick={() => onPatchSettings({ refreshIntervalMinutes: value })}
+                  >
+                    {value}m
+                  </button>
+                );
+              })}
+            </div>
           </label>
 
           <label className="inline-flex items-center gap-2 rounded-xl bg-[var(--surface-1)] p-3">

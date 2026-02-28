@@ -7,7 +7,15 @@ interface CostSummaryProps {
   entries: DashboardEntry[];
 }
 
-const colors = ["#0f766e", "#1d4ed8", "#fb923c", "#f59e0b", "#ef4444", "#6366f1"];
+const colors = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--chart-6)",
+  "var(--chart-7)",
+];
 
 export const CostSummary = ({ entries }: CostSummaryProps) => {
   const data = entries
@@ -22,7 +30,7 @@ export const CostSummary = ({ entries }: CostSummaryProps) => {
   const diff = previous > 0 ? ((total - previous) / previous) * 100 : 0;
 
   return (
-    <Card className="flex h-full min-h-[260px] border-border/70 bg-card/90">
+    <Card className="flex h-full min-h-[260px] border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-soft)]">
       <CardHeader>
         <CardTitle>Cost Summary</CardTitle>
       </CardHeader>
