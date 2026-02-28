@@ -12,7 +12,10 @@
     },
     "providersCount": "{{count}} providers",
     "noResults": "No providers match your current filter.",
-    "clearFilter": "Clear filter"
+    "clearFilter": "Clear filter",
+    "loadError": "Failed to load dashboard data. Please check provider/network status and retry.",
+    "retry": "Retry",
+    "budgetInUse": "Current analytics budget: ${{budget}}"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -47,6 +50,7 @@
     "title": "Cost Analytics",
     "subtitle": "Monthly spend trends, provider mix, and pacing",
     "designTuned": "Design tuned for high-density insight",
+    "costCoverageNote": "Only providers with metered or estimated spend are highlighted in the chart. Included-plan providers may remain at $0.00.",
     "monthlyTrend": "Monthly Trend",
     "providerShare": "Provider Share",
     "currentMonth": "Current Month",
@@ -89,6 +93,7 @@
     "title": "Settings",
     "theme": "Theme",
     "language": "Language",
+    "monthlyBudget": "Monthly budget (USD)",
     "save": "Save Settings",
     "notificationsWarning": "Notify me when usage exceeds 80%",
     "notificationsCritical": "Notify me when usage exceeds 95%",

@@ -97,9 +97,34 @@ h4 {
   height: 10px;
 }
 
+::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  border-radius: 999px;
+}
+
 ::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--color-primary) 45%, #888);
   border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+:root {
+  scrollbar-color: color-mix(in srgb, var(--color-primary) 45%, #888) color-mix(in srgb, var(--color-primary) 8%, transparent);
+  scrollbar-width: thin;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: color-mix(in srgb, #0f172a 78%, var(--color-primary) 22%);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-primary) 58%, #cbd5e1 42%);
+  border-color: color-mix(in srgb, #0f172a 84%, transparent);
+}
+
+.dark {
+  scrollbar-color: color-mix(in srgb, var(--color-primary) 58%, #cbd5e1 42%) color-mix(in srgb, #0f172a 78%, var(--color-primary) 22%);
 }
 
 .skeleton-shimmer {

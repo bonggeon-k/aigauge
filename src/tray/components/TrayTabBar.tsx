@@ -76,67 +76,66 @@ export const TrayTabBar = ({ entries, activeProvider, onSelect }: TrayTabBarProp
   );
 
   return (
-    <div className="relative" data-no-drag>
-      <div
-        ref={scrollerRef}
-        className="tray-tabs-scroll flex gap-2 overflow-x-auto pb-2 pr-8"
-        role="tablist"
-        aria-label="Providers"
-        data-no-drag
-        onKeyDown={onTabListKeyDown}
-        onWheel={(event) => {
-          const target = event.currentTarget;
-          if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
-            return;
-          }
-          target.scrollLeft += event.deltaY;
-          event.preventDefault();
-        }}
-      >
-        {entries.map((entry) => (
-          <button
-            key={entry.info.id}
-            type="button"
-            role="tab"
-            aria-selected={activeProvider === entry.info.id}
-            tabIndex={activeProvider === entry.info.id ? 0 : -1}
-            onClick={() => onSelect(entry.info.id)}
-            className={cn(
-              "inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium tracking-[0.01em] transition-all duration-200",
-              activeProvider === entry.info.id
-                ? "border-transparent text-white shadow-[0_10px_22px_rgba(0,0,0,0.35)]"
-                : "border-border/60 bg-[var(--surface-1)] text-foreground/85 hover:bg-[var(--surface-2)] hover:text-foreground",
-            )}
-            style={
-              activeProvider === entry.info.id
-                ? {
-                    background: `linear-gradient(140deg, ${providerColors[entry.info.id] ?? "#0ea5a4"} 0%, color-mix(in srgb, ${providerColors[entry.info.id] ?? "#0ea5a4"} 80%, #ffffff 20%) 100%)`,
-                  }
-                : undefined
+    <div className="grid grid-cols-[1fr_auto] items-start gap-1" data-no-drag>
+      <div className="relative min-w-0">
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-7 bg-gradient-to-r from-[var(--surface-0)]/95 to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-7 bg-gradient-to-l from-[var(--surface-0)]/95 to-transparent" />
+        <div
+          ref={scrollerRef}
+          className="tray-tabs-scroll flex gap-2 overflow-x-auto pb-2"
+          role="tablist"
+          aria-label="Providers"
+          data-no-drag
+          onKeyDown={onTabListKeyDown}
+          onWheel={(event) => {
+            const target = event.currentTarget;
+            if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+              return;
             }
-            data-provider-id={entry.info.id}
-            data-no-drag
-          >
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{
-                backgroundColor:
-                  activeProvider === entry.info.id
-                    ? "rgba(255,255,255,0.92)"
-                    : providerColors[entry.info.id] ?? "#9ca3af",
-              }}
-            />
-            {entry.info.name}
-          </button>
-        ))}
+            target.scrollLeft += event.deltaY;
+            event.preventDefault();
+          }}
+        >
+          {entries.map((entry) => (
+            <button
+              key={entry.info.id}
+              type="button"
+              role="tab"
+              aria-selected={activeProvider === entry.info.id}
+              tabIndex={activeProvider === entry.info.id ? 0 : -1}
+              onClick={() => onSelect(entry.info.id)}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium tracking-[0.01em] transition-all duration-200",
+                activeProvider === entry.info.id
+                  ? "border-transparent text-white shadow-[0_10px_22px_rgba(0,0,0,0.35)]"
+                  : "border-border/60 bg-[var(--surface-1)] text-foreground/85 hover:bg-[var(--surface-2)] hover:text-foreground",
+              )}
+              style={
+                activeProvider === entry.info.id
+                  ? {
+                      background: `linear-gradient(140deg, ${providerColors[entry.info.id] ?? "#0ea5a4"} 0%, color-mix(in srgb, ${providerColors[entry.info.id] ?? "#0ea5a4"} 80%, #ffffff 20%) 100%)`,
+                    }
+                  : undefined
+              }
+              data-provider-id={entry.info.id}
+              data-no-drag
+            >
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{
+                  backgroundColor:
+                    activeProvider === entry.info.id
+                      ? "rgba(255,255,255,0.92)"
+                      : providerColors[entry.info.id] ?? "#9ca3af",
+                }}
+              />
+              {entry.info.name}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-[var(--surface-0)] to-transparent opacity-100 transition-opacity duration-200" />
-      <div
-        className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-[var(--surface-0)] via-[var(--surface-0)]/90 to-transparent opacity-100 transition-opacity duration-200"
-      />
-
-      <div className="absolute right-0 top-0 z-20 flex h-8 items-center gap-1 bg-[var(--surface-0)]/70 pl-1 backdrop-blur-sm">
+      <div className="mt-[1px] flex h-8 items-center gap-1 rounded-full border border-border/60 bg-[var(--surface-1)]/90 px-1 backdrop-blur-sm">
         <button
           type="button"
           onClick={() => scrollByTabs("left")}

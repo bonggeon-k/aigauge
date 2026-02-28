@@ -84,6 +84,27 @@ export const SettingsView = () => {
             </label>
           </div>
 
+          <label className="space-y-1 rounded-xl bg-[var(--surface-1)] p-3">
+            <span className="block text-muted-foreground">{t("settings.monthlyBudget")}</span>
+            <div className="inline-flex w-full items-center gap-2 rounded-lg border border-border bg-background px-3">
+              <span className="text-muted-foreground">$</span>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={Math.max(0, Math.round(config.monthly_budget_usd ?? 100))}
+                onChange={(event) =>
+                  setConfig({
+                    ...config,
+                    monthly_budget_usd: Math.max(0, Number(event.currentTarget.value || 0)),
+                  })
+                }
+                className="h-10 w-full bg-transparent outline-none"
+                aria-label={t("settings.monthlyBudget")}
+              />
+            </div>
+          </label>
+
           <label className="flex items-center gap-2 rounded-xl bg-[var(--surface-1)] p-3">
             <input
               aria-label={t("settings.notificationsWarning")}

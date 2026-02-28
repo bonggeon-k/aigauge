@@ -12,7 +12,7 @@
 - Dual-mode UI: full dashboard window + tray widget popup (`/tray`)
 - Cost analytics (trend, breakdown, ROI, pace)
 - System tray quick status + alerts
-- Auto-update support with signed metadata
+- Auto-update channel ready (production signing applied at public GitHub release time)
 - Export (CSV/JSON)
 - Onboarding flow and accessibility polish
 - Community plugin manifest foundation
@@ -66,6 +66,8 @@ pnpm release:check
 
 ## Supported Providers
 
+Current built-in scope is intentionally fixed at **7 providers** for stability. Additional providers can be added via plugins.
+
 | Provider | Auth Method | Tracks |
 | --- | --- | --- |
 | OpenAI Codex | OAuth/session token | Usage, quota, cost |
@@ -92,6 +94,7 @@ pnpm release:check
 ## Roadmap
 
 - Phase 4: richer plugin SDK and marketplace concepts
+- Evaluate additional built-in providers where product surface is distinct (for example avoid overlapping Kiro/Amazon Q semantics in the same baseline tier)
 - Phase 5: team dashboards and shared budgets
 - Phase 6: advanced forecast and anomaly detection
 

@@ -91,7 +91,9 @@ function DashboardApp() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initError, setInitError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [paceBudget, setPaceBudget] = useState(100);
   const [providerQuery, setProviderQuery] = useState("");
   const [providerSort, setProviderSort] = useState<ProviderSortMode>("risk");
   const refreshTimerRef = useRef<number | null>(null);
@@ -107,47 +109,62 @@ function DashboardApp() {
   }, [providerApi]);
 
   const loadAnalytics = useCallback(async () => {
-    const [summary, history, roi, pace] = await Promise.all([
+    const [summary, history, roi, config] = await Promise.all([
       analyticsApi.getCostSummary(),
       analyticsApi.getCostHistory(),
       analyticsApi.getROIAnalysis(),
-      analyticsApi.getPaceAnalysis(100),
+      providerApi.getConfig(),
     ]);
+    const configuredBudget =
+      typeof config.monthly_budget_usd === "number" && Number.isFinite(config.monthly_budget_usd)
+        ? Math.max(0, config.monthly_budget_usd)
+        : 100;
+    const pace = await analyticsApi.getPaceAnalysis(configuredBudget);
+    setPaceBudget(configuredBudget);
     setCostSummary(summary);
     setCostHistory(history);
     setRoiAnalysis(roi);
     setPaceAnalysis(pace);
-  }, [analyticsApi]);
+  }, [analyticsApi, providerApi]);
 
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      const [config, data, summary, history, roi, pace] = await Promise.all([
+  const loadInitialData = useCallback(async () => {
+    setLoading(true);
+    setInitError(null);
+    try {
+      const [config, data, summary, history, roi] = await Promise.all([
         providerApi.getConfig(),
         providerApi.getAllDashboardData(),
         analyticsApi.getCostSummary(),
         analyticsApi.getCostHistory(),
         analyticsApi.getROIAnalysis(),
-        analyticsApi.getPaceAnalysis(100),
       ]);
-      if (!active) return;
+      const configuredBudget =
+        typeof config.monthly_budget_usd === "number" && Number.isFinite(config.monthly_budget_usd)
+          ? Math.max(0, config.monthly_budget_usd)
+          : 100;
+      const pace = await analyticsApi.getPaceAnalysis(configuredBudget);
+
       setEntries(data);
       setCostSummary(summary);
       setCostHistory(history);
       setRoiAnalysis(roi);
       setPaceAnalysis(pace);
+      setPaceBudget(configuredBudget);
       setShowOnboarding(!config.onboarding_complete);
       if (config.language && config.language !== i18n.language) {
         await i18n.changeLanguage(config.language);
       }
-      setLoading(false);
       await checkForUpdate();
-    })();
+    } catch {
+      setInitError(t("app.loadError"));
+    } finally {
+      setLoading(false);
+    }
+  }, [providerApi, analyticsApi, checkForUpdate, i18n, t]);
 
-    return () => {
-      active = false;
-    };
-  }, [providerApi, analyticsApi, checkForUpdate, i18n]);
+  useEffect(() => {
+    void loadInitialData();
+  }, [loadInitialData]);
 
   useTauriEvent<DashboardEntry>("usage-updated", () => {
     if (refreshTimerRef.current != null) {
@@ -358,6 +375,16 @@ function DashboardApp() {
                     {Array.from({ length: 6 }).map((_, index) => (
                       <SkeletonCard key={`skeleton-${index}`} />
                     ))}
+                  </div>
+                ) : initError ? (
+                  <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-6 text-sm">
+                    <p className="font-medium text-rose-700 dark:text-rose-300">{initError}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-rose-700/80 dark:text-rose-300/80">
+                      <span>{t("app.budgetInUse", { budget: paceBudget.toFixed(0) })}</span>
+                    </div>
+                    <Button variant="outline" className="mt-4 rounded-full" onClick={() => void loadInitialData()}>
+                      {t("app.retry")}
+                    </Button>
                   </div>
                 ) : entries.length === 0 || entries.every((entry) => !entry.health.configured) ? (
                   <EmptyState onGetStarted={() => setShowOnboarding(true)} />

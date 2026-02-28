@@ -13,7 +13,12 @@ pub struct NotificationSettings {
     pub quota_critical: bool,
 }
 
+fn default_monthly_budget_usd() -> f64 {
+    100.0
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct AppConfig {
     pub polling_intervals: HashMap<String, u64>,
     pub enabled_providers: Vec<String>,
@@ -21,6 +26,8 @@ pub struct AppConfig {
     pub language: String,
     pub onboarding_complete: bool,
     pub telemetry_enabled: bool,
+    #[serde(default = "default_monthly_budget_usd")]
+    pub monthly_budget_usd: f64,
     pub notifications: NotificationSettings,
 }
 
@@ -53,6 +60,7 @@ impl Default for AppConfig {
             language: "en".to_string(),
             onboarding_complete: false,
             telemetry_enabled: false,
+            monthly_budget_usd: default_monthly_budget_usd(),
             notifications: NotificationSettings {
                 quota_warning: true,
                 quota_critical: true,
@@ -153,5 +161,23 @@ mod tests {
         let path = temp.path().join("missing.json");
         let loaded = ConfigStore::load_from_path(path.as_path()).expect("default should load");
         assert_eq!(loaded, AppConfig::default());
+    }
+
+    #[test]
+    fn load_legacy_config_without_budget() {
+        let temp = tempfile::tempdir().expect("tempdir should be created");
+        let path = temp.path().join("legacy.json");
+        let legacy = r#"{
+  "polling_intervals": {"codex": 300},
+  "enabled_providers": ["codex"],
+  "theme_preference": "system",
+  "language": "en",
+  "onboarding_complete": true,
+  "telemetry_enabled": false,
+  "notifications": {"quota_warning": true, "quota_critical": true}
+}"#;
+        fs::write(path.as_path(), legacy).expect("legacy write should succeed");
+        let loaded = ConfigStore::load_from_path(path.as_path()).expect("legacy should load");
+        assert_eq!(loaded.monthly_budget_usd, 100.0);
     }
 }

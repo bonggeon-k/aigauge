@@ -42,8 +42,9 @@ Telemetry excludes:
 
 ## Update Signature Verification
 
-- Updater endpoint serves signed `latest.json` metadata from GitHub Releases.
-- `tauri.conf.json` defines updater pubkey.
+- Current repository default is **unsigned development update metadata** for local/internal validation.
+- Production signing is enabled at final public GitHub release time (release secrets + real pubkey).
+- `tauri.conf.json` currently contains a placeholder pubkey until that release step.
 - Update install is user-initiated from app UI.
 - If updater initialization fails (for example during unsigned development builds),
   the app degrades gracefully and continues without update actions.

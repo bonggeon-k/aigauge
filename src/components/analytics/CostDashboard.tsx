@@ -66,7 +66,8 @@ export const CostDashboard = ({ summary, history, pace }: CostDashboardProps) =>
     return point;
   }, [historyView]);
 
-  const donutData = (summary?.by_provider ?? []).filter((item) => item.amount > 0);
+  const providerRows = (summary?.by_provider ?? []).slice().sort((a, b) => b.amount - a.amount);
+  const donutData = providerRows.filter((item) => item.amount > 0);
 
   return (
     <section className="grid gap-4 anim-rise">
@@ -169,7 +170,7 @@ export const CostDashboard = ({ summary, history, pace }: CostDashboardProps) =>
               </ResponsiveContainer>
             </div>
             <div className="space-y-1.5">
-              {donutData.slice(0, 5).map((entry, index) => (
+              {providerRows.slice(0, 7).map((entry, index) => (
                 <div key={entry.provider} className="space-y-1.5 text-xs">
                   <div className="flex items-center justify-between">
                     <div className="inline-flex items-center gap-1.5">
@@ -184,8 +185,9 @@ export const CostDashboard = ({ summary, history, pace }: CostDashboardProps) =>
                     <div
                       className="h-full rounded-full"
                       style={{
-                        width: `${Math.max(4, Math.round(entry.percentage_of_total))}%`,
+                        width: `${entry.amount > 0 ? Math.max(4, Math.round(entry.percentage_of_total)) : 2}%`,
                         backgroundColor: colorAt(index),
+                        opacity: entry.amount > 0 ? 1 : 0.35,
                       }}
                     />
                   </div>
@@ -193,6 +195,11 @@ export const CostDashboard = ({ summary, history, pace }: CostDashboardProps) =>
                 </div>
               ))}
             </div>
+            {providerRows.length > 1 && donutData.length <= 1 ? (
+              <p className="mt-2 rounded-lg border border-border/70 bg-[var(--surface-2)] px-2 py-1.5 text-[11px] text-muted-foreground">
+                {t("analytics.costCoverageNote")}
+              </p>
+            ) : null}
           </motion.div>
         </div>
       </Card>

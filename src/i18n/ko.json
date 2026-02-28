@@ -12,7 +12,10 @@
     },
     "providersCount": "{{count}}개 프로바이더",
     "noResults": "현재 필터에 맞는 프로바이더가 없습니다.",
-    "clearFilter": "필터 초기화"
+    "clearFilter": "필터 초기화",
+    "loadError": "대시보드 데이터를 불러오지 못했습니다. 프로바이더/네트워크 상태를 확인한 뒤 다시 시도하세요.",
+    "retry": "다시 시도",
+    "budgetInUse": "현재 분석 예산: ${{budget}}"
   },
   "nav": {
     "dashboard": "대시보드",
@@ -47,6 +50,7 @@
     "title": "비용 분석",
     "subtitle": "월별 지출 추이, 프로바이더 비중, 예산 페이스",
     "designTuned": "고밀도 인사이트에 맞춘 시각화",
+    "costCoverageNote": "차트는 과금형/추정 비용이 있는 프로바이더를 중심으로 강조됩니다. 구독 포함형 플랜은 $0.00으로 유지될 수 있습니다.",
     "monthlyTrend": "월별 추이",
     "providerShare": "프로바이더 비중",
     "currentMonth": "이번 달",
@@ -89,6 +93,7 @@
     "title": "설정",
     "theme": "테마",
     "language": "언어",
+    "monthlyBudget": "월간 예산 (USD)",
     "save": "설정 저장",
     "notificationsWarning": "사용량이 80%를 넘으면 알림",
     "notificationsCritical": "사용량이 95%를 넘으면 알림",

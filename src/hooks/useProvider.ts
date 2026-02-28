@@ -96,6 +96,7 @@ export interface AppConfig {
   language: string;
   onboarding_complete: boolean;
   telemetry_enabled: boolean;
+  monthly_budget_usd: number;
   notifications: {
     quota_warning: boolean;
     quota_critical: boolean;
@@ -510,6 +511,7 @@ export const useProvider = () =>
             language: "en",
             onboarding_complete: false,
             telemetry_enabled: false,
+            monthly_budget_usd: 100,
             notifications: {
               quota_warning: true,
               quota_critical: true,
