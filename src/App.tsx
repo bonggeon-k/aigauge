@@ -76,6 +76,26 @@ const isTrayRoute = (): boolean => {
   }
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isBooleanPayload = (value: unknown): value is boolean =>
+  typeof value === "boolean";
+
+const isDashboardEntryPayload = (value: unknown): value is DashboardEntry =>
+  isRecord(value) &&
+  isRecord(value.info) &&
+  typeof value.info.name === "string" &&
+  isRecord(value.usage) &&
+  typeof value.usage.status === "string";
+
+const isTrackAlertPayload = (value: unknown): value is TrackAlertPayload =>
+  isRecord(value) &&
+  typeof value.provider_id === "string" &&
+  typeof value.track_id === "string" &&
+  typeof value.usage_pct === "number" &&
+  typeof value.track_kind === "string";
+
 function DashboardApp() {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
@@ -175,7 +195,7 @@ function DashboardApp() {
       void loadDashboard();
       void loadAnalytics();
     }, 300);
-  });
+  }, isDashboardEntryPayload);
 
   useTauriEvent<boolean>("force-refresh", () => {
     if (refreshTimerRef.current != null) {
@@ -184,7 +204,7 @@ function DashboardApp() {
     }
     void loadDashboard();
     void loadAnalytics();
-  });
+  }, isBooleanPayload);
 
   useEffect(() => {
     return () => {
@@ -197,40 +217,40 @@ function DashboardApp() {
 
   useTauriEvent<DashboardEntry>("quota-warning", (payload) => {
     setAlert({ level: "warning", message: `${payload.info.name}: quota usage is above 80%` });
-  });
+  }, isDashboardEntryPayload);
 
   useTauriEvent<DashboardEntry>("quota-critical", (payload) => {
     setAlert({ level: "critical", message: `${payload.info.name}: quota usage is above 95%` });
-  });
+  }, isDashboardEntryPayload);
 
   useTauriEvent<TrackAlertPayload>("quota-warning-track", (payload) => {
     setAlert({
       level: "warning",
       message: `${payload.provider_id} ${payload.track_kind} track is above 80%`,
     });
-  });
+  }, isTrackAlertPayload);
 
   useTauriEvent<TrackAlertPayload>("quota-critical-track", (payload) => {
     setAlert({
       level: "critical",
       message: `${payload.provider_id} ${payload.track_kind} track is above 95%`,
     });
-  });
+  }, isTrackAlertPayload);
 
   useTauriEvent<DashboardEntry>("data-stale", (payload) => {
     setAlert({
       level: "warning",
       message: `${payload.info.name}: showing cached data older than 5 minutes`,
     });
-  });
+  }, isDashboardEntryPayload);
 
   useTauriEvent<boolean>("open-settings", () => {
     setRoute("settings");
-  });
+  }, isBooleanPayload);
 
   useTauriEvent<boolean>("open-dashboard", () => {
     setRoute("dashboard");
-  });
+  }, isBooleanPayload);
 
   const activeProviderAuth = useMemo<AuthMethod>(() => {
     if (!activeProviderId) return "api_key";

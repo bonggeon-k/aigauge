@@ -2,6 +2,7 @@
   "name": "aigauge",
   "private": true,
   "version": "1.0.0",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +12,8 @@
     "tauri": "tauri",
     "visual:baseline": "node scripts/capture-visual-baseline.mjs",
     "doctor:providers": "node scripts/provider-env-check.mjs",
-    "release:check": "pnpm doctor:providers && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml && pnpm lint && pnpm build && (cd src-tauri && cargo audit) && pnpm audit --audit-level=high"
+    "release:check": "pnpm doctor:providers && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml && pnpm lint && pnpm build && (cd src-tauri && cargo audit) && pnpm audit --audit-level=high",
+    "release:oss-check": "bash ./scripts/release-readiness.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

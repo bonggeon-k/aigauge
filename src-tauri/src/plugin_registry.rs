@@ -1,10 +1,12 @@
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::Manager;
 use tracing::instrument;
 
-use crate::commands::AppState;
+use crate::commands::{ensure_trusted_window, AppState};
 use crate::providers::AuthMethod;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -22,6 +24,9 @@ pub struct PluginManifest {
 pub struct GenericProvider {
     pub manifest: PluginManifest,
 }
+
+static PLUGIN_ID_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new("^[a-z0-9_-]+$").expect("plugin id regex should compile"));
 
 impl GenericProvider {
     #[allow(dead_code)]
@@ -51,7 +56,11 @@ impl GenericProvider {
 }
 
 fn is_valid_manifest(manifest: &PluginManifest) -> bool {
-    if manifest.id.trim().is_empty() || manifest.name.trim().is_empty() {
+    let trimmed_id = manifest.id.trim();
+    if trimmed_id.is_empty() || manifest.name.trim().is_empty() {
+        return false;
+    }
+    if !PLUGIN_ID_RE.is_match(trimmed_id) {
         return false;
     }
     if manifest.api_endpoint.trim().is_empty() {
@@ -60,7 +69,7 @@ fn is_valid_manifest(manifest: &PluginManifest) -> bool {
     if manifest.api_endpoint.starts_with("javascript:") {
         return false;
     }
-    manifest.api_endpoint.starts_with("https://") || manifest.api_endpoint.starts_with("http://")
+    manifest.api_endpoint.starts_with("https://")
 }
 
 fn plugin_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -103,6 +112,25 @@ fn load_plugins_from_dir(path: &Path) -> Result<Vec<PluginManifest>, String> {
     Ok(manifests)
 }
 
+fn plugin_target_path(dir: &Path, plugin_id: &str) -> Result<PathBuf, String> {
+    if !PLUGIN_ID_RE.is_match(plugin_id) {
+        return Err("invalid plugin id".to_string());
+    }
+    let root = dir
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve plugin root: {error}"))?;
+    let target = root.join(format!("{plugin_id}.toml"));
+    let parent = target
+        .parent()
+        .ok_or_else(|| "invalid plugin target path".to_string())?
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve plugin target dir: {error}"))?;
+    if !parent.starts_with(&root) {
+        return Err("invalid plugin target path".to_string());
+    }
+    Ok(target)
+}
+
 #[tauri::command]
 #[instrument(skip(app))]
 pub fn get_plugins(app: tauri::AppHandle) -> Result<Vec<PluginManifest>, String> {
@@ -115,14 +143,16 @@ pub fn get_plugins(app: tauri::AppHandle) -> Result<Vec<PluginManifest>, String>
 pub fn register_plugin(
     manifest: PluginManifest,
     app: tauri::AppHandle,
+    window: tauri::Window,
 ) -> Result<PluginManifest, String> {
+    ensure_trusted_window(&window)?;
     if !is_valid_manifest(&manifest) {
         return Err("invalid plugin manifest".to_string());
     }
 
     let dir = plugin_dir(&app)?;
     fs::create_dir_all(&dir).map_err(|error| format!("failed to create plugin dir: {error}"))?;
-    let target = dir.join(format!("{}.toml", manifest.id));
+    let target = plugin_target_path(&dir, manifest.id.as_str())?;
 
     let raw = toml::to_string_pretty(&manifest)
         .map_err(|error| format!("failed to serialize plugin manifest: {error}"))?;

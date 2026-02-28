@@ -1,0 +1,11 @@
+# Default ownership
+* @bonggeon-k
+
+# Security-sensitive paths
+src-tauri/src/credentials.rs @bonggeon-k
+src-tauri/src/commands.rs @bonggeon-k
+src-tauri/src/export.rs @bonggeon-k
+src-tauri/src/plugin_registry.rs @bonggeon-k
+src-tauri/src/updater.rs @bonggeon-k
+src-tauri/capabilities/*.json @bonggeon-k
+.github/workflows/* @bonggeon-k

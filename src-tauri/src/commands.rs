@@ -20,6 +20,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::time::Duration;
 use tauri::{Emitter, Manager};
 use tracing::instrument;
 
@@ -32,6 +33,8 @@ pub const PROVIDER_IDS: &[&str] = &[
     "cursor",
     "jetbrains",
 ];
+pub const TRUSTED_WINDOWS: &[&str] = &["main", "tray-popup"];
+const MANUAL_INPUT_MAX: u64 = 1_000_000_000_000;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ProviderDescriptor {
@@ -170,7 +173,12 @@ impl AppState {
     #[instrument]
     pub fn new() -> Self {
         let credential_manager = CredentialManager::new();
-        let http_client = build_shared_http_client().unwrap_or_else(|_| Client::new());
+        let http_client = build_shared_http_client().unwrap_or_else(|_| {
+            Client::builder()
+                .timeout(Duration::from_secs(30))
+                .build()
+                .expect("failed to build fallback http client")
+        });
         Self {
             providers: ProviderRegistry::new(credential_manager.clone(), http_client.clone()),
             credential_manager,
@@ -179,6 +187,42 @@ impl AppState {
             http_client,
         }
     }
+}
+
+pub fn ensure_trusted_window(window: &tauri::Window) -> Result<(), String> {
+    if TRUSTED_WINDOWS
+        .iter()
+        .any(|candidate| *candidate == window.label())
+    {
+        return Ok(());
+    }
+    Err("unauthorized window context".to_string())
+}
+
+pub fn ensure_known_provider(provider: &str) -> Result<(), String> {
+    if PROVIDER_IDS.contains(&provider) {
+        return Ok(());
+    }
+    Err(format!("unsupported provider: {provider}"))
+}
+
+fn validate_manual_input(input: &ManualProviderInput) -> Result<(), String> {
+    if input.provider.trim().is_empty() {
+        return Err("manual input provider cannot be empty".to_string());
+    }
+    if input.used > MANUAL_INPUT_MAX
+        || input.limit > MANUAL_INPUT_MAX
+        || input.requests > MANUAL_INPUT_MAX
+        || input.tokens > MANUAL_INPUT_MAX
+    {
+        return Err("manual input values exceed safe limits".to_string());
+    }
+    if let Some(cost) = input.cost_total {
+        if !cost.is_finite() || !(0.0..=1_000_000_000.0).contains(&cost) {
+            return Err("manual input cost_total is out of range".to_string());
+        }
+    }
+    Ok(())
 }
 
 impl Default for AppState {
@@ -914,7 +958,10 @@ pub fn save_credential(
     provider: String,
     credential: String,
     state: tauri::State<'_, AppState>,
+    window: tauri::Window,
 ) -> Result<(), String> {
+    ensure_trusted_window(&window)?;
+    ensure_known_provider(provider.as_str())?;
     state
         .credential_manager
         .save_credential(provider.as_str(), credential)
@@ -925,7 +972,10 @@ pub fn save_credential(
 pub fn delete_credential(
     provider: String,
     state: tauri::State<'_, AppState>,
+    window: tauri::Window,
 ) -> Result<(), String> {
+    ensure_trusted_window(&window)?;
+    ensure_known_provider(provider.as_str())?;
     state
         .credential_manager
         .delete_credential(provider.as_str())
@@ -1061,10 +1111,14 @@ pub fn save_manual_input(
     provider: String,
     input: ManualProviderInput,
     app: tauri::AppHandle,
+    window: tauri::Window,
 ) -> Result<(), String> {
+    ensure_trusted_window(&window)?;
+    ensure_known_provider(provider.as_str())?;
     if provider != input.provider {
         return Err("provider mismatch in manual input".to_string());
     }
+    validate_manual_input(&input)?;
 
     let mut manual = load_manual_inputs(&app)?;
     manual.insert(provider, input);
@@ -1076,7 +1130,10 @@ pub fn clear_provider_data(
     provider: String,
     state: tauri::State<'_, AppState>,
     app: tauri::AppHandle,
+    window: tauri::Window,
 ) -> Result<(), String> {
+    ensure_trusted_window(&window)?;
+    ensure_known_provider(provider.as_str())?;
     state.quota_cache.clear(Some(provider.as_str()));
 
     let mut manual = load_manual_inputs(&app)?;

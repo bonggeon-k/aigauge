@@ -34,6 +34,46 @@ export interface CodexCostBreakdown {
 const isTauriRuntime =
   typeof window !== "undefined" &&
   "__TAURI_INTERNALS__" in (window as unknown as Record<string, unknown>);
+const providerAllowlist = new Set([
+  "codex",
+  "claude",
+  "gemini",
+  "kiro",
+  "copilot",
+  "cursor",
+  "jetbrains",
+]);
+const MANUAL_INPUT_MAX = 1_000_000_000_000;
+
+const assertProviderId = (provider: string): void => {
+  if (!providerAllowlist.has(provider)) {
+    throw new Error(`unsupported provider: ${provider}`);
+  }
+};
+
+const validateManualInput = (provider: string, input: ManualProviderInput): void => {
+  assertProviderId(provider);
+  if (provider !== input.provider) {
+    throw new Error("provider mismatch");
+  }
+  const values = [input.requests, input.tokens, input.used, input.limit];
+  if (
+    values.some(
+      (value) =>
+        !Number.isFinite(value) ||
+        value < 0 ||
+        value > MANUAL_INPUT_MAX ||
+        !Number.isInteger(value),
+    )
+  ) {
+    throw new Error("manual input values are out of range");
+  }
+  if (input.cost_total != null) {
+    if (!Number.isFinite(input.cost_total) || input.cost_total < 0 || input.cost_total > 1_000_000_000) {
+      throw new Error("manual input cost is out of range");
+    }
+  }
+};
 
 export const useTrayProviders = () =>
   useMemo(
@@ -53,6 +93,7 @@ export const useTrayProviders = () =>
       },
 
       async saveManualInput(provider: string, input: ManualProviderInput): Promise<void> {
+        validateManualInput(provider, input);
         if (!isTauriRuntime) {
           return;
         }
@@ -60,6 +101,7 @@ export const useTrayProviders = () =>
       },
 
       async clearProviderData(provider: string): Promise<void> {
+        assertProviderId(provider);
         if (!isTauriRuntime) {
           return;
         }

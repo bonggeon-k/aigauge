@@ -24,6 +24,23 @@ export const TrayManualInput = ({ open, providerId, onClose, onSave }: TrayManua
   const [limit, setLimit] = useState("100");
   const [cost, setCost] = useState("0");
   const [trackKind, setTrackKind] = useState<"subscription" | "api" | "manual">("subscription");
+  const [validationError, setValidationError] = useState<string>("");
+
+  const parseInteger = (value: string): number | null => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
+      return null;
+    }
+    return parsed;
+  };
+
+  const parseCost = (value: string): number | null => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return null;
+    }
+    return parsed;
+  };
 
   return (
     <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : null)}>
@@ -103,8 +120,18 @@ export const TrayManualInput = ({ open, providerId, onClose, onSave }: TrayManua
           <Button
             className="rounded-full"
             onClick={async () => {
-              const usedValue = Number(used) || 0;
-              const limitValue = Number(limit) || 0;
+              const usedValue = parseInteger(used);
+              const limitValue = parseInteger(limit);
+              const costValue = parseCost(cost);
+              if (usedValue == null || limitValue == null || costValue == null) {
+                setValidationError("Enter valid non-negative numbers.");
+                return;
+              }
+              if (limitValue > 1_000_000_000_000 || usedValue > 1_000_000_000_000 || costValue > 1_000_000_000) {
+                setValidationError("Values exceed allowed range.");
+                return;
+              }
+              setValidationError("");
               await onSave({
                 provider: providerId,
                 requests: usedValue,
@@ -113,7 +140,7 @@ export const TrayManualInput = ({ open, providerId, onClose, onSave }: TrayManua
                 limit: limitValue,
                 unit: "percent",
                 reset_at: "manual",
-                cost_total: Number(cost) || 0,
+                cost_total: costValue,
                 plan_name: "Manual",
                 track_kind: trackKind,
               });
@@ -123,6 +150,9 @@ export const TrayManualInput = ({ open, providerId, onClose, onSave }: TrayManua
             {t("provider.save")}
           </Button>
         </DialogFooter>
+        {validationError ? (
+          <p className="text-xs text-rose-500">{validationError}</p>
+        ) : null}
       </DialogContent>
     </Dialog>
   );

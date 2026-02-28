@@ -82,15 +82,11 @@ export const QuotaTimeline = ({
             <span>Time elapsed</span>
             <span>{Math.round(elapsedRatio * 100)}%</span>
           </div>
-          <div className="h-2 rounded-full bg-muted/60">
-            <div
-              className="h-2 rounded-full"
-              style={{
-                width: `${Math.round(elapsedRatio * 100)}%`,
-                backgroundColor: "var(--chart-2)",
-              }}
-            />
-          </div>
+          <progress
+            className="quota-meter quota-meter-time h-2 w-full rounded-full"
+            max={100}
+            value={Math.round(elapsedRatio * 100)}
+          />
         </div>
 
         <div>
@@ -98,12 +94,11 @@ export const QuotaTimeline = ({
             <span>Usage consumed</span>
             <span>{Math.round(usedRatio * 100)}%</span>
           </div>
-          <div className="h-2 rounded-full bg-muted/60">
-            <div
-              className="h-2 rounded-full bg-primary"
-              style={{ width: `${Math.round(usedRatio * 100)}%` }}
-            />
-          </div>
+          <progress
+            className="quota-meter quota-meter-primary h-2 w-full rounded-full"
+            max={100}
+            value={Math.round(usedRatio * 100)}
+          />
         </div>
 
         <div className="flex items-center justify-between">

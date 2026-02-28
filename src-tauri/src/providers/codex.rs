@@ -1,7 +1,7 @@
 use crate::credentials::CredentialManager;
 use crate::platform;
 use reqwest::header::AUTHORIZATION;
-use reqwest::Client;
+use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
@@ -121,14 +121,27 @@ impl CodexProvider {
     }
 
     fn resolve_usage_url() -> String {
-        let base = Self::parse_config_base_url()
-            .unwrap_or_else(|| "https://chatgpt.com/backend-api".to_string());
-        let mut normalized = base.trim_end_matches('/').to_string();
-        if (normalized.starts_with("https://chatgpt.com")
-            || normalized.starts_with("https://chat.openai.com"))
-            && !normalized.contains("/backend-api")
-        {
-            normalized.push_str("/backend-api");
+        let base = Self::parse_config_base_url();
+        let validated = base.and_then(|candidate| {
+            let parsed = Url::parse(candidate.as_str()).ok()?;
+            let host = parsed.host_str()?.to_ascii_lowercase();
+            if parsed.scheme() != "https" {
+                return None;
+            }
+            if host != "chatgpt.com" && host != "chat.openai.com" {
+                return None;
+            }
+
+            let mut url = parsed;
+            if !url.path().contains("/backend-api") {
+                let normalized_path = format!("{}/backend-api", url.path().trim_end_matches('/'));
+                url.set_path(normalized_path.as_str());
+            }
+            Some(url.to_string().trim_end_matches('/').to_string())
+        });
+        let normalized = validated.unwrap_or_else(|| "https://chatgpt.com/backend-api".to_string());
+        if normalized.is_empty() {
+            return "https://chatgpt.com/backend-api/wham/usage".to_string();
         }
         format!("{normalized}/wham/usage")
     }

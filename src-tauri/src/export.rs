@@ -1,11 +1,13 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::{Component, Path, PathBuf};
+use std::fs::{self, OpenOptions};
+use std::path::{Path, PathBuf};
 use tauri::Manager;
 use tracing::instrument;
 
-use crate::commands::{resolve_dashboard_entry, AppState, TrackKind, PROVIDER_IDS};
+use crate::commands::{
+    ensure_trusted_window, resolve_dashboard_entry, AppState, TrackKind, PROVIDER_IDS,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -209,11 +211,7 @@ async fn render_export_content(
 }
 
 fn default_export_path(app: &tauri::AppHandle, format: &ExportFormat) -> Result<PathBuf, String> {
-    let base = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| format!("failed to resolve app data dir: {error}"))?
-        .join("exports");
+    let base = export_root(app)?;
     let extension = match format {
         ExportFormat::Csv => "csv",
         ExportFormat::Json => "json",
@@ -224,6 +222,65 @@ fn default_export_path(app: &tauri::AppHandle, format: &ExportFormat) -> Result<
         extension
     );
     Ok(base.join(filename))
+}
+
+fn export_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("failed to resolve app data dir: {error}"))?
+        .join("exports")
+        .canonicalize()
+        .or_else(|_| {
+            let dir = app
+                .path()
+                .app_data_dir()
+                .map_err(|error| format!("failed to resolve app data dir: {error}"))?
+                .join("exports");
+            fs::create_dir_all(&dir)
+                .map_err(|error| format!("failed to create export root: {error}"))?;
+            dir.canonicalize()
+                .map_err(|error| format!("failed to resolve export root: {error}"))
+        })
+}
+
+fn resolve_export_target(
+    app: &tauri::AppHandle,
+    format: &ExportFormat,
+    path: &str,
+) -> Result<PathBuf, String> {
+    let root = export_root(app)?;
+    let target = if path.trim().is_empty() {
+        default_export_path(app, format)?
+    } else {
+        let parsed = Path::new(path.trim());
+        if parsed.is_absolute() {
+            return Err("absolute export paths are not allowed".to_string());
+        }
+        root.join(parsed)
+    };
+
+    let canonical_parent = target
+        .parent()
+        .ok_or_else(|| "invalid export path".to_string())?
+        .canonicalize()
+        .or_else(|_| {
+            fs::create_dir_all(
+                target
+                    .parent()
+                    .ok_or_else(|| "invalid export path".to_string())?,
+            )
+            .map_err(|error| format!("failed to create export directory: {error}"))?;
+            target
+                .parent()
+                .ok_or_else(|| "invalid export path".to_string())?
+                .canonicalize()
+                .map_err(|error| format!("failed to resolve export directory: {error}"))
+        })?;
+    if !canonical_parent.starts_with(&root) {
+        return Err("invalid export path".to_string());
+    }
+    Ok(target)
 }
 
 #[tauri::command]
@@ -243,33 +300,23 @@ pub async fn export_to_file(
     path: String,
     state: tauri::State<'_, AppState>,
     app: tauri::AppHandle,
+    window: tauri::Window,
 ) -> Result<String, String> {
-    let target = if path.trim().is_empty() {
-        default_export_path(&app, &request.format)?
-    } else {
-        let parsed = Path::new(path.as_str());
-        if parsed
-            .components()
-            .any(|component| matches!(component, Component::ParentDir))
-        {
-            return Err("invalid export path".to_string());
-        }
-        if parsed.is_absolute() {
-            parsed.to_path_buf()
-        } else {
-            app.path()
-                .app_data_dir()
-                .map_err(|error| format!("failed to resolve app data dir: {error}"))?
-                .join("exports")
-                .join(parsed)
-        }
-    };
+    ensure_trusted_window(&window)?;
+    let target = resolve_export_target(&app, &request.format, path.as_str())?;
     let content = render_export_content(&state, &app, &request).await?;
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent)
             .map_err(|error| format!("failed to create export directory: {error}"))?;
     }
-    fs::write(target.as_path(), content)
+
+    let mut file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&target)
+        .map_err(|error| format!("failed to create export file: {error}"))?;
+    use std::io::Write;
+    file.write_all(content.as_bytes())
         .map_err(|error| format!("failed to write export file: {error}"))?;
     Ok(target.display().to_string())
 }

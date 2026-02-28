@@ -23,7 +23,7 @@ export const PaceIndicator = ({ pace }: PaceIndicatorProps) => {
     pace.monthly_budget > 0
       ? pace.projected_monthly_total / pace.monthly_budget
       : 0;
-  const width = `${Math.max(0, Math.min(100, ratio * 100))}%`;
+  const width = Math.max(0, Math.min(100, ratio * 100));
   const status = pace.on_track ? t("analytics.pace.onTrack") : t("analytics.pace.overBudget");
   const Icon = pace.on_track ? CheckCircle2 : AlertTriangle;
   const tone = pace.on_track
@@ -52,12 +52,11 @@ export const PaceIndicator = ({ pace }: PaceIndicatorProps) => {
           <span>{t("analytics.pace.projectedAgainstBudget")}</span>
           <span>{Math.round(ratio * 100)}%</span>
         </div>
-        <div className="h-2.5 w-full rounded-full bg-muted/70">
-          <div
-            className="h-2.5 rounded-full bg-gradient-to-r from-[var(--chart-3)] to-[var(--chart-4)] transition-all"
-            style={{ width }}
-          />
-        </div>
+        <progress
+          className="quota-meter quota-meter-pace h-2.5 w-full rounded-full"
+          max={100}
+          value={width}
+        />
       </div>
 
       <div className="grid gap-2 sm:grid-cols-3 text-xs">

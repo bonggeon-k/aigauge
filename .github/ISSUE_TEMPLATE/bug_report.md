@@ -20,3 +20,11 @@ about: Report a reproducible bug
 - OS:
 - App version:
 - Provider(s):
+- Build source: (release/dev/local)
+- Commit SHA (if local build):
+
+## Security Impact
+
+- [ ] No security impact known
+- [ ] Possible data exposure
+- [ ] Possible credential/security issue

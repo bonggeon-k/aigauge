@@ -1,5 +1,25 @@
 # SECURITY
 
+## Reporting a Vulnerability
+
+Please do not open a public issue for undisclosed security vulnerabilities.
+
+- Preferred: GitHub Security Advisory (private report)
+- Alternate: maintainer contact listed in repository profile
+
+When reporting, include:
+
+- affected version / commit SHA
+- reproduction steps
+- impact assessment
+- suggested fix or mitigation (if known)
+
+## Response Targets (Best Effort)
+
+- Initial triage: within 72 hours
+- Severity assessment: within 7 days
+- Mitigation or patch plan: within 14 days for High/Critical
+
 ## Threat Model (T1-T6)
 
 - T1: Credential exfiltration from local storage

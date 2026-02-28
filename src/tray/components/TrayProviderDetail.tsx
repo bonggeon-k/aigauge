@@ -18,7 +18,12 @@ const setupGuide: Record<string, string> = {
 
 interface StatusMeta {
   label: string;
-  color: string;
+  dotClass: string;
+  toneClass: string;
+}
+
+interface DataStatusMeta {
+  label: string;
   toneClass: string;
 }
 
@@ -51,32 +56,32 @@ const serviceStatusMeta = (indicator?: string, description?: string): StatusMeta
   if (normalized === "major" || normalized === "critical" || normalized === "major_outage") {
     return {
       label: "Disrupted",
-      color: "#ef4444",
+      dotClass: "bg-rose-500",
       toneClass: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300",
     };
   }
   if (normalized === "minor" || normalized === "degraded" || normalized === "partial_outage") {
     return {
       label: "Degraded",
-      color: "#eab308",
+      dotClass: "bg-amber-500",
       toneClass: "border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300",
     };
   }
   if (normalized === "none" || normalized === "ok" || normalized === "operational") {
     return {
       label: "Operational",
-      color: "#22c55e",
+      dotClass: "bg-emerald-500",
       toneClass: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
     };
   }
   return {
     label: "Unknown",
-    color: "#94a3b8",
+    dotClass: "bg-slate-400",
     toneClass: "border-slate-400/30 bg-slate-400/10 text-slate-700 dark:text-slate-300",
   };
 };
 
-const dataStateMeta = (entry: DashboardEntry): Omit<StatusMeta, "color"> => {
+const dataStateMeta = (entry: DashboardEntry): DataStatusMeta => {
   if (entry.usage.status === "not_configured") {
     return {
       label: "Not configured",
@@ -101,10 +106,10 @@ const dataStateMeta = (entry: DashboardEntry): Omit<StatusMeta, "color"> => {
   };
 };
 
-const barColor = (remainingPct: number): string => {
-  if (remainingPct > 50) return "var(--quota-safe)";
-  if (remainingPct > 20) return "var(--quota-warn)";
-  return "var(--quota-critical)";
+const barColorClass = (remainingPct: number): string => {
+  if (remainingPct > 50) return "quota-meter-safe";
+  if (remainingPct > 20) return "quota-meter-warn";
+  return "quota-meter-critical";
 };
 
 const trackPercent = (used: number, limit: number): number => {
@@ -188,7 +193,7 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
         <p className="font-medium tracking-tight">{entry.info.name}</p>
         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
           <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${serviceStatus.toneClass}`}>
-            <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: serviceStatus.color }} />
+            <span className={`inline-block h-2 w-2 rounded-full ${serviceStatus.dotClass}`} />
             {serviceStatus.label}
           </span>
           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 ${dataStatus.toneClass}`}>{dataStatus.label}</span>
@@ -214,7 +219,7 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] ${serviceStatus.toneClass}`}>
-            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: serviceStatus.color }} />
+            <span className={`inline-block h-2.5 w-2.5 rounded-full ${serviceStatus.dotClass}`} />
             {serviceStatus.label}
           </span>
           <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] ${dataStatus.toneClass}`}>
@@ -228,15 +233,11 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
           <span>Primary window remaining</span>
           <span>{remainingPct.toFixed(0)}%</span>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-black/20">
-          <div
-            className="h-full rounded-full"
-            style={{
-              width: `${remainingPct}%`,
-              backgroundColor: barColor(remainingPct),
-            }}
-          />
-        </div>
+        <progress
+          className={`quota-meter h-2 w-full rounded-full ${barColorClass(remainingPct)}`}
+          max={100}
+          value={remainingPct}
+        />
       </div>
 
       <div className="space-y-2">
@@ -250,12 +251,10 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
                 <p className="font-medium">{pct.toFixed(0)}%</p>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-black/20">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${remaining}%`,
-                    backgroundColor: barColor(remaining),
-                  }}
+                <progress
+                  className={`quota-meter h-2 w-full rounded-full ${barColorClass(remaining)}`}
+                  max={100}
+                  value={remaining}
                 />
               </div>
               <div className="mt-2 flex items-center justify-between">

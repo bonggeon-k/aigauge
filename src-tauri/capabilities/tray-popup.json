@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "main-window",
-  "description": "Capability scope for main dashboard window",
-  "windows": ["main"],
+  "identifier": "tray-popup-window",
+  "description": "Capability scope for tray popup window",
+  "windows": ["tray-popup"],
   "permissions": [
     "core:default",
     "core:event:allow-emit",
@@ -22,13 +22,7 @@
     "core:tray:allow-set-title",
     "core:tray:allow-set-icon",
     "core:menu:default",
-    "updater:allow-check",
-    "updater:allow-download-and-install",
     "notification:allow-show",
-    "notification:allow-notify",
-    "global-shortcut:allow-register",
-    "global-shortcut:allow-unregister",
-    "global-shortcut:allow-unregister-all",
-    "global-shortcut:allow-is-registered"
+    "notification:allow-notify"
   ]
 }

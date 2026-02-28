@@ -32,6 +32,27 @@ const ranges = ["this_month", "last_3", "last_6", "last_year", "custom"] as cons
 type RangeValue = (typeof ranges)[number];
 
 const colorAt = (index: number): string => `var(--chart-${(index % 7) + 1})`;
+const chartColorClassAt = (index: number): string =>
+  [
+    "bg-[var(--chart-1)]",
+    "bg-[var(--chart-2)]",
+    "bg-[var(--chart-3)]",
+    "bg-[var(--chart-4)]",
+    "bg-[var(--chart-5)]",
+    "bg-[var(--chart-6)]",
+    "bg-[var(--chart-7)]",
+  ][index % 7] ?? "bg-[var(--chart-1)]";
+
+const quotaMeterClassAt = (index: number): string =>
+  [
+    "quota-meter-chart-1",
+    "quota-meter-chart-2",
+    "quota-meter-chart-3",
+    "quota-meter-chart-4",
+    "quota-meter-chart-5",
+    "quota-meter-chart-6",
+    "quota-meter-chart-7",
+  ][index % 7] ?? "quota-meter-chart-1";
 
 const formatCurrency = (value: number, currency = "USD"): string =>
   new Intl.NumberFormat("en-US", {
@@ -182,23 +203,20 @@ export const CostDashboard = ({ summary, history, pace }: CostDashboardProps) =>
                 <div key={entry.provider} className="space-y-1.5 text-xs">
                   <div className="flex items-center justify-between">
                     <div className="inline-flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colorAt(index) }} />
+                      <span className={`h-2.5 w-2.5 rounded-full ${chartColorClassAt(index)}`} />
                       <span className="font-medium uppercase tracking-[0.07em]">{entry.provider}</span>
                     </div>
                     <span className="text-muted-foreground">
                       {Math.round(entry.percentage_of_total)}%
                     </span>
                   </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/60">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${entry.amount > 0 ? Math.max(4, Math.round(entry.percentage_of_total)) : 2}%`,
-                        backgroundColor: colorAt(index),
-                        opacity: entry.amount > 0 ? 1 : 0.35,
-                      }}
-                    />
-                  </div>
+                  <progress
+                    className={`quota-meter h-1.5 w-full rounded-full ${quotaMeterClassAt(index)} ${
+                      entry.amount > 0 ? "" : "opacity-40"
+                    }`}
+                    max={100}
+                    value={entry.amount > 0 ? Math.max(4, Math.round(entry.percentage_of_total)) : 2}
+                  />
                   <p className="text-right text-muted-foreground">{formatCurrency(entry.amount, currency)}</p>
                 </div>
               ))}

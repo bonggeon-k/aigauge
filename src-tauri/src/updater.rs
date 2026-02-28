@@ -1,6 +1,8 @@
 use serde::Serialize;
 use tracing::instrument;
 
+use crate::commands::ensure_trusted_window;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct UpdateInfo {
     pub version: String,
@@ -9,7 +11,11 @@ pub struct UpdateInfo {
 
 #[tauri::command]
 #[instrument(skip(app))]
-pub async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, String> {
+pub async fn check_for_update(
+    app: tauri::AppHandle,
+    window: tauri::Window,
+) -> Result<Option<UpdateInfo>, String> {
+    ensure_trusted_window(&window)?;
     if cfg!(debug_assertions) {
         tracing::debug!("skip updater check in debug build");
         return Ok(None);
@@ -18,16 +24,14 @@ pub async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo
     let updater = match tauri_plugin_updater::UpdaterExt::updater_builder(&app).build() {
         Ok(updater) => updater,
         Err(error) => {
-            tracing::warn!("updater unavailable during check: {error}");
-            return Ok(None);
+            return Err(format!("updater unavailable during check: {error}"));
         }
     };
 
     let Some(update) = (match updater.check().await {
         Ok(update) => update,
         Err(error) => {
-            tracing::warn!("updater check failed: {error}");
-            return Ok(None);
+            return Err(format!("updater check failed: {error}"));
         }
     }) else {
         return Ok(None);
@@ -41,7 +45,8 @@ pub async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo
 
 #[tauri::command]
 #[instrument(skip(app))]
-pub async fn install_update(app: tauri::AppHandle) -> Result<bool, String> {
+pub async fn install_update(app: tauri::AppHandle, window: tauri::Window) -> Result<bool, String> {
+    ensure_trusted_window(&window)?;
     if cfg!(debug_assertions) {
         tracing::debug!("skip updater install in debug build");
         return Ok(false);
@@ -50,24 +55,21 @@ pub async fn install_update(app: tauri::AppHandle) -> Result<bool, String> {
     let updater = match tauri_plugin_updater::UpdaterExt::updater_builder(&app).build() {
         Ok(updater) => updater,
         Err(error) => {
-            tracing::warn!("updater unavailable during install: {error}");
-            return Ok(false);
+            return Err(format!("updater unavailable during install: {error}"));
         }
     };
 
     let Some(update) = (match updater.check().await {
         Ok(update) => update,
         Err(error) => {
-            tracing::warn!("updater check failed before install: {error}");
-            return Ok(false);
+            return Err(format!("updater check failed before install: {error}"));
         }
     }) else {
         return Ok(false);
     };
 
     if let Err(error) = update.download_and_install(|_, _| {}, || {}).await {
-        tracing::warn!("updater install failed: {error}");
-        return Ok(false);
+        return Err(format!("updater install failed: {error}"));
     }
 
     Ok(true)

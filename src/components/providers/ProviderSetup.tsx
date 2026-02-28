@@ -60,6 +60,24 @@ export const ProviderSetup = ({
   const isCredentialOptional = providerId === "jetbrains" || authMethod === "none";
   const isCopilotProvider = providerId === "copilot";
   const isJetBrainsProvider = providerId === "jetbrains";
+  const safeCopilotVerificationUrl = useMemo(() => {
+    if (!copilotFlow) return null;
+    const candidate = copilotFlow.verification_uri_complete || copilotFlow.verification_uri;
+    if (!candidate) return null;
+    try {
+      const parsed = new URL(candidate);
+      const host = parsed.hostname.toLowerCase();
+      if (
+        parsed.protocol !== "https:" ||
+        (host !== "github.com" && host !== "www.github.com")
+      ) {
+        return null;
+      }
+      return parsed.toString();
+    } catch {
+      return null;
+    }
+  }, [copilotFlow]);
 
   useEffect(() => {
     if (!open) {
@@ -242,11 +260,16 @@ export const ProviderSetup = ({
                   </p>
                   <a
                     className="underline"
-                    href={copilotFlow.verification_uri_complete || copilotFlow.verification_uri}
+                    href={safeCopilotVerificationUrl ?? "#"}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
+                    onClick={(event) => {
+                      if (!safeCopilotVerificationUrl) {
+                        event.preventDefault();
+                      }
+                    }}
                   >
-                    {copilotFlow.verification_uri_complete || copilotFlow.verification_uri}
+                    {safeCopilotVerificationUrl ?? "Invalid verification URL"}
                   </a>
                   {copilotFlowStatus ? (
                     <p className="text-muted-foreground">Login status: {copilotFlowStatus}</p>

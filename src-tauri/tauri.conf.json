@@ -36,7 +36,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' https://*.anthropic.com https://*.openai.com https://*.github.com https://*.google.com https://*.amazonaws.com https://api.jetbrains.ai https://chatgpt.com https://api.claude.ai https://cloudcode-pa.googleapis.com https://status.openai.com https://status.anthropic.com https://status.cloud.google.com; style-src 'self' 'unsafe-inline'",
+      "csp": "default-src 'self'; connect-src 'self' https://chatgpt.com https://chat.openai.com https://auth.openai.com https://api.openai.com https://api.claude.ai https://claude.ai https://cloudcode-pa.googleapis.com https://github.com https://api.github.com https://www.githubstatus.com https://cursor.com https://www.cursor.com https://api.jetbrains.ai https://www.jetbrains.com https://kiro.dev https://status.openai.com https://status.anthropic.com https://status.cloud.google.com; style-src 'self' 'unsafe-inline'",
       "pattern": {
         "use": "isolation",
         "options": {

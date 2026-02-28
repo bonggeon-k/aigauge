@@ -9,14 +9,45 @@ interface TrayTabBarProps {
   onSelect: (providerId: string) => void;
 }
 
-const providerColors: Record<string, string> = {
-  codex: "#10a37f",
-  claude: "#d97706",
-  gemini: "#4285f4",
-  kiro: "#ff9900",
-  copilot: "#22c55e",
-  cursor: "#38bdf8",
-  jetbrains: "#8b5cf6",
+const providerThemes: Record<
+  string,
+  { activeClass: string; dotClass: string; activeDotClass: string }
+> = {
+  codex: {
+    activeClass: "bg-gradient-to-br from-[#10a37f] to-[#46d3ae]",
+    dotClass: "bg-[#10a37f]",
+    activeDotClass: "bg-white/90",
+  },
+  claude: {
+    activeClass: "bg-gradient-to-br from-[#d97706] to-[#f0a84f]",
+    dotClass: "bg-[#d97706]",
+    activeDotClass: "bg-white/90",
+  },
+  gemini: {
+    activeClass: "bg-gradient-to-br from-[#4285f4] to-[#80abff]",
+    dotClass: "bg-[#4285f4]",
+    activeDotClass: "bg-white/90",
+  },
+  kiro: {
+    activeClass: "bg-gradient-to-br from-[#ff9900] to-[#ffc266]",
+    dotClass: "bg-[#ff9900]",
+    activeDotClass: "bg-white/90",
+  },
+  copilot: {
+    activeClass: "bg-gradient-to-br from-[#22c55e] to-[#73e49a]",
+    dotClass: "bg-[#22c55e]",
+    activeDotClass: "bg-white/90",
+  },
+  cursor: {
+    activeClass: "bg-gradient-to-br from-[#38bdf8] to-[#86dcff]",
+    dotClass: "bg-[#38bdf8]",
+    activeDotClass: "bg-white/90",
+  },
+  jetbrains: {
+    activeClass: "bg-gradient-to-br from-[#8b5cf6] to-[#b899ff]",
+    dotClass: "bg-[#8b5cf6]",
+    activeDotClass: "bg-white/90",
+  },
 };
 
 export const TrayTabBar = ({ entries, activeProvider, onSelect }: TrayTabBarProps) => {
@@ -96,7 +127,13 @@ export const TrayTabBar = ({ entries, activeProvider, onSelect }: TrayTabBarProp
             event.preventDefault();
           }}
         >
-          {entries.map((entry) => (
+          {entries.map((entry) => {
+            const theme = providerThemes[entry.info.id] ?? {
+              activeClass: "bg-gradient-to-br from-teal-500 to-cyan-400",
+              dotClass: "bg-slate-400",
+              activeDotClass: "bg-white/90",
+            };
+            return (
             <button
               key={entry.info.id}
               type="button"
@@ -107,31 +144,22 @@ export const TrayTabBar = ({ entries, activeProvider, onSelect }: TrayTabBarProp
               className={cn(
                 "inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium tracking-[0.01em] transition-all duration-200",
                 activeProvider === entry.info.id
-                  ? "border-transparent text-white shadow-[0_10px_22px_rgba(0,0,0,0.35)]"
+                  ? `border-transparent text-white shadow-[0_10px_22px_rgba(0,0,0,0.35)] ${theme.activeClass}`
                   : "border-border/60 bg-[var(--surface-1)] text-foreground/85 hover:bg-[var(--surface-2)] hover:text-foreground",
               )}
-              style={
-                activeProvider === entry.info.id
-                  ? {
-                      background: `linear-gradient(140deg, ${providerColors[entry.info.id] ?? "#0ea5a4"} 0%, color-mix(in srgb, ${providerColors[entry.info.id] ?? "#0ea5a4"} 80%, #ffffff 20%) 100%)`,
-                    }
-                  : undefined
-              }
               data-provider-id={entry.info.id}
               data-no-drag
             >
               <span
-                className="h-2.5 w-2.5 rounded-full"
-                style={{
-                  backgroundColor:
-                    activeProvider === entry.info.id
-                      ? "rgba(255,255,255,0.92)"
-                      : providerColors[entry.info.id] ?? "#9ca3af",
-                }}
+                className={cn(
+                  "h-2.5 w-2.5 rounded-full",
+                  activeProvider === entry.info.id ? theme.activeDotClass : theme.dotClass,
+                )}
               />
               {entry.info.name}
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
 

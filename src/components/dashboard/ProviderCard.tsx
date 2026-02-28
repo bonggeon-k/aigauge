@@ -41,7 +41,7 @@ interface ProviderCardProps {
 interface DataStatusMeta {
   label: string;
   toneClass: string;
-  dotColor: string;
+  dotClass: string;
 }
 
 const iconMap = {
@@ -55,10 +55,10 @@ const iconMap = {
 } as const;
 
 const getQuotaColor = (ratio: number): string => {
-  if (ratio < 0.6) return "var(--quota-safe)";
-  if (ratio < 0.8) return "var(--quota-warn)";
-  if (ratio < 0.95) return "var(--quota-danger)";
-  return "var(--quota-critical)";
+  if (ratio < 0.6) return "quota-meter-safe";
+  if (ratio < 0.8) return "quota-meter-warn";
+  if (ratio < 0.95) return "quota-meter-danger";
+  return "quota-meter-critical";
 };
 
 const AnimatedNumber = ({ value }: { value: number }) => {
@@ -144,30 +144,30 @@ const formatAuthMethod = (value: string): string => {
 
 const getDataStatusBadge = (entry: DashboardEntry): DataStatusMeta => {
   if (entry.usage.status === "not_configured") {
-    return {
-      label: "Not configured",
-      toneClass: "border-slate-400/30 bg-slate-400/10 text-slate-700 dark:text-slate-300",
-      dotColor: "#94a3b8",
-    };
+      return {
+        label: "Not configured",
+        toneClass: "border-slate-400/30 bg-slate-400/10 text-slate-700 dark:text-slate-300",
+        dotClass: "bg-slate-400",
+      };
   }
   if (entry.stale) {
-    return {
-      label: "Stale",
-      toneClass: "border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-      dotColor: "#eab308",
-    };
+      return {
+        label: "Stale",
+        toneClass: "border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+        dotClass: "bg-amber-500",
+      };
   }
   if (entry.health.reachable) {
-    return {
-      label: "Live",
-      toneClass: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-      dotColor: "#22c55e",
-    };
+      return {
+        label: "Live",
+        toneClass: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+        dotClass: "bg-emerald-500",
+      };
   }
   return {
     label: "Offline",
     toneClass: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300",
-    dotColor: "#ef4444",
+    dotClass: "bg-rose-500",
   };
 };
 
@@ -282,7 +282,7 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
             <span
               className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${dataStatusBadge.toneClass}`}
             >
-              <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: dataStatusBadge.dotColor }} />
+              <span className={`inline-block h-2 w-2 rounded-full ${dataStatusBadge.dotClass}`} />
               {dataStatusBadge.label}
             </span>
           </div>
@@ -319,7 +319,7 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
 
                   const usagePct = trackPercent(track);
                   const usageRatio = track.limit > 0 ? track.used / track.limit : 0;
-                  const usageColor = getQuotaColor(usageRatio);
+                  const usageColorClass = getQuotaColor(usageRatio);
                   return (
                     <Tooltip key={track.id}>
                       <TooltipTrigger asChild>
@@ -328,15 +328,11 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
                             <span>{track.label}</span>
                             <span>{usagePct}%</span>
                           </div>
-                          <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted/60">
-                            <div
-                              className="h-2 rounded-full transition-all duration-500"
-                              style={{
-                                width: `${usagePct}%`,
-                                backgroundColor: usageColor,
-                              }}
-                            />
-                          </div>
+                          <progress
+                            className={`quota-meter h-2 w-full rounded-full ${usageColorClass}`}
+                            max={100}
+                            value={usagePct}
+                          />
                           <div className="mt-2 flex items-center justify-between gap-2 text-xs">
                             <span className="min-w-0 truncate font-medium" title={formatTrackUsage(track)}>
                               {formatTrackUsage(track)}

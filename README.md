@@ -39,7 +39,7 @@
 - `gemini`: `~/.gemini/oauth_creds.json` available after Gemini CLI OAuth login.
 - `kiro`: `kiro-cli chat --no-interactive /usage` must work in your shell.
 - `copilot`: use GitHub Device Flow in setup dialog, or provide token via `gh` auth / env.
-- `cursor`: provide Cookie header manually, or rely on auto session import (CodexBar cache / Firefox / Chromium plaintext cookies).
+- `cursor`: provide Cookie header manually, or rely on auto session import (compatible with CodexBar session file format, plus Firefox / Chromium plaintext cookies).
 - `jetbrains`: no token required by default; AIGauge auto-detects local JetBrains AI quota file.
 
 ## Build From Source
@@ -62,6 +62,12 @@ Release gate (local):
 
 ```bash
 pnpm release:check
+```
+
+Open-source preflight:
+
+```bash
+pnpm release:oss-check
 ```
 
 ## Supported Providers
@@ -91,6 +97,13 @@ Current built-in scope is intentionally fixed at **7 providers** for stability. 
 - **AIGauge vs CodexBar**: multi-provider + desktop analytics/tray focus.
 - **AIGauge vs ccusage**: GUI, cross-provider view, onboarding, tray notifications.
 
+## Compliance Notes
+
+- This project is MIT-licensed and includes third-party dependencies under their own licenses.
+- See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for third-party attribution and license notices.
+- References to products such as CodexBar and ccusage are for factual interoperability/comparison only.
+- All third-party trademarks are the property of their respective owners; no affiliation or endorsement is implied.
+
 ## Roadmap
 
 - Phase 4: richer plugin SDK and marketplace concepts
@@ -103,6 +116,8 @@ Current built-in scope is intentionally fixed at **7 providers** for stability. 
 See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) and [docs/PLUGIN_GUIDE.md](docs/PLUGIN_GUIDE.md).
 For cross-platform execution and quality gates, see [docs/AGENT_WORKSTREAMS.md](docs/AGENT_WORKSTREAMS.md) and [docs/PLATFORM_DELIVERY_PLAYBOOK.md](docs/PLATFORM_DELIVERY_PLAYBOOK.md).
 For visual baseline capture across OS targets, see [docs/PLATFORM_VISUAL_QA.md](docs/PLATFORM_VISUAL_QA.md).
+For open-source publication and provenance checks, see [docs/OPEN_SOURCE_RELEASE_CHECKLIST.md](docs/OPEN_SOURCE_RELEASE_CHECKLIST.md) and [docs/PROVENANCE.md](docs/PROVENANCE.md).
+For third-party licensing notices, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## License
 

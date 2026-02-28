@@ -174,6 +174,46 @@ const isTauriRuntime =
   typeof window !== "undefined" &&
   "__TAURI_INTERNALS__" in (window as unknown as Record<string, unknown>);
 const fallbackOs = platformDataKey(detectPlatform());
+const providerAllowlist = new Set([
+  "codex",
+  "claude",
+  "gemini",
+  "kiro",
+  "copilot",
+  "cursor",
+  "jetbrains",
+]);
+const MANUAL_INPUT_MAX = 1_000_000_000_000;
+
+const assertProviderId = (provider: string): void => {
+  if (!providerAllowlist.has(provider)) {
+    throw new Error(`unsupported provider: ${provider}`);
+  }
+};
+
+const validateManualInput = (provider: string, input: ManualProviderInput): void => {
+  assertProviderId(provider);
+  if (provider !== input.provider) {
+    throw new Error("provider mismatch");
+  }
+  const fields = [input.requests, input.tokens, input.used, input.limit];
+  if (
+    fields.some(
+      (value) =>
+        !Number.isFinite(value) ||
+        value < 0 ||
+        value > MANUAL_INPUT_MAX ||
+        !Number.isInteger(value),
+    )
+  ) {
+    throw new Error("manual input values are out of range");
+  }
+  if (input.cost_total != null) {
+    if (!Number.isFinite(input.cost_total) || input.cost_total < 0 || input.cost_total > 1_000_000_000) {
+      throw new Error("manual input cost is out of range");
+    }
+  }
+};
 
 const fallbackDashboard: DashboardEntry[] = [
   {
@@ -301,12 +341,21 @@ const fallbackDashboard: DashboardEntry[] = [
   },
 ];
 
-export const useTauriEvent = <T>(eventName: string, handler: (payload: T) => void): void => {
+export const useTauriEvent = <T>(
+  eventName: string,
+  handler: (payload: T) => void,
+  validate?: (payload: unknown) => payload is T,
+): void => {
   const handlerRef = useRef(handler);
+  const validateRef = useRef(validate);
 
   useEffect(() => {
     handlerRef.current = handler;
   }, [handler]);
+
+  useEffect(() => {
+    validateRef.current = validate;
+  }, [validate]);
 
   useEffect(() => {
     if (!isTauriRuntime) {
@@ -316,8 +365,12 @@ export const useTauriEvent = <T>(eventName: string, handler: (payload: T) => voi
     let disposed = false;
     let unlisten: UnlistenFn | null = null;
 
-    void listen<T>(eventName, (event) => {
-      handlerRef.current(event.payload);
+    void listen<unknown>(eventName, (event) => {
+      const validator = validateRef.current;
+      if (validator && !validator(event.payload)) {
+        return;
+      }
+      handlerRef.current(event.payload as T);
     }).then((fn) => {
       if (disposed) {
         void fn();
@@ -350,6 +403,7 @@ export const useProvider = () =>
       },
 
       async getUsage(provider: string): Promise<UsageData> {
+        assertProviderId(provider);
         if (!isTauriRuntime) {
           return fallbackDashboard.find((entry) => entry.info.id === provider)?.usage ?? fallbackDashboard[0].usage;
         }
@@ -357,6 +411,7 @@ export const useProvider = () =>
       },
 
       async getCost(provider: string): Promise<CostData | null> {
+        assertProviderId(provider);
         if (!isTauriRuntime) {
           return fallbackDashboard.find((entry) => entry.info.id === provider)?.cost ?? null;
         }
@@ -364,6 +419,7 @@ export const useProvider = () =>
       },
 
       async getProviderInfo(provider: string): Promise<ProviderInfo> {
+        assertProviderId(provider);
         if (!isTauriRuntime) {
           return fallbackDashboard.find((entry) => entry.info.id === provider)?.info ?? fallbackDashboard[0].info;
         }
@@ -371,6 +427,7 @@ export const useProvider = () =>
       },
 
       async getQuota(provider: string): Promise<QuotaLimit> {
+        assertProviderId(provider);
         if (!isTauriRuntime) {
           return fallbackDashboard.find((entry) => entry.info.id === provider)?.quota ?? fallbackDashboard[0].quota;
         }
@@ -385,6 +442,7 @@ export const useProvider = () =>
       },
 
       async checkHealth(provider: string): Promise<HealthStatus> {
+        assertProviderId(provider);
         if (!isTauriRuntime) {
           return { configured: true, reachable: true, last_checked: new Date().toISOString() };
         }
@@ -392,6 +450,7 @@ export const useProvider = () =>
       },
 
       async saveCredential(provider: string, credential: string): Promise<void> {
+        assertProviderId(provider);
         if (isTauriRuntime) {
           await invoke("save_credential", { provider, credential });
         }
@@ -419,18 +478,21 @@ export const useProvider = () =>
       },
 
       async deleteCredential(provider: string): Promise<void> {
+        assertProviderId(provider);
         if (isTauriRuntime) {
           await invoke("delete_credential", { provider });
         }
       },
 
       async saveManualInput(provider: string, input: ManualProviderInput): Promise<void> {
+        validateManualInput(provider, input);
         if (isTauriRuntime) {
           await invoke("save_manual_input", { provider, input });
         }
       },
 
       async clearProviderData(provider: string): Promise<void> {
+        assertProviderId(provider);
         if (isTauriRuntime) {
           await invoke("clear_provider_data", { provider });
         }
