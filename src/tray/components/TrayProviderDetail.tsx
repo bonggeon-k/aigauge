@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 import type { DashboardEntry } from "@/hooks/useProvider";
 import type { CodexCostBreakdown } from "@/tray/hooks/useTrayProviders";
@@ -29,6 +28,18 @@ const barColor = (remainingPct: number): string => {
   return "var(--quota-critical)";
 };
 
+const trackPercent = (used: number, limit: number): number => {
+  if (limit <= 0) return 0;
+  return Math.min(100, (used / limit) * 100);
+};
+
+const trackUsageLabel = (used: number, limit: number, unit: string): string => {
+  if (limit > 0) {
+    return `${used.toLocaleString()} / ${limit.toLocaleString()} ${unit}`;
+  }
+  return `${used.toLocaleString()} ${unit}`;
+};
+
 const computeCountdown = (resetAt: string): string => {
   if (!resetAt) return "-";
 
@@ -55,21 +66,23 @@ const computeCountdown = (resetAt: string): string => {
 };
 
 export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput }: TrayProviderDetailProps) => {
-  const subscriptionTrack =
-    entry.tracks.find((track) => track.kind === "subscription") ?? {
-      used: entry.quota.used,
-      limit: entry.quota.limit,
-      unit: entry.quota.unit,
-      reset_at: entry.quota.reset_at || entry.usage.period_end,
-      status: entry.quota.status,
-      label: "Subscription quota",
-    };
+  const fallbackTrack = {
+    id: "subscription:primary",
+    kind: "subscription" as const,
+    label: "Subscription quota",
+    used: entry.quota.used,
+    limit: entry.quota.limit,
+    unit: entry.quota.unit,
+    reset_at: entry.quota.reset_at || entry.usage.period_end,
+    status: entry.quota.status,
+    source: "snapshot" as const,
+  };
+  const subscriptionTracks = entry.tracks.filter((track) => track.kind === "subscription");
+  const visibleTracks = (subscriptionTracks.length > 0 ? subscriptionTracks : [fallbackTrack]).slice(0, 2);
+  const primaryTrack = visibleTracks[0];
   const apiTrack = entry.tracks.find((track) => track.kind === "api");
 
-  const usedPct = useMemo(() => {
-    if (subscriptionTrack.limit <= 0) return 0;
-    return Math.min(100, (subscriptionTrack.used / subscriptionTrack.limit) * 100);
-  }, [subscriptionTrack.limit, subscriptionTrack.used]);
+  const usedPct = !primaryTrack || primaryTrack.limit <= 0 ? 0 : trackPercent(primaryTrack.used, primaryTrack.limit);
 
   const remainingPct = Math.max(0, 100 - usedPct);
   const elapsedPct = 50;
@@ -106,7 +119,7 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
 
       <div className="space-y-1">
         <div className="flex justify-between text-xs">
-          <span>Remaining</span>
+          <span>Primary window remaining</span>
           <span>{remainingPct.toFixed(0)}%</span>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-black/20">
@@ -120,19 +133,32 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 text-xs">
-        <div className="rounded-lg bg-[var(--surface-2)] p-2">
-          <p className="text-muted-foreground">Used</p>
-          <p className="font-medium">{subscriptionTrack.used.toLocaleString()}</p>
-        </div>
-        <div className="rounded-lg bg-[var(--surface-2)] p-2">
-          <p className="text-muted-foreground">Limit</p>
-          <p className="font-medium">{subscriptionTrack.limit.toLocaleString()}</p>
-        </div>
-        <div className="rounded-lg bg-[var(--surface-2)] p-2">
-          <p className="text-muted-foreground">Reset</p>
-          <p className="font-medium">{computeCountdown(subscriptionTrack.reset_at || entry.usage.period_end)}</p>
-        </div>
+      <div className="space-y-2">
+        {visibleTracks.map((track) => {
+          const pct = trackPercent(track.used, track.limit);
+          const remaining = Math.max(0, 100 - pct);
+          return (
+            <div key={track.id} className="rounded-lg border border-border/60 bg-[var(--surface-2)] p-2.5 text-xs">
+              <div className="mb-1 flex items-center justify-between">
+                <p className="text-muted-foreground">{track.label}</p>
+                <p className="font-medium">{pct.toFixed(0)}%</p>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-black/20">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${remaining}%`,
+                    backgroundColor: barColor(remaining),
+                  }}
+                />
+              </div>
+              <div className="mt-2 flex items-center justify-between">
+                <p className="font-medium">{trackUsageLabel(track.used, track.limit, track.unit)}</p>
+                <p className="text-muted-foreground">Reset {computeCountdown(track.reset_at || entry.usage.period_end)}</p>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {apiTrack ? (

@@ -30,7 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import type { DashboardEntry } from "@/hooks/useProvider";
+import type { DashboardEntry, UsageTrack } from "@/hooks/useProvider";
 
 interface ProviderCardProps {
   entry: DashboardEntry;
@@ -47,8 +47,6 @@ const iconMap = {
   cursor: MousePointerClick,
   jetbrains: BrainCircuit,
 } as const;
-
-const numberFormat = new Intl.NumberFormat("en-US");
 
 const getQuotaColor = (ratio: number): string => {
   if (ratio < 0.6) return "var(--quota-safe)";
@@ -85,24 +83,62 @@ const getResetCountdown = (resetAt: string): string => {
   return `${hours}h`;
 };
 
+const trackPercent = (track: UsageTrack): number => {
+  if (track.limit <= 0) {
+    return 0;
+  }
+  return Math.min(100, Math.round((track.used / track.limit) * 100));
+};
+
+const formatTrackUsage = (track: UsageTrack): string => {
+  const used = track.used.toLocaleString();
+  if (track.limit > 0) {
+    return `${used} / ${track.limit.toLocaleString()} ${track.unit}`;
+  }
+  return `${used} ${track.unit}`;
+};
+
 export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardProps) => {
   const Icon = iconMap[entry.info.id as keyof typeof iconMap] ?? Bot;
 
-  const primaryTrack = useMemo(
-    () =>
-      entry.tracks.find((track) => track.kind === "subscription") ?? {
-        id: "subscription:primary",
-        kind: "subscription" as const,
-        label: "Subscription quota",
-        used: entry.quota.used,
-        limit: entry.quota.limit,
-        unit: entry.quota.unit,
-        reset_at: entry.quota.reset_at,
-        status: entry.quota.status,
-        source: "snapshot" as const,
-      },
-    [entry.quota.limit, entry.quota.reset_at, entry.quota.status, entry.quota.unit, entry.quota.used, entry.tracks],
+  const fallbackTrack = useMemo(
+    (): UsageTrack => ({
+      id: "subscription:primary",
+      kind: "subscription",
+      label: "Subscription quota",
+      used: entry.quota.used,
+      limit: entry.quota.limit,
+      unit: entry.quota.unit,
+      reset_at: entry.quota.reset_at,
+      status: entry.quota.status,
+      source: "snapshot",
+    }),
+    [
+      entry.quota.limit,
+      entry.quota.reset_at,
+      entry.quota.status,
+      entry.quota.unit,
+      entry.quota.used,
+    ],
   );
+
+  const subscriptionTracks = useMemo(() => {
+    const tracks = entry.tracks.filter((track) => track.kind === "subscription");
+    if (tracks.length === 0) {
+      return [fallbackTrack];
+    }
+    return tracks.slice(0, 2);
+  }, [entry.tracks, fallbackTrack]);
+
+  const paddedSubscriptionTracks = useMemo(() => {
+    const rows: Array<UsageTrack | null> = [...subscriptionTracks];
+    while (rows.length < 2) {
+      rows.push(null);
+    }
+    return rows;
+  }, [subscriptionTracks]);
+
+  const primaryTrack = subscriptionTracks[0] ?? fallbackTrack;
   const apiTrack = useMemo(
     () => entry.tracks.find((track) => track.kind === "api"),
     [entry.tracks],
@@ -110,7 +146,6 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
   const quotaRatio =
     primaryTrack.limit > 0 ? primaryTrack.used / primaryTrack.limit : 0;
   const quotaPct = Math.min(100, Math.round(quotaRatio * 100));
-  const quotaColor = getQuotaColor(quotaRatio);
 
   const isNotConfigured = entry.usage.status === "not_configured";
 
@@ -132,8 +167,9 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ scale: 1.02, y: -2 }}
       transition={{ duration: 0.35, ease: "easeOut" }}
+      className="h-full"
     >
-      <Card className="h-full overflow-hidden border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-soft)] transition-all duration-300 hover:shadow-[var(--shadow-hard)]">
+      <Card className="flex h-full min-h-[430px] flex-col overflow-hidden border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-soft)] transition-all duration-300 hover:shadow-[var(--shadow-hard)]">
         <div className="pointer-events-none h-1 bg-gradient-to-r from-[var(--chart-1)] via-[var(--chart-2)] to-[var(--chart-3)]" />
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
@@ -142,7 +178,7 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
                 <Icon className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-base font-semibold tracking-tight">{entry.info.name}</CardTitle>
+                <CardTitle className="max-w-[13rem] truncate text-base font-semibold tracking-tight">{entry.info.name}</CardTitle>
                 <CardDescription className="uppercase tracking-[0.08em]">{entry.info.id}</CardDescription>
               </div>
             </div>
@@ -178,58 +214,90 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent className="flex flex-1 flex-col gap-4">
           {isNotConfigured ? (
-            <div className="rounded-xl border border-dashed border-border bg-[var(--surface-1)] p-3">
-              <p className="mb-2 text-sm text-muted-foreground">Not Configured</p>
-              <Button size="sm" onClick={() => onSetup(entry.info.id)}>
-                Setup Provider
-              </Button>
+            <div className="flex h-full flex-col gap-3">
+              <div className="rounded-xl border border-dashed border-border bg-[var(--surface-1)] p-3">
+                <p className="mb-2 text-sm text-muted-foreground">Not Configured</p>
+                <Button size="sm" onClick={() => onSetup(entry.info.id)}>
+                  Setup Provider
+                </Button>
+              </div>
+              {paddedSubscriptionTracks.map((track, index) => (
+                <div key={`placeholder-${entry.info.id}-${index}`} className="rounded-xl border border-border/60 bg-[var(--surface-1)] p-3">
+                  <p className="text-xs text-muted-foreground">{track?.label || "Usage window"}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">No data yet</p>
+                </div>
+              ))}
             </div>
           ) : (
             <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div>
-                    <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{primaryTrack.label}</span>
-                      <span>{quotaPct}%</span>
-                    </div>
-                    <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted/60">
-                      <div
-                        className="h-2 rounded-full transition-all duration-500"
-                        style={{
-                          width: `${quotaPct}%`,
-                          backgroundColor: quotaColor,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-xs">
-                    Period: {entry.usage.period_start || "-"} ~{" "}
-                    {entry.usage.period_end || "-"}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
+              <div className="space-y-2">
+                {paddedSubscriptionTracks.map((track, index) => {
+                  if (!track) {
+                    return (
+                      <div key={`empty-track-${entry.info.id}-${index}`} className="rounded-xl border border-border/60 bg-[var(--surface-1)] p-3">
+                        <p className="text-xs text-muted-foreground">Additional window</p>
+                        <p className="text-sm text-muted-foreground">Not available</p>
+                      </div>
+                    );
+                  }
+
+                  const usagePct = trackPercent(track);
+                  const usageRatio = track.limit > 0 ? track.used / track.limit : 0;
+                  const usageColor = getQuotaColor(usageRatio);
+                  return (
+                    <Tooltip key={track.id}>
+                      <TooltipTrigger asChild>
+                        <div className="rounded-xl border border-border/60 bg-[var(--surface-1)] p-3">
+                          <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{track.label}</span>
+                            <span>{usagePct}%</span>
+                          </div>
+                          <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted/60">
+                            <div
+                              className="h-2 rounded-full transition-all duration-500"
+                              style={{
+                                width: `${usagePct}%`,
+                                backgroundColor: usageColor,
+                              }}
+                            />
+                          </div>
+                          <div className="mt-2 flex items-center justify-between text-xs">
+                            <span className="font-medium">{formatTrackUsage(track)}</span>
+                            <span className="text-muted-foreground">
+                              Reset in {getResetCountdown(track.reset_at)}
+                            </span>
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">
+                          Period: {entry.usage.period_start || "-"} ~ {track.reset_at || "-"}
+                        </p>
+                        <p className="text-xs">Source: {track.source}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </div>
 
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
-                  <p className="text-xs text-muted-foreground">Requests</p>
+                  <p className="text-xs text-muted-foreground">Primary window</p>
                   <p className="text-base font-semibold">
-                    <AnimatedNumber value={entry.usage.requests} />
-                  </p>
-                </div>
-                <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
-                  <p className="text-xs text-muted-foreground">Tokens</p>
-                  <p className="text-base font-semibold">
-                    {numberFormat.format(entry.usage.tokens)}
+                    <AnimatedNumber value={quotaPct} />%
                   </p>
                 </div>
                 <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
                   <p className="text-xs text-muted-foreground">Cost / month</p>
                   <p className="text-base font-semibold">{costLabel}</p>
+                </div>
+                <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
+                  <p className="text-xs text-muted-foreground">Primary usage</p>
+                  <p className="text-base font-semibold">
+                    {formatTrackUsage(primaryTrack)}
+                  </p>
                 </div>
                 <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
                   <p className="text-xs text-muted-foreground">Reset in</p>
@@ -241,19 +309,24 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
                 <div className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-2.5 text-xs">
                   <p className="mb-1 text-muted-foreground">API Track</p>
                   {apiTrack.limit > 0 || apiTrack.used > 0 ? (
-                    <p className="font-medium">
-                      {apiTrack.used.toLocaleString()}
-                      {apiTrack.limit > 0 ? ` / ${apiTrack.limit.toLocaleString()}` : ""}
-                      {" "}
-                      {apiTrack.unit}
-                    </p>
+                    <p className="font-medium">{formatTrackUsage(apiTrack)}</p>
                   ) : (
                     <p className="font-medium text-muted-foreground">
                       {apiTrack.status === "not_configured" ? "Not configured" : "Unavailable"}
                     </p>
                   )}
                 </div>
-              ) : null}
+              ) : (
+                <div className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-2.5 text-xs">
+                  <p className="mb-1 text-muted-foreground">API Track</p>
+                  <p className="font-medium text-muted-foreground">Unavailable</p>
+                </div>
+              )}
+
+              <div className="mt-auto rounded-xl border border-border/70 bg-[var(--surface-1)] p-2.5 text-xs">
+                <p className="text-muted-foreground">Last checked</p>
+                <p className="font-medium">{new Date(entry.health.last_checked).toLocaleString()}</p>
+              </div>
             </>
           )}
         </CardContent>

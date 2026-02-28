@@ -482,7 +482,7 @@ fn build_tracks_for_entry(
                 "7-day window",
                 usage.tokens,
                 100,
-                usage.period_end.clone(),
+                quota.reset_at.clone(),
                 source,
             ),
             UsageTrack {
@@ -1135,6 +1135,37 @@ mod tests {
             .iter()
             .any(|track| track.kind == TrackKind::Subscription));
         assert!(tracks.iter().any(|track| track.kind == TrackKind::Api));
+    }
+
+    #[test]
+    fn claude_tracks_use_distinct_session_and_weekly_resets() {
+        let usage = UsageData {
+            provider: "claude".to_string(),
+            requests: 21,
+            tokens: 64,
+            period_start: String::new(),
+            period_end: "2026-03-01T12:00:00Z".to_string(),
+            status: ProviderStatus::Ok,
+        };
+        let quota = QuotaLimit {
+            used: 64,
+            limit: 100,
+            unit: "percent".to_string(),
+            reset_at: "2026-03-07T00:00:00Z".to_string(),
+            status: ProviderStatus::Ok,
+        };
+
+        let tracks = build_tracks_for_entry("claude", &usage, &quota, DataSource::OAuth, None);
+        let session = tracks.iter().find(|track| track.id == "subscription:5-hour_window");
+        let weekly = tracks.iter().find(|track| track.id == "subscription:7-day_window");
+        assert_eq!(
+            session.map(|track| track.reset_at.as_str()),
+            Some("2026-03-01T12:00:00Z")
+        );
+        assert_eq!(
+            weekly.map(|track| track.reset_at.as_str()),
+            Some("2026-03-07T00:00:00Z")
+        );
     }
 
     #[test]

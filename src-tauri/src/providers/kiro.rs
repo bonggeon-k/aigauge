@@ -106,10 +106,7 @@ impl KiroProvider {
 
     fn parse_output(raw: &str) -> Option<ParsedKiroUsage> {
         let cleaned = Self::strip_ansi(raw);
-        let target = cleaned
-            .split("Estimated Usage")
-            .nth(1)
-            .unwrap_or(cleaned.as_str());
+        let (_, target) = cleaned.split_once("Estimated Usage")?;
 
         let plan = PLAN_RE
             .captures(target)

@@ -76,10 +76,9 @@ pub fn kiro_usage_command() -> (String, Vec<String>) {
             "wsl.exe".to_string(),
             vec![
                 "-e".to_string(),
-                "kiro-cli".to_string(),
-                "chat".to_string(),
-                "--no-interactive".to_string(),
-                "/usage".to_string(),
+                "bash".to_string(),
+                "-lc".to_string(),
+                "kiro-cli chat --no-interactive /usage".to_string(),
             ],
         );
     }

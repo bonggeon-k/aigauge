@@ -16,6 +16,7 @@ use super::{
 };
 
 static LAST_PLAN: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("Unknown".to_string()));
+static LAST_SNAPSHOT: Lazy<Mutex<Option<ClaudeUsageSnapshot>>> = Lazy::new(|| Mutex::new(None));
 
 #[derive(Debug, Deserialize)]
 struct ClaudeCredentials {
@@ -38,6 +39,14 @@ enum UsageFetchResult {
     Ok(Value),
     NotConfigured,
     Unreachable,
+}
+
+#[derive(Debug, Clone)]
+struct ClaudeUsageSnapshot {
+    five_hour_pct: u64,
+    weekly_pct: u64,
+    five_hour_reset_at: String,
+    weekly_reset_at: String,
 }
 
 pub struct ClaudeProvider {
@@ -119,6 +128,71 @@ impl ClaudeProvider {
         String::new()
     }
 
+    fn clear_snapshot() {
+        if let Ok(mut guard) = LAST_SNAPSHOT.lock() {
+            *guard = None;
+        }
+    }
+
+    fn set_snapshot(snapshot: ClaudeUsageSnapshot) {
+        if let Ok(mut guard) = LAST_SNAPSHOT.lock() {
+            *guard = Some(snapshot);
+        }
+    }
+
+    fn cached_snapshot() -> Option<ClaudeUsageSnapshot> {
+        LAST_SNAPSHOT.lock().ok().and_then(|guard| guard.as_ref().cloned())
+    }
+
+    fn parse_snapshot(value: &Value) -> ClaudeUsageSnapshot {
+        let five_hour_pct = Self::utilization_from_paths(
+            value,
+            &["/five_hour/utilization", "/fiveHour/utilization"],
+        );
+        let seven_day = Self::utilization_from_paths(
+            value,
+            &["/seven_day/utilization", "/sevenDay/utilization"],
+        );
+        let seven_day_sonnet = Self::utilization_from_paths(
+            value,
+            &[
+                "/seven_day_sonnet/utilization",
+                "/sevenDaySonnet/utilization",
+            ],
+        );
+        let seven_day_opus = Self::utilization_from_paths(
+            value,
+            &["/seven_day_opus/utilization", "/sevenDayOpus/utilization"],
+        );
+
+        let five_hour_reset_at = Self::reset_from_paths(
+            value,
+            &["/five_hour/resets_at", "/fiveHour/resetsAt"],
+        );
+        let weekly_reset_at = Self::reset_from_paths(
+            value,
+            &[
+                "/seven_day_opus/resets_at",
+                "/seven_day_sonnet/resets_at",
+                "/seven_day/resets_at",
+                "/sevenDayOpus/resetsAt",
+                "/sevenDaySonnet/resetsAt",
+                "/sevenDay/resetsAt",
+            ],
+        );
+
+        ClaudeUsageSnapshot {
+            five_hour_pct,
+            weekly_pct: seven_day.max(seven_day_sonnet).max(seven_day_opus),
+            five_hour_reset_at: five_hour_reset_at.clone(),
+            weekly_reset_at: if weekly_reset_at.is_empty() {
+                five_hour_reset_at
+            } else {
+                weekly_reset_at
+            },
+        }
+    }
+
     async fn fetch_usage_json_for_url(&self, token: &str, url: &str) -> UsageFetchResult {
         let response = match self
             .client
@@ -198,34 +272,22 @@ impl Provider for ClaudeProvider {
             });
 
         let Some(token) = token else {
+            Self::clear_snapshot();
             return Ok(not_configured_usage("claude"));
         };
 
         let value = match self.fetch_usage_json(token.as_str()).await {
             UsageFetchResult::Ok(value) => value,
-            UsageFetchResult::NotConfigured => return Ok(not_configured_usage("claude")),
-            UsageFetchResult::Unreachable => return Ok(unreachable_usage("claude")),
+            UsageFetchResult::NotConfigured => {
+                Self::clear_snapshot();
+                return Ok(not_configured_usage("claude"));
+            }
+            UsageFetchResult::Unreachable => {
+                Self::clear_snapshot();
+                return Ok(unreachable_usage("claude"));
+            }
         };
-
-        let five_hour = Self::utilization_from_paths(
-            &value,
-            &["/five_hour/utilization", "/fiveHour/utilization"],
-        );
-        let seven_day = Self::utilization_from_paths(
-            &value,
-            &["/seven_day/utilization", "/sevenDay/utilization"],
-        );
-        let seven_day_sonnet = Self::utilization_from_paths(
-            &value,
-            &[
-                "/seven_day_sonnet/utilization",
-                "/sevenDaySonnet/utilization",
-            ],
-        );
-        let seven_day_opus = Self::utilization_from_paths(
-            &value,
-            &["/seven_day_opus/utilization", "/sevenDayOpus/utilization"],
-        );
+        let snapshot = Self::parse_snapshot(&value);
 
         let tier = value
             .pointer("/rate_limit_tier")
@@ -241,28 +303,14 @@ impl Provider for ClaudeProvider {
         if let Ok(mut guard) = LAST_PLAN.lock() {
             *guard = Self::parse_plan(tier);
         }
-
-        let reset_at = Self::reset_from_paths(
-            &value,
-            &[
-                "/seven_day_opus/resets_at",
-                "/seven_day_sonnet/resets_at",
-                "/seven_day/resets_at",
-                "/sevenDayOpus/resetsAt",
-                "/sevenDaySonnet/resetsAt",
-                "/sevenDay/resetsAt",
-                "/five_hour/resets_at",
-                "/fiveHour/resetsAt",
-            ],
-        );
-        let weekly = seven_day.max(seven_day_sonnet).max(seven_day_opus);
+        Self::set_snapshot(snapshot.clone());
 
         Ok(UsageData {
             provider: "claude".to_string(),
-            requests: five_hour,
-            tokens: weekly,
+            requests: snapshot.five_hour_pct,
+            tokens: snapshot.weekly_pct,
             period_start: String::new(),
-            period_end: reset_at,
+            period_end: snapshot.five_hour_reset_at,
             status: ProviderStatus::Ok,
         })
     }
@@ -334,6 +382,16 @@ impl Provider for ClaudeProvider {
     }
 
     async fn fetch_quota(&self) -> Result<QuotaLimit> {
+        if let Some(snapshot) = Self::cached_snapshot() {
+            return Ok(QuotaLimit {
+                used: snapshot.weekly_pct,
+                limit: 100,
+                unit: "percent".to_string(),
+                reset_at: snapshot.weekly_reset_at,
+                status: ProviderStatus::Ok,
+            });
+        }
+
         let usage = self.fetch_usage().await?;
         if usage.status == ProviderStatus::NotConfigured {
             return Ok(not_configured_quota());
@@ -342,8 +400,18 @@ impl Provider for ClaudeProvider {
             return Ok(unreachable_quota("percent"));
         }
 
+        if let Some(snapshot) = Self::cached_snapshot() {
+            return Ok(QuotaLimit {
+                used: snapshot.weekly_pct,
+                limit: 100,
+                unit: "percent".to_string(),
+                reset_at: snapshot.weekly_reset_at,
+                status: ProviderStatus::Ok,
+            });
+        }
+
         Ok(QuotaLimit {
-            used: usage.requests.max(usage.tokens),
+            used: usage.tokens,
             limit: 100,
             unit: "percent".to_string(),
             reset_at: usage.period_end,
@@ -388,5 +456,19 @@ mod tests {
             scopes: Some(vec!["user:profile".to_string()]),
         };
         assert!(!ClaudeProvider::is_valid_oauth(&oauth));
+    }
+
+    #[test]
+    fn parses_separate_session_and_weekly_resets() {
+        let value = serde_json::json!({
+            "five_hour": {"utilization": 0.35, "resets_at": "2026-03-01T12:00:00Z"},
+            "seven_day": {"utilization": 0.4, "resets_at": "2026-03-07T00:00:00Z"},
+            "seven_day_opus": {"utilization": 0.7, "resets_at": "2026-03-08T00:00:00Z"}
+        });
+        let snapshot = ClaudeProvider::parse_snapshot(&value);
+        assert_eq!(snapshot.five_hour_pct, 35);
+        assert_eq!(snapshot.weekly_pct, 70);
+        assert_eq!(snapshot.five_hour_reset_at, "2026-03-01T12:00:00Z");
+        assert_eq!(snapshot.weekly_reset_at, "2026-03-08T00:00:00Z");
     }
 }

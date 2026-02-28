@@ -93,26 +93,6 @@ export const TrayApp = () => {
     applyPlatformDataAttribute(detectPlatform());
   }, []);
 
-  useEffect(() => {
-    const currentWindow = getCurrentWindow();
-    let unlisten: (() => void) | undefined;
-
-    void currentWindow.onFocusChanged(({ payload }) => {
-      if (payload || settingsOpen || manualOpen || confirmOpen) {
-        return;
-      }
-      void currentWindow.hide();
-    }).then((fn) => {
-      unlisten = fn;
-    });
-
-    return () => {
-      if (unlisten) {
-        unlisten();
-      }
-    };
-  }, [settingsOpen, manualOpen, confirmOpen]);
-
   useTrayAutoRefresh({
     enabled: true,
     providerIntervalMs: settings.refreshIntervalMinutes * 60 * 1000,

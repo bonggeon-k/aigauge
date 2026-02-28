@@ -16,6 +16,7 @@ use super::{
 };
 
 static LAST_PLAN: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("Unknown".to_string()));
+static LAST_QUOTA_STATE: Lazy<Mutex<Option<CodexQuotaState>>> = Lazy::new(|| Mutex::new(None));
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct CodexAuth {
@@ -37,7 +38,8 @@ struct CodexTokens {
 struct CodexQuotaState {
     five_hour_session_pct: f64,
     weekly_limit_pct: f64,
-    reset_at: String,
+    session_reset_at: String,
+    weekly_reset_at: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -323,6 +325,35 @@ impl CodexProvider {
             .and_then(Self::window_percent)
     }
 
+    fn first_limit_reset_match(value: &Value, names: &[&str]) -> Option<String> {
+        value
+            .get("rate_limits")
+            .and_then(Value::as_array)
+            .and_then(|items| {
+                items.iter().find_map(|item| {
+                    let item_name = item
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_lowercase();
+                    if names.iter().any(|name| item_name.contains(name)) {
+                        item.get("reset_at").and_then(Self::format_reset_at)
+                    } else {
+                        None
+                    }
+                })
+            })
+    }
+
+    fn limit_reset_by_index(value: &Value, index: usize) -> Option<String> {
+        value
+            .get("rate_limits")
+            .and_then(Value::as_array)
+            .and_then(|items| items.get(index))
+            .and_then(|item| item.get("reset_at"))
+            .and_then(Self::format_reset_at)
+    }
+
     fn parse_quota_state(value: &Value) -> CodexQuotaState {
         let five_hour_session_pct = value
             .pointer("/rate_limit/primary_window")
@@ -341,20 +372,30 @@ impl CodexProvider {
             .map(Self::normalize_percent)
             .unwrap_or(five_hour_session_pct);
 
-        let reset_at = value
+        let session_reset_at = value
+            .pointer("/rate_limit/primary_window/reset_at")
+            .and_then(Self::format_reset_at)
+            .or_else(|| Self::first_limit_reset_match(value, &["primary", "five", "session"]))
+            .or_else(|| Self::limit_reset_by_index(value, 0))
+            .unwrap_or_default();
+
+        let weekly_reset_at = value
             .pointer("/rate_limit/secondary_window/reset_at")
             .and_then(Self::format_reset_at)
+            .or_else(|| Self::first_limit_reset_match(value, &["secondary", "week", "weekly"]))
+            .or_else(|| Self::limit_reset_by_index(value, 1))
             .or_else(|| {
                 value
                     .pointer("/rate_limit/primary_window/reset_at")
                     .and_then(Self::format_reset_at)
             })
-            .unwrap_or_default();
+            .unwrap_or_else(|| session_reset_at.clone());
 
         CodexQuotaState {
             five_hour_session_pct,
             weekly_limit_pct,
-            reset_at,
+            session_reset_at,
+            weekly_reset_at,
         }
     }
 
@@ -390,6 +431,9 @@ impl Provider for CodexProvider {
 
     async fn fetch_usage(&self) -> Result<UsageData> {
         let Some((token, account_id)) = self.auth_header_value().await else {
+            if let Ok(mut guard) = LAST_QUOTA_STATE.lock() {
+                *guard = None;
+            }
             return Ok(not_configured_usage("codex"));
         };
 
@@ -405,19 +449,35 @@ impl Provider for CodexProvider {
 
         let response = match request.send().await {
             Ok(response) => response,
-            Err(_) => return Ok(unreachable_usage("codex")),
+            Err(_) => {
+                if let Ok(mut guard) = LAST_QUOTA_STATE.lock() {
+                    *guard = None;
+                }
+                return Ok(unreachable_usage("codex"));
+            }
         };
 
         if response.status().as_u16() == 401 || response.status().as_u16() == 403 {
+            if let Ok(mut guard) = LAST_QUOTA_STATE.lock() {
+                *guard = None;
+            }
             return Ok(not_configured_usage("codex"));
         }
         if !response.status().is_success() {
+            if let Ok(mut guard) = LAST_QUOTA_STATE.lock() {
+                *guard = None;
+            }
             return Ok(unreachable_usage("codex"));
         }
 
         let value = match response.json::<Value>().await {
             Ok(value) => value,
-            Err(_) => return Ok(unreachable_usage("codex")),
+            Err(_) => {
+                if let Ok(mut guard) = LAST_QUOTA_STATE.lock() {
+                    *guard = None;
+                }
+                return Ok(unreachable_usage("codex"));
+            }
         };
 
         let plan = Self::parse_plan(&value);
@@ -426,13 +486,16 @@ impl Provider for CodexProvider {
         }
 
         let quota_state = Self::parse_quota_state(&value);
+        if let Ok(mut guard) = LAST_QUOTA_STATE.lock() {
+            *guard = Some(quota_state.clone());
+        }
 
         Ok(UsageData {
             provider: "codex".to_string(),
             requests: quota_state.five_hour_session_pct.round() as u64,
             tokens: quota_state.weekly_limit_pct.round() as u64,
             period_start: String::new(),
-            period_end: quota_state.reset_at,
+            period_end: quota_state.session_reset_at,
             status: ProviderStatus::Ok,
         })
     }
@@ -442,12 +505,36 @@ impl Provider for CodexProvider {
     }
 
     async fn fetch_quota(&self) -> Result<QuotaLimit> {
+        if let Ok(guard) = LAST_QUOTA_STATE.lock() {
+            if let Some(state) = guard.as_ref() {
+                return Ok(QuotaLimit {
+                    used: state.weekly_limit_pct.round() as u64,
+                    limit: 100,
+                    unit: "percent".to_string(),
+                    reset_at: state.weekly_reset_at.clone(),
+                    status: ProviderStatus::Ok,
+                });
+            }
+        }
+
         let usage = self.fetch_usage().await?;
         if usage.status == ProviderStatus::NotConfigured {
             return Ok(not_configured_quota());
         }
         if usage.status == ProviderStatus::Unreachable {
             return Ok(unreachable_quota("percent"));
+        }
+
+        if let Ok(guard) = LAST_QUOTA_STATE.lock() {
+            if let Some(state) = guard.as_ref() {
+                return Ok(QuotaLimit {
+                    used: state.weekly_limit_pct.round() as u64,
+                    limit: 100,
+                    unit: "percent".to_string(),
+                    reset_at: state.weekly_reset_at.clone(),
+                    status: ProviderStatus::Ok,
+                });
+            }
         }
 
         Ok(QuotaLimit {
@@ -480,7 +567,8 @@ mod tests {
         let state = CodexProvider::parse_quota_state(&value);
         assert_eq!(state.five_hour_session_pct, 45.0);
         assert_eq!(state.weekly_limit_pct, 30.0);
-        assert_eq!(state.reset_at, "2026-03-01");
+        assert_eq!(state.session_reset_at, "");
+        assert_eq!(state.weekly_reset_at, "2026-03-01");
         assert_eq!(CodexProvider::parse_plan(&value), "Team");
     }
 
@@ -521,6 +609,19 @@ mod tests {
         let state = CodexProvider::parse_quota_state(&value);
         assert_eq!(state.five_hour_session_pct, 25.0);
         assert_eq!(state.weekly_limit_pct, 50.0);
-        assert!(!state.reset_at.is_empty());
+        assert!(!state.weekly_reset_at.is_empty());
+    }
+
+    #[test]
+    fn splits_primary_and_secondary_resets() {
+        let value = serde_json::json!({
+            "rate_limit": {
+                "primary_window": {"used_percent": 12.0, "reset_at": "2026-03-01T12:00:00Z"},
+                "secondary_window": {"used_percent": 55.0, "reset_at": "2026-03-07T00:00:00Z"}
+            }
+        });
+        let state = CodexProvider::parse_quota_state(&value);
+        assert_eq!(state.session_reset_at, "2026-03-01T12:00:00Z");
+        assert_eq!(state.weekly_reset_at, "2026-03-07T00:00:00Z");
     }
 }
