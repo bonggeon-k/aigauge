@@ -30,11 +30,17 @@ export const useTheme = () => {
   });
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
     applyTheme(theme);
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const onSystemChange = (): void => {
       const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
@@ -46,6 +52,26 @@ export const useTheme = () => {
     media.addEventListener("change", onSystemChange);
     return () => {
       media.removeEventListener("change", onSystemChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const onStorage = (event: StorageEvent): void => {
+      if (event.key !== THEME_STORAGE_KEY) {
+        return;
+      }
+      if (event.newValue === "light" || event.newValue === "dark") {
+        setTheme(event.newValue);
+      }
+    };
+
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("storage", onStorage);
     };
   }, []);
 

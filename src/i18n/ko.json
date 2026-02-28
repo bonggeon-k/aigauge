@@ -1,8 +1,18 @@
 {
   "app": {
     "title": "AIGauge",
-    "subtitle": "AI 코딩 도구를 위한 FinOps 대시보드",
-    "addProvider": "프로바이더 추가"
+    "subtitle": "AI 코딩 도구 사용량과 비용을 관리하는 FinOps 대시보드",
+    "addProvider": "프로바이더 추가",
+    "searchPlaceholder": "이름, ID, 플랜으로 프로바이더 검색",
+    "sortBy": "정렬",
+    "sort": {
+      "risk": "리스크 높은 순",
+      "name": "이름순",
+      "cost": "비용 높은 순"
+    },
+    "providersCount": "{{count}}개 프로바이더",
+    "noResults": "현재 필터에 맞는 프로바이더가 없습니다.",
+    "clearFilter": "필터 초기화"
   },
   "nav": {
     "dashboard": "대시보드",
@@ -11,71 +21,165 @@
   },
   "onboarding": {
     "welcomeTitle": "AIGauge에 오신 것을 환영합니다",
+    "welcomeDesc": "AI 코딩 프로바이더별 사용량, 쿼터, 비용을 실시간 알림과 함께 한눈에 추적하세요.",
+    "chooseTitle": "프로바이더 선택",
+    "chooseDesc": "먼저 모니터링할 프로바이더를 선택하세요. 설정에서 언제든 변경할 수 있습니다.",
+    "setupTitle": "인증 정보 설정",
+    "setupDesc": "선택한 프로바이더의 인증 정보를 순서대로 등록하세요. 필요하면 건너뛸 수 있습니다.",
+    "setupDone": "선택한 프로바이더 처리가 완료되었습니다.",
     "skip": "건너뛰기",
     "next": "다음",
     "back": "이전",
-    "complete": "설정이 완료되었습니다"
+    "complete": "설정이 완료되었습니다",
+    "completeDesc": "{{count}}개 프로바이더를 선택했습니다. 대시보드를 열어 모니터링을 시작하세요.",
+    "openDashboard": "대시보드 열기",
+    "providers": {
+      "codex": "Codex",
+      "claude": "Claude",
+      "gemini": "Gemini",
+      "kiro": "Kiro",
+      "copilot": "Copilot",
+      "cursor": "Cursor",
+      "jetbrains": "JetBrains AI"
+    }
   },
-  "quota": {
-    "warning": "할당량 경고",
-    "critical": "할당량 위험",
-    "safe": "안전",
-    "resetIn": "재설정까지"
-  },
-  "cost": {
-    "summary": "비용 요약",
-    "monthly": "월간 총 비용",
-    "compare": "지난달 대비",
-    "analytics": "비용 분석",
-    "pace": "지출 속도",
-    "roi": "ROI",
-    "budget": "예산"
-  },
-  "export": {
-    "title": "내보내기",
-    "preview": "미리보기",
-    "download": "다운로드",
-    "includeCost": "비용 포함",
-    "csv": "CSV",
-    "json": "JSON",
-    "pdf": "PDF (추후)"
-  },
-  "updater": {
-    "available": "업데이트 가능",
-    "install": "업데이트 설치"
+  "analytics": {
+    "title": "비용 분석",
+    "subtitle": "월별 지출 추이, 프로바이더 비중, 예산 페이스",
+    "designTuned": "고밀도 인사이트에 맞춘 시각화",
+    "monthlyTrend": "월별 추이",
+    "providerShare": "프로바이더 비중",
+    "currentMonth": "이번 달",
+    "previousMonth": "지난 달",
+    "momChange": "전월 대비",
+    "peakInRange": "구간 최고치",
+    "range": {
+      "this_month": "이번 달",
+      "last_3": "최근 3개월",
+      "last_6": "최근 6개월",
+      "last_year": "지난 1년",
+      "custom": "사용자 지정"
+    },
+    "roi": {
+      "title": "ROI 계산",
+      "noData": "ROI 데이터가 아직 없습니다.",
+      "bestValueSuffix": "최고 효율",
+      "snapshot": "비용 효율 스냅샷",
+      "costPerRequest": "요청당 비용",
+      "costPer1kTokens": "1K 토큰당 비용",
+      "table": {
+        "provider": "프로바이더",
+        "req": "요청당",
+        "tokens": "1K 토큰당",
+        "efficiency": "효율 점수"
+      }
+    },
+    "pace": {
+      "noData": "지출 페이스 데이터가 없습니다.",
+      "onTrack": "예산 범위 내",
+      "overBudget": "예산 초과 페이스",
+      "daysRemaining": "남은 기간 {{count}}일",
+      "projectedAgainstBudget": "예산 대비 예상 지출",
+      "spentSoFar": "현재까지 지출",
+      "projected": "월말 예상",
+      "budget": "예산"
+    }
   },
   "settings": {
     "title": "설정",
     "theme": "테마",
     "language": "언어",
-    "notifications": "알림",
     "save": "설정 저장",
+    "notificationsWarning": "사용량이 80%를 넘으면 알림",
+    "notificationsCritical": "사용량이 95%를 넘으면 알림",
+    "shortcuts": "키보드 단축키",
     "telemetry": "텔레메트리",
+    "telemetryDesc": "익명 사용 통계(설정된 프로바이더 수, 앱 버전, OS)를 공유합니다. 인증 정보나 사용 내용은 전송되지 않습니다.",
+    "telemetryEnable": "익명 텔레메트리 활성화",
     "plugins": "플러그인",
+    "pluginsDesc": "설치된 커뮤니티 프로바이더 플러그인 목록입니다.",
+    "noPlugins": "설치된 플러그인이 없습니다.",
     "about": "정보",
-    "shortcuts": "키보드 단축키"
+    "versionLabel": "버전",
+    "licenseLabel": "라이선스",
+    "githubRepo": "GitHub 저장소",
+    "resetOnboarding": "온보딩 다시 보기",
+    "exportAll": "전체 데이터 내보내기",
+    "options": {
+      "system": "시스템",
+      "light": "라이트",
+      "dark": "다크"
+    },
+    "unsaved": "저장되지 않은 변경사항이 있습니다.",
+    "savedAt": "{{time}}에 저장됨"
   },
   "provider": {
-    "setup": "프로바이더 설정",
-    "settings": "프로바이더 설정",
-    "notConfigured": "미설정",
-    "testConnection": "연결 테스트",
-    "removeCredential": "인증 제거",
-    "save": "저장",
-    "jetbrains": "JetBrains AI Assistant"
+    "save": "저장"
   },
   "tray": {
-    "title": "빠른 보기",
-    "refresh": "새로고침",
-    "manualInput": "수동 입력",
-    "clearData": "프로바이더 데이터 지우기",
-    "notConfiguredGuide": "프로바이더 설정이 필요합니다"
+    "title": "AIGauge 빠른 보기",
+    "emptyNoData": "표시할 프로바이더 데이터가 아직 없습니다.",
+    "actions": {
+      "openDashboard": "대시보드 열기",
+      "refresh": "데이터 새로고침",
+      "pinOn": "창 고정(항상 위)",
+      "pinOff": "창 고정 해제",
+      "toggleTheme": "테마 전환",
+      "toggleThemeToLight": "라이트 테마로 전환",
+      "toggleThemeToDark": "다크 테마로 전환",
+      "manualInput": "수동 입력",
+      "settings": "빠른 설정",
+      "close": "빠른 보기 닫기"
+    },
+    "buttons": {
+      "openDashboard": "대시보드 열기",
+      "clearProviderData": "프로바이더 데이터 지우기"
+    },
+    "confirm": {
+      "cancel": "취소",
+      "confirm": "확인",
+      "clearTitle": "프로바이더 데이터를 지울까요?",
+      "clearDescription": "이 작업은 해당 프로바이더의 캐시 및 수동 입력 데이터를 삭제합니다."
+    },
+    "manual": {
+      "title": "수동 입력 · {{provider}}",
+      "track": "트랙 소스",
+      "trackSubscription": "구독 쿼터",
+      "trackApi": "API 사용량",
+      "trackManual": "수동 추정치",
+      "used": "사용량",
+      "limit": "한도",
+      "cost": "월간 비용 (USD)"
+    },
+    "settings": {
+      "title": "트레이 설정",
+      "refreshInterval": "새로고침 간격 (분)",
+      "notifications": "임계치 알림 사용",
+      "notificationsDesc": "쿼터가 경고/위험 임계치에 도달하면 알림을 보냅니다.",
+      "close": "닫기"
+    },
+    "status": {
+      "initialRefreshFailed": "초기 새로고침에 실패했습니다. 마지막 스냅샷을 표시합니다.",
+      "refreshFailed": "새로고침에 실패했습니다. 인증 정보 또는 네트워크를 확인하세요.",
+      "mainNotFound": "메인 대시보드 창을 찾을 수 없습니다.",
+      "unableToOpenDashboard": "대시보드 창을 열 수 없습니다.",
+      "refreshing": "새로고침 중...",
+      "notRefreshedYet": "아직 새로고침되지 않음",
+      "updatedSecondsAgo": "{{count}}초 전 업데이트",
+      "updatedMinutesAgo": "{{count}}분 전 업데이트"
+    },
+    "summary": {
+      "providers": "프로바이더",
+      "configured": "설정됨",
+      "warnings": "경고"
+    }
   },
   "empty": {
     "title": "설정된 프로바이더가 없습니다",
+    "description": "첫 번째 프로바이더를 연결해 사용량, 쿼터, 비용 추적을 시작하세요.",
     "cta": "시작하기"
   },
   "a11y": {
-    "skipToContent": "본문으로 이동"
+    "skipToContent": "본문으로 건너뛰기"
   }
 }

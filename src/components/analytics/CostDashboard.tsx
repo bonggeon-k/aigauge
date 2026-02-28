@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
+  Area,
+  AreaChart,
+  CartesianGrid,
   Cell,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -12,7 +14,11 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { CostSummary, MonthlyCostHistory, PaceAnalysis } from "@/hooks/useCostAnalytics";
+import type {
+  CostSummary,
+  MonthlyCostHistory,
+  PaceAnalysis,
+} from "@/hooks/useCostAnalytics";
 import { Card } from "@/components/ui/card";
 import { PaceIndicator } from "@/components/analytics/PaceIndicator";
 
@@ -25,30 +31,24 @@ interface CostDashboardProps {
 const ranges = ["this_month", "last_3", "last_6", "last_year", "custom"] as const;
 type RangeValue = (typeof ranges)[number];
 
-const rangeLabel: Record<RangeValue, string> = {
-  this_month: "This month",
-  last_3: "Last 3m",
-  last_6: "Last 6m",
-  last_year: "Last 12m",
-  custom: "All",
-};
+const colorAt = (index: number): string => `var(--chart-${(index % 7) + 1})`;
+
+const formatCurrency = (value: number, currency = "USD"): string =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+  }).format(value);
 
 export const CostDashboard = ({ summary, history, pace }: CostDashboardProps) => {
+  const { t } = useTranslation();
   const [range, setRange] = useState<RangeValue>("last_6");
 
   const historyView = useMemo(() => {
-    if (range === "this_month") {
-      return history.slice(-1);
-    }
-    if (range === "last_3") {
-      return history.slice(-3);
-    }
-    if (range === "last_6") {
-      return history.slice(-6);
-    }
-    if (range === "last_year") {
-      return history.slice(-12);
-    }
+    if (range === "this_month") return history.slice(-1);
+    if (range === "last_3") return history.slice(-3);
+    if (range === "last_6") return history.slice(-6);
+    if (range === "last_year") return history.slice(-12);
     return history;
   }, [history, range]);
 
@@ -56,105 +56,171 @@ export const CostDashboard = ({ summary, history, pace }: CostDashboardProps) =>
   const previous = history.length > 1 ? history[history.length - 2]?.total ?? 0 : 0;
   const changePct = previous > 0 ? ((current - previous) / previous) * 100 : 0;
   const changeUp = changePct > 0;
+  const currency = summary?.currency || "USD";
+
+  const maxPoint = useMemo(() => {
+    const point = historyView.reduce<{ month: string; total: number }>(
+      (acc, item) => (item.total > acc.total ? { month: item.month, total: item.total } : acc),
+      { month: "-", total: 0 },
+    );
+    return point;
+  }, [historyView]);
+
+  const donutData = (summary?.by_provider ?? []).filter((item) => item.amount > 0);
 
   return (
     <section className="grid gap-4 anim-rise">
       <Card className="space-y-4 overflow-hidden border-border/70 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)]">
-        <div className="pointer-events-none h-1 rounded-full bg-gradient-to-r from-[var(--chart-1)] via-[var(--chart-2)] to-[var(--chart-3)]" />
+        <div className="pointer-events-none h-1 rounded-full bg-gradient-to-r from-[var(--chart-1)] via-[var(--chart-2)] to-[var(--chart-4)]" />
+
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold tracking-tight">Cost Analytics</h2>
-          <div className="flex flex-wrap gap-2 rounded-full bg-[var(--surface-1)] p-1">
-            {ranges.map((item) => (
-              <button
-                key={item}
-                type="button"
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                  range === item
-                    ? "bg-[var(--nav-active)] text-[var(--nav-active-fg)] shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-                onClick={() => setRange(item)}
-              >
-                {rangeLabel[item]}
-              </button>
-            ))}
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">{t("analytics.title")}</h2>
+            <p className="text-xs text-muted-foreground">{t("analytics.subtitle")}</p>
+          </div>
+          <div className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-1)] px-2 py-1 text-xs text-muted-foreground">
+            <Sparkles className="h-3.5 w-3.5 text-[var(--chart-3)]" />
+            {t("analytics.designTuned")}
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="flex flex-wrap gap-2 rounded-full bg-[var(--surface-1)] p-1">
+          {ranges.map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                range === item
+                  ? "bg-[var(--nav-active)] text-[var(--nav-active-fg)] shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              onClick={() => setRange(item)}
+            >
+              {t(`analytics.range.${item}`)}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[1.35fr_1fr]">
           <motion.div
-            className="h-56 rounded-xl bg-[var(--surface-1)] p-2"
+            className="h-64 rounded-xl border border-border/70 bg-[var(--surface-1)] p-3"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35 }}
           >
-            <p className="sr-only">Monthly cost trend chart showing total spend by month.</p>
+            <p className="mb-2 text-xs uppercase tracking-[0.08em] text-muted-foreground">{t("analytics.monthlyTrend")}</p>
+            <p className="sr-only">Area chart showing monthly cost movement.</p>
             <ResponsiveContainer>
-              <LineChart data={historyView}>
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip
-                  formatter={(value: number | string | undefined) =>
-                    `$${Number(value ?? 0).toFixed(2)}`
-                  }
+              <AreaChart data={historyView}>
+                <defs>
+                  <linearGradient id="costAreaFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.45} />
+                    <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 4" vertical={false} opacity={0.28} />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={56}
+                  tickFormatter={(value) => `$${Number(value).toFixed(0)}`}
                 />
-                <Line
+                <Tooltip formatter={(value: number | string | undefined) => formatCurrency(Number(value ?? 0), currency)} />
+                <Area
                   type="monotone"
                   dataKey="total"
                   stroke="var(--chart-1)"
-                  strokeWidth={3}
-                  dot={false}
+                  strokeWidth={2.4}
+                  fill="url(#costAreaFill)"
+                  dot={{ r: 2, strokeWidth: 0, fill: "var(--chart-1)" }}
+                  activeDot={{ r: 4 }}
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </motion.div>
 
           <motion.div
-            className="h-56 rounded-xl bg-[var(--surface-1)] p-2"
+            className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-3"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45 }}
           >
-            <p className="sr-only">Provider cost share donut chart.</p>
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie
-                  data={summary?.by_provider ?? []}
-                  dataKey="amount"
-                  nameKey="provider"
-                  innerRadius={45}
-                  outerRadius={75}
-                >
-                  {(summary?.by_provider ?? []).map((entry, index) => (
-                    <Cell key={entry.provider} fill={`var(--chart-${(index % 7) + 1})`} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: number | string | undefined) =>
-                    `$${Number(value ?? 0).toFixed(2)}`
-                  }
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            <p className="mb-2 text-xs uppercase tracking-[0.08em] text-muted-foreground">{t("analytics.providerShare")}</p>
+            <div className="h-44">
+              <p className="sr-only">Donut chart showing provider cost share.</p>
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={donutData}
+                    dataKey="amount"
+                    nameKey="provider"
+                    innerRadius={46}
+                    outerRadius={72}
+                    paddingAngle={3}
+                  >
+                    {donutData.map((entry, index) => (
+                      <Cell key={entry.provider} fill={colorAt(index)} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: number | string | undefined) => formatCurrency(Number(value ?? 0), currency)} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="space-y-1.5">
+              {donutData.slice(0, 5).map((entry, index) => (
+                <div key={entry.provider} className="space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colorAt(index) }} />
+                      <span className="font-medium uppercase tracking-[0.07em]">{entry.provider}</span>
+                    </div>
+                    <span className="text-muted-foreground">
+                      {Math.round(entry.percentage_of_total)}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/60">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.max(4, Math.round(entry.percentage_of_total))}%`,
+                        backgroundColor: colorAt(index),
+                      }}
+                    />
+                  </div>
+                  <p className="text-right text-muted-foreground">{formatCurrency(entry.amount, currency)}</p>
+                </div>
+              ))}
+            </div>
           </motion.div>
         </div>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="border-border/70 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)]">
-          <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Current month</p>
-          <p className="text-xl font-semibold tracking-tight">${current.toFixed(2)}</p>
+          <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{t("analytics.currentMonth")}</p>
+          <p className="text-xl font-semibold tracking-tight">{formatCurrency(current, currency)}</p>
         </Card>
         <Card className="border-border/70 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)]">
-          <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Previous month</p>
-          <p className="text-xl font-semibold tracking-tight">${previous.toFixed(2)}</p>
+          <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{t("analytics.previousMonth")}</p>
+          <p className="text-xl font-semibold tracking-tight">{formatCurrency(previous, currency)}</p>
         </Card>
         <Card className="border-border/70 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)]">
-          <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">MoM</p>
-          <div className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xl font-semibold ${changeUp ? "text-rose-600 dark:text-rose-300" : "text-emerald-600 dark:text-emerald-300"}`}>
+          <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{t("analytics.momChange")}</p>
+          <div
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-lg font-semibold ${
+              changeUp ? "text-rose-600 dark:text-rose-300" : "text-emerald-600 dark:text-emerald-300"
+            }`}
+          >
             {changeUp ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-            {changePct.toFixed(1)}%
+            {Math.abs(changePct).toFixed(1)}%
           </div>
+        </Card>
+        <Card className="border-border/70 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)]">
+          <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{t("analytics.peakInRange")}</p>
+          <p className="text-xl font-semibold tracking-tight">{formatCurrency(maxPoint.total, currency)}</p>
+          <p className="text-xs text-muted-foreground">{maxPoint.month}</p>
         </Card>
       </div>
 

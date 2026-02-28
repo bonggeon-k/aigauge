@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import type { AuthMethod } from "@/hooks/useProvider";
 import { ProviderSetup } from "@/components/providers/ProviderSetup";
@@ -17,6 +18,7 @@ const stepVariants = {
 };
 
 export const WelcomeFlow = ({ providerIds, onComplete, onSkip }: WelcomeFlowProps) => {
+  const { t } = useTranslation();
   const [step, setStep] = useState(0);
   const [selected, setSelected] = useState<string[]>(providerIds.slice(0, 2));
   const [setupIndex, setSetupIndex] = useState(0);
@@ -38,16 +40,17 @@ export const WelcomeFlow = ({ providerIds, onComplete, onSkip }: WelcomeFlowProp
         >
           {step === 0 ? (
             <>
-              <h1 className="text-2xl font-semibold">Welcome to AIGauge</h1>
+              <h1 className="text-2xl font-semibold">{t("onboarding.welcomeTitle")}</h1>
               <p className="text-sm text-muted-foreground">
-                Track usage, quota, and cost across your AI coding providers with real-time alerts.
+                {t("onboarding.welcomeDesc")}
               </p>
             </>
           ) : null}
 
           {step === 1 ? (
             <>
-              <h2 className="text-xl font-semibold">Choose your providers</h2>
+              <h2 className="text-xl font-semibold">{t("onboarding.chooseTitle")}</h2>
+              <p className="text-sm text-muted-foreground">{t("onboarding.chooseDesc")}</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {providerIds.map((provider) => {
                   const checked = selected.includes(provider);
@@ -64,7 +67,7 @@ export const WelcomeFlow = ({ providerIds, onComplete, onSkip }: WelcomeFlowProp
                           }
                         }}
                       />
-                      {provider}
+                      {t(`onboarding.providers.${provider}`)}
                     </label>
                   );
                 })}
@@ -74,9 +77,9 @@ export const WelcomeFlow = ({ providerIds, onComplete, onSkip }: WelcomeFlowProp
 
           {step === 2 ? (
             <>
-              <h2 className="text-xl font-semibold">Set up credentials</h2>
+              <h2 className="text-xl font-semibold">{t("onboarding.setupTitle")}</h2>
               <p className="text-sm text-muted-foreground">
-                Add credentials for selected providers one by one. You can skip any provider.
+                {t("onboarding.setupDesc")}
               </p>
               {currentProvider ? (
                 <ProviderSetup
@@ -87,16 +90,16 @@ export const WelcomeFlow = ({ providerIds, onComplete, onSkip }: WelcomeFlowProp
                   onSaved={() => setSetupIndex((prev) => Math.min(prev + 1, selected.length))}
                 />
               ) : (
-                <p className="text-sm">All selected providers processed.</p>
+                <p className="text-sm">{t("onboarding.setupDone")}</p>
               )}
             </>
           ) : null}
 
           {step === 3 ? (
             <>
-              <h2 className="text-xl font-semibold">You're all set</h2>
+              <h2 className="text-xl font-semibold">{t("onboarding.complete")}</h2>
               <p className="text-sm text-muted-foreground">
-                {selected.length} providers selected. Open dashboard to start monitoring.
+                {t("onboarding.completeDesc", { count: selected.length })}
               </p>
             </>
           ) : null}
@@ -104,19 +107,19 @@ export const WelcomeFlow = ({ providerIds, onComplete, onSkip }: WelcomeFlowProp
       </AnimatePresence>
 
       <div className="mt-6 flex flex-wrap justify-between gap-2">
-        <Button variant="ghost" onClick={onSkip} aria-label="Skip onboarding">
-          Skip
+        <Button variant="ghost" onClick={onSkip} aria-label={t("onboarding.skip")}>
+          {t("onboarding.skip")}
         </Button>
         <div className="flex gap-2">
           {step > 0 ? (
             <Button variant="outline" onClick={() => setStep((prev) => Math.max(0, prev - 1))}>
-              Back
+              {t("onboarding.back")}
             </Button>
           ) : null}
           {step < 3 ? (
-            <Button onClick={() => setStep((prev) => Math.min(3, prev + 1))}>Next</Button>
+            <Button onClick={() => setStep((prev) => Math.min(3, prev + 1))}>{t("onboarding.next")}</Button>
           ) : (
-            <Button onClick={() => onComplete(selected)}>Open Dashboard</Button>
+            <Button onClick={() => onComplete(selected)}>{t("onboarding.openDashboard")}</Button>
           )}
         </div>
       </div>

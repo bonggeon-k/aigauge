@@ -2,7 +2,17 @@
   "app": {
     "title": "AIGauge",
     "subtitle": "FinOps dashboard for AI coding tools",
-    "addProvider": "Add Provider"
+    "addProvider": "Add Provider",
+    "searchPlaceholder": "Search providers by name, id, or plan",
+    "sortBy": "Sort",
+    "sort": {
+      "risk": "Highest risk",
+      "name": "Name",
+      "cost": "Highest cost"
+    },
+    "providersCount": "{{count}} providers",
+    "noResults": "No providers match your current filter.",
+    "clearFilter": "Clear filter"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -11,68 +21,162 @@
   },
   "onboarding": {
     "welcomeTitle": "Welcome to AIGauge",
+    "welcomeDesc": "Track usage, quota, and cost across your AI coding providers with real-time alerts.",
+    "chooseTitle": "Choose your providers",
+    "chooseDesc": "Select the providers you want to monitor first. You can change this anytime in Settings.",
+    "setupTitle": "Set up credentials",
+    "setupDesc": "Add credentials for selected providers one by one. You can skip any provider.",
+    "setupDone": "All selected providers processed.",
     "skip": "Skip",
     "next": "Next",
     "back": "Back",
-    "complete": "You're all set"
+    "complete": "You're all set",
+    "completeDesc": "{{count}} providers selected. Open dashboard to start monitoring.",
+    "openDashboard": "Open Dashboard",
+    "providers": {
+      "codex": "Codex",
+      "claude": "Claude",
+      "gemini": "Gemini",
+      "kiro": "Kiro",
+      "copilot": "Copilot",
+      "cursor": "Cursor",
+      "jetbrains": "JetBrains AI"
+    }
   },
-  "quota": {
-    "warning": "Quota warning",
-    "critical": "Quota critical",
-    "safe": "Safe",
-    "resetIn": "Reset in"
-  },
-  "cost": {
-    "summary": "Cost Summary",
-    "monthly": "Monthly total",
-    "compare": "vs last month",
-    "analytics": "Cost Analytics",
-    "pace": "Spending Pace",
-    "roi": "ROI",
-    "budget": "Budget"
-  },
-  "export": {
-    "title": "Export",
-    "preview": "Preview",
-    "download": "Download",
-    "includeCost": "Include cost",
-    "csv": "CSV",
-    "json": "JSON",
-    "pdf": "PDF (soon)"
-  },
-  "updater": {
-    "available": "Update available",
-    "install": "Install update"
+  "analytics": {
+    "title": "Cost Analytics",
+    "subtitle": "Monthly spend trends, provider mix, and pacing",
+    "designTuned": "Design tuned for high-density insight",
+    "monthlyTrend": "Monthly Trend",
+    "providerShare": "Provider Share",
+    "currentMonth": "Current Month",
+    "previousMonth": "Previous Month",
+    "momChange": "MoM Change",
+    "peakInRange": "Peak in Range",
+    "range": {
+      "this_month": "This month",
+      "last_3": "Last 3 months",
+      "last_6": "Last 6 months",
+      "last_year": "Last year",
+      "custom": "Custom"
+    },
+    "roi": {
+      "title": "ROI Calculator",
+      "noData": "No ROI data available yet.",
+      "bestValueSuffix": "best value",
+      "snapshot": "Cost efficiency snapshot",
+      "costPerRequest": "Cost / Request",
+      "costPer1kTokens": "Cost / 1K Tokens",
+      "table": {
+        "provider": "Provider",
+        "req": "Cost / Req",
+        "tokens": "Cost / 1K",
+        "efficiency": "Efficiency"
+      }
+    },
+    "pace": {
+      "noData": "No pace analysis available.",
+      "onTrack": "On track",
+      "overBudget": "Over budget pace",
+      "daysRemaining": "{{count}} days remaining",
+      "projectedAgainstBudget": "Projected against budget",
+      "spentSoFar": "Spent so far",
+      "projected": "Projected",
+      "budget": "Budget"
+    }
   },
   "settings": {
     "title": "Settings",
     "theme": "Theme",
     "language": "Language",
-    "notifications": "Notifications",
     "save": "Save Settings",
+    "notificationsWarning": "Notify me when usage exceeds 80%",
+    "notificationsCritical": "Notify me when usage exceeds 95%",
+    "shortcuts": "Keyboard Shortcuts",
     "telemetry": "Telemetry",
+    "telemetryDesc": "Share anonymous usage stats (provider count, app version, OS). No credential or usage content is sent.",
+    "telemetryEnable": "Enable anonymous telemetry",
     "plugins": "Plugins",
+    "pluginsDesc": "Installed community provider plugins.",
+    "noPlugins": "No plugins installed.",
     "about": "About",
-    "shortcuts": "Keyboard Shortcuts"
+    "versionLabel": "Version",
+    "licenseLabel": "License",
+    "githubRepo": "GitHub Repository",
+    "resetOnboarding": "Reset Onboarding",
+    "exportAll": "Export All Data",
+    "options": {
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "unsaved": "You have unsaved changes.",
+    "savedAt": "Saved at {{time}}"
   },
   "provider": {
-    "setup": "Setup Provider",
-    "settings": "Provider Settings",
-    "notConfigured": "Not Configured",
-    "testConnection": "Test Connection",
-    "removeCredential": "Remove Credential",
-    "save": "Save",
-    "jetbrains": "JetBrains AI Assistant"
+    "save": "Save"
   },
   "tray": {
-    "title": "Quick View",
-    "refresh": "Refresh",
-    "manualInput": "Manual input",
-    "clearData": "Clear provider data",
-    "notConfiguredGuide": "Provider setup required"
+    "title": "AIGauge Quick View",
+    "emptyNoData": "No provider data available yet.",
+    "actions": {
+      "openDashboard": "Open Dashboard",
+      "refresh": "Refresh Data",
+      "pinOn": "Pin window (always on top)",
+      "pinOff": "Unpin window",
+      "toggleTheme": "Toggle Theme",
+      "toggleThemeToLight": "Switch to light theme",
+      "toggleThemeToDark": "Switch to dark theme",
+      "manualInput": "Manual Input",
+      "settings": "Quick Settings",
+      "close": "Close Quick View"
+    },
+    "buttons": {
+      "openDashboard": "Open Dashboard",
+      "clearProviderData": "Clear Provider Data"
+    },
+    "confirm": {
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "clearTitle": "Clear provider data?",
+      "clearDescription": "This removes cached and manual input data for this provider."
+    },
+    "manual": {
+      "title": "Manual Input · {{provider}}",
+      "track": "Track source",
+      "trackSubscription": "Subscription quota",
+      "trackApi": "API usage",
+      "trackManual": "Manual estimate",
+      "used": "Used",
+      "limit": "Limit",
+      "cost": "Monthly cost (USD)"
+    },
+    "settings": {
+      "title": "Tray Settings",
+      "refreshInterval": "Refresh interval (minutes)",
+      "notifications": "Enable threshold notifications",
+      "notificationsDesc": "Notify when quota reaches warning/critical thresholds.",
+      "close": "Close"
+    },
+    "status": {
+      "initialRefreshFailed": "Initial refresh failed. Showing last snapshot.",
+      "refreshFailed": "Refresh failed. Check provider credentials or network.",
+      "mainNotFound": "Main dashboard window not found.",
+      "unableToOpenDashboard": "Unable to open dashboard window.",
+      "refreshing": "Refreshing...",
+      "notRefreshedYet": "Not refreshed yet",
+      "updatedSecondsAgo": "Updated {{count}}s ago",
+      "updatedMinutesAgo": "Updated {{count}}m ago"
+    },
+    "summary": {
+      "providers": "Providers",
+      "configured": "Configured",
+      "warnings": "Warnings"
+    }
   },
   "empty": {
     "title": "No providers configured",
+    "description": "Connect your first provider to start tracking usage, quota, and spend.",
     "cta": "Get started"
   },
   "a11y": {

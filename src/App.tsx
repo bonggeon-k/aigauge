@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AppShell } from "@/components/layout/AppShell";
@@ -57,6 +57,8 @@ interface TrackAlertPayload {
   track_kind: "subscription" | "api" | "manual";
 }
 
+type ProviderSortMode = "risk" | "name" | "cost";
+
 const isTrayRoute = (): boolean => {
   if (typeof window === "undefined") return false;
 
@@ -75,7 +77,7 @@ const isTrayRoute = (): boolean => {
 };
 
 function DashboardApp() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const providerApi = useProvider();
   const analyticsApi = useCostAnalytics();
@@ -90,6 +92,8 @@ function DashboardApp() {
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [providerQuery, setProviderQuery] = useState("");
+  const [providerSort, setProviderSort] = useState<ProviderSortMode>("risk");
   const refreshTimerRef = useRef<number | null>(null);
 
   const [costSummary, setCostSummary] = useState<Awaited<ReturnType<typeof analyticsApi.getCostSummary>> | null>(null);
@@ -133,6 +137,9 @@ function DashboardApp() {
       setRoiAnalysis(roi);
       setPaceAnalysis(pace);
       setShowOnboarding(!config.onboarding_complete);
+      if (config.language && config.language !== i18n.language) {
+        await i18n.changeLanguage(config.language);
+      }
       setLoading(false);
       await checkForUpdate();
     })();
@@ -140,7 +147,7 @@ function DashboardApp() {
     return () => {
       active = false;
     };
-  }, [providerApi, analyticsApi, checkForUpdate]);
+  }, [providerApi, analyticsApi, checkForUpdate, i18n]);
 
   useTauriEvent<DashboardEntry>("usage-updated", () => {
     if (refreshTimerRef.current != null) {
@@ -204,12 +211,53 @@ function DashboardApp() {
     setRoute("settings");
   });
 
+  useTauriEvent<boolean>("open-dashboard", () => {
+    setRoute("dashboard");
+  });
+
   const activeProviderAuth = useMemo<AuthMethod>(() => {
     if (!activeProviderId) return "api_key";
     return entries.find((entry) => entry.info.id === activeProviderId)?.info.auth_method ?? "api_key";
   }, [activeProviderId, entries]);
 
-  const leadEntry = entries[0];
+  const filteredEntries = useMemo(() => {
+    const normalizedQuery = providerQuery.trim().toLowerCase();
+    const filtered = entries.filter((entry) => {
+      if (!normalizedQuery) {
+        return true;
+      }
+      return (
+        entry.info.name.toLowerCase().includes(normalizedQuery) ||
+        entry.info.id.toLowerCase().includes(normalizedQuery) ||
+        entry.info.plan_name.toLowerCase().includes(normalizedQuery)
+      );
+    });
+
+    const toRisk = (entry: DashboardEntry): number => {
+      const track = entry.tracks.find((item) => item.kind === "subscription");
+      if (track && track.limit > 0) {
+        return track.used / track.limit;
+      }
+      if (entry.quota.limit > 0) {
+        return entry.quota.used / entry.quota.limit;
+      }
+      return 0;
+    };
+
+    return filtered.sort((a, b) => {
+      if (providerSort === "name") {
+        return a.info.name.localeCompare(b.info.name);
+      }
+      if (providerSort === "cost") {
+        const aCost = a.cost?.total ?? a.cost_view.total ?? 0;
+        const bCost = b.cost?.total ?? b.cost_view.total ?? 0;
+        return bCost - aCost;
+      }
+      return toRisk(b) - toRisk(a);
+    });
+  }, [entries, providerQuery, providerSort]);
+
+  const leadEntry = filteredEntries[0] ?? entries[0];
   const updateBanner = updater.updateAvailable ? (
     <div className="flex flex-wrap items-center justify-between gap-3 text-sm" aria-live="polite">
       <p>New version {updater.updateAvailable.version} available.</p>
@@ -274,6 +322,37 @@ function DashboardApp() {
                   </Button>
                 </section>
 
+                <section className="mb-5 grid gap-3 rounded-2xl border border-border/70 bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)] md:grid-cols-[1fr_auto_auto]">
+                  <label className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      value={providerQuery}
+                      onChange={(event) => setProviderQuery(event.currentTarget.value)}
+                      placeholder={t("app.searchPlaceholder")}
+                      className="h-10 w-full rounded-xl border border-border/70 bg-[var(--surface-1)] pl-9 pr-3 text-sm outline-none transition focus:border-primary/60"
+                      aria-label={t("app.searchPlaceholder")}
+                    />
+                  </label>
+
+                  <label className="inline-flex items-center gap-2 rounded-xl border border-border/70 bg-[var(--surface-1)] px-3 text-sm text-muted-foreground">
+                    <span>{t("app.sortBy")}</span>
+                    <select
+                      className="h-10 bg-transparent text-foreground outline-none"
+                      value={providerSort}
+                      onChange={(event) => setProviderSort(event.currentTarget.value as ProviderSortMode)}
+                      aria-label={t("app.sortBy")}
+                    >
+                      <option value="risk">{t("app.sort.risk")}</option>
+                      <option value="name">{t("app.sort.name")}</option>
+                      <option value="cost">{t("app.sort.cost")}</option>
+                    </select>
+                  </label>
+
+                  <div className="inline-flex items-center rounded-xl border border-border/70 bg-[var(--surface-1)] px-3 text-sm text-muted-foreground">
+                    {t("app.providersCount", { count: filteredEntries.length })}
+                  </div>
+                </section>
+
                 {loading ? (
                   <div className="grid gap-4 sm:auto-rows-fr sm:grid-cols-2 xl:grid-cols-3">
                     {Array.from({ length: 6 }).map((_, index) => (
@@ -282,11 +361,18 @@ function DashboardApp() {
                   </div>
                 ) : entries.length === 0 || entries.every((entry) => !entry.health.configured) ? (
                   <EmptyState onGetStarted={() => setShowOnboarding(true)} />
+                ) : filteredEntries.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-border/70 bg-[var(--surface-1)] p-8 text-center text-sm text-muted-foreground">
+                    <p>{t("app.noResults")}</p>
+                    <Button variant="outline" className="mt-3 rounded-full" onClick={() => setProviderQuery("")}>
+                      {t("app.clearFilter")}
+                    </Button>
+                  </div>
                 ) : (
                   <>
                     <TrayView>
                       <div className="grid gap-4 sm:auto-rows-fr sm:grid-cols-2 xl:grid-cols-3" aria-live="polite">
-                        {entries.map((entry) => (
+                        {filteredEntries.map((entry) => (
                           <ProviderCard
                             key={entry.info.id}
                             entry={entry}

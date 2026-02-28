@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use tauri::image::Image;
 use tauri::menu::MenuBuilder;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, Runtime};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, Runtime, WindowEvent};
 use tracing::instrument;
 
 use crate::commands::{track_usage_pct, DashboardEntry, TrackKind};
@@ -14,6 +14,8 @@ pub const TRAY_EVENT_REFRESH: &str = "tray-refresh";
 
 static LAST_TRAY_FINGERPRINT: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
 static LAST_TOGGLE_AT: Lazy<Mutex<Option<Instant>>> = Lazy::new(|| Mutex::new(None));
+static LAST_POPUP_POSITION: Lazy<Mutex<Option<(i32, i32)>>> = Lazy::new(|| Mutex::new(None));
+static POPUP_SHOWN_ONCE: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TrayStatus {
@@ -65,6 +67,7 @@ pub fn init_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
                 let _ = app.emit("force-refresh", true);
             }
             "open_dashboard" => {
+                let _ = app.emit("open-dashboard", true);
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
@@ -106,6 +109,16 @@ pub fn init_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
         .build(app)
         .map_err(|error| format!("failed to build tray icon: {error}"))?;
 
+    if let Some(window) = app.get_webview_window("tray-popup") {
+        window.on_window_event(|event| {
+            if let WindowEvent::Moved(position) = event {
+                if let Ok(mut guard) = LAST_POPUP_POSITION.lock() {
+                    *guard = Some((position.x, position.y));
+                }
+            }
+        });
+    }
+
     let _ = tray.set_icon(Some(render_tray_icon(0.0, 0.0, TrayStatus::Ok)));
 
     Ok(())
@@ -121,6 +134,21 @@ fn should_skip_toggle() -> bool {
         *guard = Some(Instant::now());
     }
     false
+}
+
+fn remember_popup_position<R: Runtime>(window: &tauri::WebviewWindow<R>) {
+    if let Ok(position) = window.outer_position() {
+        if let Ok(mut guard) = LAST_POPUP_POSITION.lock() {
+            *guard = Some((position.x, position.y));
+        }
+    }
+}
+
+fn restore_popup_position<R: Runtime>(window: &tauri::WebviewWindow<R>) -> bool {
+    let Some((x, y)) = LAST_POPUP_POSITION.lock().ok().and_then(|guard| *guard) else {
+        return false;
+    };
+    window.set_position(PhysicalPosition::new(x, y)).is_ok()
 }
 
 fn position_popup_window<R: Runtime>(window: &tauri::WebviewWindow<R>, click: Option<(f64, f64)>) {
@@ -154,11 +182,18 @@ fn toggle_tray_popup<R: Runtime>(app: &AppHandle<R>, click: Option<(f64, f64)>) 
     if let Some(window) = app.get_webview_window("tray-popup") {
         let visible = window.is_visible().unwrap_or(false);
         if visible {
+            remember_popup_position(&window);
             let _ = window.hide();
         } else {
-            position_popup_window(&window, click);
+            let should_position = POPUP_SHOWN_ONCE.lock().map(|shown| !*shown).unwrap_or(false);
+            if should_position && !restore_popup_position(&window) {
+                position_popup_window(&window, click);
+            }
             let _ = window.show();
             let _ = window.set_focus();
+            if let Ok(mut shown) = POPUP_SHOWN_ONCE.lock() {
+                *shown = true;
+            }
         }
         return;
     }

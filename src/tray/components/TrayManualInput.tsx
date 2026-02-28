@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +18,7 @@ interface TrayManualInputProps {
 }
 
 export const TrayManualInput = ({ open, providerId, onClose, onSave }: TrayManualInputProps) => {
+  const { t } = useTranslation();
   const [used, setUsed] = useState("0");
   const [limit, setLimit] = useState("100");
   const [cost, setCost] = useState("0");
@@ -24,25 +26,25 @@ export const TrayManualInput = ({ open, providerId, onClose, onSave }: TrayManua
 
   return (
     <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : null)}>
-      <DialogContent className="border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-hard)]">
+      <DialogContent className="border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-hard)]" data-no-drag>
         <DialogHeader>
-          <DialogTitle>Manual Input · {providerId}</DialogTitle>
+          <DialogTitle>{t("tray.manual.title", { provider: providerId })}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-3 text-sm">
           <label className="grid gap-1 rounded-xl bg-[var(--surface-1)] p-3">
-            Track
+            {t("tray.manual.track")}
             <select
               className="rounded-lg border border-input bg-background px-3 py-2"
               value={trackKind}
               onChange={(event) => setTrackKind(event.target.value as "subscription" | "api" | "manual")}
             >
-              <option value="subscription">Subscription</option>
-              <option value="api">API</option>
-              <option value="manual">Manual</option>
+              <option value="subscription">{t("tray.manual.trackSubscription")}</option>
+              <option value="api">{t("tray.manual.trackApi")}</option>
+              <option value="manual">{t("tray.manual.trackManual")}</option>
             </select>
           </label>
           <label className="grid gap-1 rounded-xl bg-[var(--surface-1)] p-3">
-            Used
+            {t("tray.manual.used")}
             <input
               className="rounded-lg border border-input bg-background px-3 py-2"
               value={used}
@@ -50,7 +52,7 @@ export const TrayManualInput = ({ open, providerId, onClose, onSave }: TrayManua
             />
           </label>
           <label className="grid gap-1 rounded-xl bg-[var(--surface-1)] p-3">
-            Limit
+            {t("tray.manual.limit")}
             <input
               className="rounded-lg border border-input bg-background px-3 py-2"
               value={limit}
@@ -58,7 +60,7 @@ export const TrayManualInput = ({ open, providerId, onClose, onSave }: TrayManua
             />
           </label>
           <label className="grid gap-1 rounded-xl bg-[var(--surface-1)] p-3">
-            Cost (USD)
+            {t("tray.manual.cost")}
             <input
               className="rounded-lg border border-input bg-background px-3 py-2"
               value={cost}
@@ -67,7 +69,7 @@ export const TrayManualInput = ({ open, providerId, onClose, onSave }: TrayManua
           </label>
         </div>
         <DialogFooter>
-          <Button variant="outline" className="rounded-full" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" className="rounded-full" onClick={onClose}>{t("tray.confirm.cancel")}</Button>
           <Button
             className="rounded-full"
             onClick={async () => {
@@ -88,7 +90,7 @@ export const TrayManualInput = ({ open, providerId, onClose, onSave }: TrayManua
               onClose();
             }}
           >
-            Save
+            {t("provider.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

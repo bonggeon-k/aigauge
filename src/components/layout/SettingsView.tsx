@@ -8,17 +8,22 @@ import { useExport } from "@/hooks/useExport";
 import { detectPlatform, formatShortcutAccelerator } from "@/lib/platform";
 
 export const SettingsView = () => {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const platform = detectPlatform();
   const providerApi = useProvider();
   const exporter = useExport();
   const [config, setConfig] = useState<AppConfig | null>(null);
+  const [baselineConfig, setBaselineConfig] = useState<AppConfig | null>(null);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
   const [shortcuts, setShortcuts] = useState<ShortcutInfo[]>([]);
   const [plugins, setPlugins] = useState<PluginManifest[]>([]);
   const [telemetry, setTelemetry] = useState<TelemetryStatus | null>(null);
 
   useEffect(() => {
-    void providerApi.getConfig().then(setConfig);
+    void providerApi.getConfig().then((loaded) => {
+      setConfig(loaded);
+      setBaselineConfig(loaded);
+    });
     void providerApi.getKeyboardShortcuts().then(setShortcuts);
     void providerApi.getPlugins().then(setPlugins);
     void providerApi.getTelemetryStatus().then(setTelemetry);
@@ -31,35 +36,40 @@ export const SettingsView = () => {
   const save = async () => {
     const updated = await providerApi.updateConfig(config);
     setConfig(updated);
+    setBaselineConfig(updated);
+    setSavedAt(new Date().toLocaleTimeString());
   };
+
+  const hasUnsavedChanges =
+    baselineConfig != null && JSON.stringify(config) !== JSON.stringify(baselineConfig);
 
   return (
     <div className="space-y-4">
       <Card className="overflow-hidden border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-soft)]">
         <div className="pointer-events-none h-1 rounded-full bg-gradient-to-r from-[var(--chart-1)] via-[var(--chart-2)] to-[var(--chart-5)]" />
         <CardHeader>
-          <CardTitle className="tracking-tight">Settings</CardTitle>
+          <CardTitle className="tracking-tight">{t("settings.title")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="grid gap-3 md:grid-cols-2">
             <label className="space-y-1 rounded-xl bg-[var(--surface-1)] p-3">
-              <span className="block text-muted-foreground">Theme</span>
+              <span className="block text-muted-foreground">{t("settings.theme")}</span>
               <select
-                aria-label="Theme"
+                aria-label={t("settings.theme")}
                 className="w-full rounded-lg border border-border bg-background px-2 py-2"
                 value={config.theme_preference}
                 onChange={(event) => setConfig({ ...config, theme_preference: event.currentTarget.value })}
               >
-                <option value="system">System</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
+                <option value="system">{t("settings.options.system")}</option>
+                <option value="light">{t("settings.options.light")}</option>
+                <option value="dark">{t("settings.options.dark")}</option>
               </select>
             </label>
 
             <label className="space-y-1 rounded-xl bg-[var(--surface-1)] p-3">
-              <span className="block text-muted-foreground">Language</span>
+              <span className="block text-muted-foreground">{t("settings.language")}</span>
               <select
-                aria-label="Language"
+                aria-label={t("settings.language")}
                 className="w-full rounded-lg border border-border bg-background px-2 py-2"
                 value={config.language}
                 onChange={(event) => {
@@ -76,7 +86,7 @@ export const SettingsView = () => {
 
           <label className="flex items-center gap-2 rounded-xl bg-[var(--surface-1)] p-3">
             <input
-              aria-label="Enable quota warning notifications"
+              aria-label={t("settings.notificationsWarning")}
               type="checkbox"
               checked={config.notifications.quota_warning}
               onChange={(event) =>
@@ -86,12 +96,12 @@ export const SettingsView = () => {
                 })
               }
             />
-            <span>Quota warning notifications</span>
+            <span>{t("settings.notificationsWarning")}</span>
           </label>
 
           <label className="flex items-center gap-2 rounded-xl bg-[var(--surface-1)] p-3">
             <input
-              aria-label="Enable quota critical notifications"
+              aria-label={t("settings.notificationsCritical")}
               type="checkbox"
               checked={config.notifications.quota_critical}
               onChange={(event) =>
@@ -101,16 +111,28 @@ export const SettingsView = () => {
                 })
               }
             />
-            <span>Quota critical notifications</span>
+            <span>{t("settings.notificationsCritical")}</span>
           </label>
 
-          <Button onClick={save} aria-label="Save settings" className="rounded-full px-5">Save Settings</Button>
+          {hasUnsavedChanges ? (
+            <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              {t("settings.unsaved")}
+            </p>
+          ) : null}
+
+          {savedAt ? (
+            <p className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
+              {t("settings.savedAt", { time: savedAt })}
+            </p>
+          ) : null}
+
+          <Button onClick={save} aria-label={t("settings.save")} className="rounded-full px-5">{t("settings.save")}</Button>
         </CardContent>
       </Card>
 
       <Card className="border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-soft)]">
         <CardHeader>
-          <CardTitle className="tracking-tight">Keyboard Shortcuts</CardTitle>
+          <CardTitle className="tracking-tight">{t("settings.shortcuts")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           {shortcuts.map((item) => (
@@ -124,11 +146,11 @@ export const SettingsView = () => {
 
       <Card className="border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-soft)]">
         <CardHeader>
-          <CardTitle className="tracking-tight">Telemetry</CardTitle>
+          <CardTitle className="tracking-tight">{t("settings.telemetry")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <p className="text-muted-foreground">
-            Anonymous telemetry is opt-in. It includes only provider count, app version, and OS.
+            {t("settings.telemetryDesc")}
           </p>
           <label className="flex items-center gap-2 rounded-xl bg-[var(--surface-1)] p-3">
             <input
@@ -141,18 +163,18 @@ export const SettingsView = () => {
                 setConfig({ ...config, telemetry_enabled: next.enabled });
               }}
             />
-            <span>Enable anonymous telemetry</span>
+            <span>{t("settings.telemetryEnable")}</span>
           </label>
         </CardContent>
       </Card>
 
       <Card className="border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-soft)]">
         <CardHeader>
-          <CardTitle className="tracking-tight">Plugins</CardTitle>
+          <CardTitle className="tracking-tight">{t("settings.plugins")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          <p className="text-muted-foreground">Install TOML manifests from app data directory plugins folder.</p>
-          {plugins.length === 0 ? <p>No plugins installed.</p> : null}
+          <p className="text-muted-foreground">{t("settings.pluginsDesc")}</p>
+          {plugins.length === 0 ? <p>{t("settings.noPlugins")}</p> : null}
           {plugins.map((plugin) => (
             <div key={plugin.id} className="rounded-xl border border-border/70 bg-[var(--surface-1)] px-3 py-2">
               <p className="font-medium">{plugin.name} ({plugin.version})</p>
@@ -164,13 +186,13 @@ export const SettingsView = () => {
 
       <Card className="border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-soft)]">
         <CardHeader>
-          <CardTitle className="tracking-tight">About</CardTitle>
+          <CardTitle className="tracking-tight">{t("settings.about")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <p>Version: 1.0.0</p>
-          <p>License: MIT</p>
+          <p>{t("settings.versionLabel")}: 1.0.0</p>
+          <p>{t("settings.licenseLabel")}: MIT</p>
           <a href="https://github.com/everygoodnews-ship-it/aigauge" target="_blank" rel="noreferrer" className="text-primary underline">
-            GitHub Repository
+            {t("settings.githubRepo")}
           </a>
           <div className="flex flex-wrap gap-2 pt-2">
             <Button
@@ -183,7 +205,7 @@ export const SettingsView = () => {
               }}
             >
               <RotateCcw className="mr-2 h-4 w-4" />
-              Reset Onboarding
+              {t("settings.resetOnboarding")}
             </Button>
             <Button
               variant="outline"
@@ -196,7 +218,7 @@ export const SettingsView = () => {
               }}
             >
               <Download className="mr-2 h-4 w-4" />
-              Export All Data
+              {t("settings.exportAll")}
             </Button>
           </div>
         </CardContent>

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Menu, Minus, Moon, Square, Sun, X } from "lucide-react";
+import { Menu, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Navigation, type AppRoute } from "@/components/layout/Navigation";
 import {
@@ -40,13 +40,20 @@ export const AppShell = ({
     typeof window !== "undefined" &&
     "__TAURI_INTERNALS__" in (window as unknown as Record<string, unknown>);
 
-  const isWindows = useMemo(() => platform === "Windows", [platform]);
-  const isMac = useMemo(() => platform === "macOS", [platform]);
   const shortcutPrefix = useMemo(() => shortcutPrimaryModifier(platform), [platform]);
 
   useEffect(() => {
     applyPlatformDataAttribute(platform);
   }, [platform]);
+
+  useEffect(() => {
+    if (!isTauri) {
+      return;
+    }
+    void getCurrentWindow()
+      .setTheme(theme === "dark" ? "dark" : "light")
+      .catch(() => undefined);
+  }, [isTauri, theme]);
 
   return (
     <div className="relative min-h-screen overflow-hidden p-4 pb-24 text-foreground md:p-8 md:pb-8">
@@ -56,35 +63,13 @@ export const AppShell = ({
       </div>
       <a href="#main-content" className="skip-link">Skip to content</a>
       <div className="premium-shell anim-rise relative mx-auto w-full max-w-7xl overflow-hidden rounded-2xl">
-        <header className="flex items-center justify-between rounded-t-2xl border-b border-border/70 px-4 py-3" data-tauri-drag-region={isTauri ? "" : undefined}>
+        <header className="flex items-center justify-between rounded-t-2xl border-b border-border/70 px-4 py-3">
           <div className="flex items-center gap-2" data-tauri-drag-region={isTauri ? "" : undefined}>
-            {isTauri && isMac ? (
-              <div className="mr-1 flex items-center gap-1.5">
-                <button
-                  type="button"
-                  aria-label="Close window"
-                  className="h-3 w-3 rounded-full bg-[#ff5f57] opacity-90 transition-opacity hover:opacity-100"
-                  onClick={() => void getCurrentWindow().close()}
-                />
-                <button
-                  type="button"
-                  aria-label="Minimize window"
-                  className="h-3 w-3 rounded-full bg-[#febc2e] opacity-90 transition-opacity hover:opacity-100"
-                  onClick={() => void getCurrentWindow().minimize()}
-                />
-                <button
-                  type="button"
-                  aria-label="Maximize window"
-                  className="h-3 w-3 rounded-full bg-[#28c840] opacity-90 transition-opacity hover:opacity-100"
-                  onClick={() => void getCurrentWindow().toggleMaximize()}
-                />
-              </div>
-            ) : null}
             <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-primary)] shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-primary)_22%,transparent)]" />
             <p className="text-sm font-semibold tracking-tight">AIGauge</p>
             <p className="rounded-full bg-[var(--nav-muted)] px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{platform}</p>
           </div>
-          <div className="flex items-center gap-2" data-tauri-drag-region={isTauri ? "" : undefined}>
+          <div className="flex items-center gap-2">
             <Button size="icon" variant="ghost" onClick={onToggleTheme} aria-label="Toggle theme">
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
@@ -100,19 +85,6 @@ export const AppShell = ({
                 <DropdownMenuItem onClick={() => onNavigate("settings")}>Settings</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {isTauri && isWindows ? (
-              <div className="ml-2 flex items-center gap-1">
-                <Button size="icon" variant="ghost" aria-label="Minimize window" onClick={() => void getCurrentWindow().minimize()}>
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <Button size="icon" variant="ghost" aria-label="Maximize window" onClick={() => void getCurrentWindow().toggleMaximize()}>
-                  <Square className="h-3.5 w-3.5" />
-                </Button>
-                <Button size="icon" variant="ghost" aria-label="Close window" onClick={() => void getCurrentWindow().close()}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : null}
           </div>
         </header>
 

@@ -58,6 +58,16 @@ h4 {
   min-height: 48px;
 }
 
+:root[lang="ko"] {
+  --font-display: "Pretendard Variable", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-ui: "Pretendard Variable", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+
+:root[lang="ko"] body {
+  letter-spacing: -0.005em;
+  line-height: 1.6;
+}
+
 .skip-link {
   position: absolute;
   left: 0.5rem;
@@ -123,6 +133,15 @@ h4 {
 
 .anim-aurora {
   animation: aurora-float 8s ease-in-out infinite;
+}
+
+.tray-tabs-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.tray-tabs-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 @media print {
