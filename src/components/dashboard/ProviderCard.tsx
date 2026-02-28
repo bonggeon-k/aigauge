@@ -121,6 +121,21 @@ const formatTrackUsage = (track: UsageTrack): string => {
   return `${used} ${track.unit}`;
 };
 
+const formatAuthMethod = (value: string): string => {
+  switch (value) {
+    case "api_key":
+      return "API Key";
+    case "oauth":
+      return "OAuth";
+    case "token":
+      return "Token";
+    case "none":
+      return "None";
+    default:
+      return value;
+  }
+};
+
 export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardProps) => {
   const Icon = iconMap[entry.info.id as keyof typeof iconMap] ?? Bot;
 
@@ -195,36 +210,38 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
       <Card className="flex h-full min-h-[430px] flex-col overflow-hidden border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-soft)] transition-all duration-300 hover:shadow-[var(--shadow-hard)]">
         <div className="pointer-events-none h-1 bg-gradient-to-r from-[var(--chart-1)] via-[var(--chart-2)] to-[var(--chart-3)]" />
         <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-start justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               <div className="rounded-xl bg-[var(--surface-1)] p-2">
                 <Icon className="h-5 w-5 text-primary" />
               </div>
-              <div>
-                <CardTitle className="max-w-[13rem] truncate text-base font-semibold tracking-tight">{entry.info.name}</CardTitle>
+              <div className="min-w-0">
+                <CardTitle className="truncate text-base font-semibold tracking-tight">{entry.info.name}</CardTitle>
                 <CardDescription className="uppercase tracking-[0.08em]">{entry.info.id}</CardDescription>
               </div>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Provider menu">
+                <Button variant="ghost" size="icon" aria-label="Provider menu" className="shrink-0">
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onOpenSettings(entry.info.id)}>
+              <DropdownMenuContent align="end" className="min-w-[14rem] max-w-[18rem]">
+                <DropdownMenuItem className="whitespace-normal break-words leading-snug" onClick={() => onOpenSettings(entry.info.id)}>
                   Provider Settings
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onSetup(entry.info.id)}>
+                <DropdownMenuItem className="whitespace-normal break-words leading-snug" onClick={() => onSetup(entry.info.id)}>
                   Setup Credential
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <div className="mt-1 flex items-center gap-2">
-            <Badge variant="secondary">{entry.info.plan_name}</Badge>
-            <Badge variant="outline" className="uppercase">
-              {entry.info.auth_method}
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <Badge variant="secondary" className="max-w-full truncate">
+              {entry.info.plan_name}
+            </Badge>
+            <Badge variant="outline" className="max-w-full truncate">
+              {formatAuthMethod(entry.info.auth_method)}
             </Badge>
             <Badge variant="outline" className={entry.health.reachable ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400" : "border-rose-500/30 text-rose-600 dark:text-rose-400"}>
               {entry.health.reachable ? "Live" : "Offline"}
@@ -286,9 +303,11 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
                               }}
                             />
                           </div>
-                          <div className="mt-2 flex items-center justify-between text-xs">
-                            <span className="font-medium">{formatTrackUsage(track)}</span>
-                            <span className="text-muted-foreground">
+                          <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                            <span className="min-w-0 truncate font-medium" title={formatTrackUsage(track)}>
+                              {formatTrackUsage(track)}
+                            </span>
+                            <span className="shrink-0 text-muted-foreground">
                               Reset in {getResetCountdown(track.reset_at)}
                             </span>
                           </div>

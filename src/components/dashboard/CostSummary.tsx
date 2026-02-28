@@ -22,11 +22,11 @@ export const CostSummary = ({ entries }: CostSummaryProps) => {
   const diff = previous > 0 ? ((total - previous) / previous) * 100 : 0;
 
   return (
-    <Card className="border-border/70 bg-card/90">
+    <Card className="flex h-full min-h-[260px] border-border/70 bg-card/90">
       <CardHeader>
         <CardTitle>Cost Summary</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-2">
+      <CardContent className="grid flex-1 gap-4 md:grid-cols-2">
         <div>
           <p className="text-sm text-muted-foreground">Monthly total</p>
           <p className="text-3xl font-semibold">
@@ -47,7 +47,7 @@ export const CostSummary = ({ entries }: CostSummaryProps) => {
             <span className="text-muted-foreground">vs last month</span>
           </p>
         </div>
-        <div className="h-48">
+        <div className="h-52 min-h-[13rem]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie

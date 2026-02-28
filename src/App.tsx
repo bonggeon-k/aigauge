@@ -303,7 +303,7 @@ function DashboardApp() {
                       </div>
                     </TrayView>
 
-                    <section className="mt-6 grid gap-4 lg:grid-cols-2">
+                    <section className="mt-6 grid gap-4 lg:auto-rows-fr lg:grid-cols-2">
                       <CostSummary entries={entries} />
                       {leadEntry ? (
                         <QuotaTimeline

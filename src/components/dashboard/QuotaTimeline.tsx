@@ -41,11 +41,11 @@ export const QuotaTimeline = ({
   const projected = elapsedRatio > 0 ? Math.round(used / elapsedRatio) : used;
 
   return (
-    <Card className="border-border/70 bg-card/90">
+    <Card className="flex h-full min-h-[260px] border-border/70 bg-card/90">
       <CardHeader>
         <CardTitle>Quota Timeline</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm">
+      <CardContent className="flex flex-1 flex-col justify-between space-y-3 text-sm">
         <div>
           <div className="mb-1 flex justify-between text-xs text-muted-foreground">
             <span>Time elapsed</span>
