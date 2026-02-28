@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Settings2, Pin, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { getAllWindows, getCurrentWindow } from "@tauri-apps/api/window";
+import { LayoutDashboard, Settings2, Pin, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { TrayTabBar } from "@/tray/components/TrayTabBar";
 import { TrayProviderDetail } from "@/tray/components/TrayProviderDetail";
 import { TrayManualInput } from "@/tray/components/TrayManualInput";
@@ -15,10 +15,10 @@ import { applyPlatformDataAttribute, detectPlatform } from "@/lib/platform";
 import type { CodexCostBreakdown } from "@/tray/hooks/useTrayProviders";
 
 const isInteractiveElement = (target: EventTarget | null): boolean => {
-  if (!(target instanceof HTMLElement)) {
+  if (!(target instanceof Element)) {
     return false;
   }
-  return Boolean(target.closest("button, input, select, textarea, a, summary, label"));
+  return Boolean(target.closest("button, input, select, textarea, a, summary, label, [data-no-drag]"));
 };
 
 export const TrayApp = () => {
@@ -105,21 +105,43 @@ export const TrayApp = () => {
     void refreshStatuses();
   });
 
+  const startWindowDrag = (event: MouseEvent<HTMLElement>) => {
+    if (event.button !== 0 || isInteractiveElement(event.target)) {
+      return;
+    }
+    void getCurrentWindow().startDragging();
+  };
+
+  const openMainDashboard = useCallback(async () => {
+    const windows = await getAllWindows();
+    const main = windows.find((window) => window.label === "main");
+    if (!main) {
+      return;
+    }
+    await main.show();
+    await main.unminimize().catch(() => undefined);
+    await main.setFocus();
+    await getCurrentWindow().hide().catch(() => undefined);
+  }, []);
+
   return (
     <div
       className="mx-auto h-[540px] w-[420px] overflow-hidden rounded-2xl border border-border/70 bg-[var(--glass-bg)] p-3 text-foreground shadow-[var(--shadow-hard)] backdrop-blur"
     >
       <div
         className="mb-3 flex items-center justify-between rounded-xl bg-[var(--surface-1)] px-2 py-1.5"
-        onMouseDown={(event) => {
-          if (event.button !== 0 || isInteractiveElement(event.target)) {
-            return;
-          }
-          void getCurrentWindow().startDragging();
-        }}
+        onMouseDown={startWindowDrag}
       >
         <p className="text-sm font-semibold tracking-tight">AIGauge Quick View</p>
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className="rounded-full p-1.5 transition hover:bg-[var(--surface-2)]"
+            onClick={() => void openMainDashboard()}
+            aria-label="Open dashboard"
+          >
+            <LayoutDashboard className="h-4 w-4" />
+          </button>
           <button
             type="button"
             className="rounded-full p-1.5 transition hover:bg-[var(--surface-2)]"
@@ -155,11 +177,13 @@ export const TrayApp = () => {
         </div>
       </div>
 
-      <TrayTabBar
-        entries={entries}
-        activeProvider={activeProviderId}
-        onSelect={setActiveProviderId}
-      />
+      <div onMouseDown={startWindowDrag}>
+        <TrayTabBar
+          entries={entries}
+          activeProvider={activeProviderId}
+          onSelect={setActiveProviderId}
+        />
+      </div>
 
       <div className="mt-3 h-[430px] overflow-y-auto pr-1">
         {activeEntry ? (
@@ -175,13 +199,22 @@ export const TrayApp = () => {
           </div>
         )}
 
-        <button
-          type="button"
-          className="mt-3 w-full rounded-xl border border-border/70 bg-[var(--surface-1)] px-3 py-2 text-xs transition hover:bg-[var(--surface-2)]"
-          onClick={() => setConfirmOpen(true)}
-        >
-          Clear provider data
-        </button>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            className="w-full rounded-xl border border-border/70 bg-[var(--surface-1)] px-3 py-2 text-xs transition hover:bg-[var(--surface-2)]"
+            onClick={() => void openMainDashboard()}
+          >
+            Open Dashboard
+          </button>
+          <button
+            type="button"
+            className="w-full rounded-xl border border-border/70 bg-[var(--surface-1)] px-3 py-2 text-xs transition hover:bg-[var(--surface-2)]"
+            onClick={() => setConfirmOpen(true)}
+          >
+            Clear provider data
+          </button>
+        </div>
       </div>
 
       <TrayManualInput

@@ -30,7 +30,7 @@
         "transparent": false,
         "visible": false,
         "alwaysOnTop": true,
-        "skipTaskbar": true,
+        "skipTaskbar": false,
         "center": false,
         "url": "/#/tray"
       }
