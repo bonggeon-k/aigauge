@@ -24,6 +24,7 @@ pnpm install
 ## 3) Validate Build/Test
 
 ```powershell
+pnpm doctor:providers
 pnpm lint
 pnpm build
 cd src-tauri
@@ -52,6 +53,7 @@ Expected:
   - `~/.codex/auth.json`
   - `~/.claude/.credentials.json`
   - `~/.gemini/oauth_creds.json`
+- `pnpm doctor:providers` now validates both Windows-local and WSL fallback paths.
 
 ## Kiro
 - Uses `wsl.exe -e bash -lc "kiro-cli chat --no-interactive /usage"` when WSL is available.

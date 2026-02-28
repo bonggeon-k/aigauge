@@ -69,8 +69,31 @@ const getResetCountdown = (resetAt: string): string => {
     return "-";
   }
 
-  const target = new Date(resetAt).getTime();
-  const diffMs = target - Date.now();
+  let targetMs: number | null = null;
+  if (/^\d{2}\/\d{2}$/.test(resetAt)) {
+    const [monthStr, dayStr] = resetAt.split("/");
+    const month = Number(monthStr);
+    const day = Number(dayStr);
+    if (!Number.isNaN(month) && !Number.isNaN(day)) {
+      const now = new Date();
+      const candidate = new Date(now.getFullYear(), month - 1, day, 23, 59, 59);
+      if (candidate.getTime() < now.getTime()) {
+        candidate.setFullYear(now.getFullYear() + 1);
+      }
+      targetMs = candidate.getTime();
+    }
+  } else {
+    const parsed = new Date(resetAt).getTime();
+    if (!Number.isNaN(parsed)) {
+      targetMs = parsed;
+    }
+  }
+
+  if (targetMs == null) {
+    return resetAt;
+  }
+
+  const diffMs = targetMs - Date.now();
   if (diffMs <= 0) {
     return "Reset soon";
   }

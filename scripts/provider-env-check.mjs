@@ -8,6 +8,7 @@ import { spawnSync } from "node:child_process";
 const strict = process.argv.slice(2).includes("--strict");
 const results = [];
 const home = os.homedir();
+const isWindows = process.platform === "win32";
 const nowMs = Date.now();
 const minValidMs = nowMs + 5 * 60 * 1000;
 
@@ -53,6 +54,25 @@ function stripAnsi(raw) {
   return withoutOsc.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
 }
 
+function shellSingleQuote(value) {
+  return String(value).replaceAll("'", "'\\''");
+}
+
+function hasWsl() {
+  if (!isWindows) return false;
+  return runCommand("wsl.exe", ["--status"], 8000).ok;
+}
+
+function readWslTextFile(unixPath) {
+  if (!hasWsl()) return null;
+  const escaped = shellSingleQuote(unixPath);
+  const command = `test -f '${escaped}' && cat '${escaped}'`;
+  const output = runCommand("wsl.exe", ["-e", "bash", "-lc", command], 10000);
+  if (!output.ok) return null;
+  const text = String(output.stdout || "");
+  return text.trim().length > 0 ? text : null;
+}
+
 async function fetchStatus(url, options = {}) {
   const { method = "GET", headers = {}, body = undefined, timeoutMs = 6000 } = options;
   const controller = new AbortController();
@@ -89,8 +109,26 @@ function checkBaseCommands() {
 }
 
 function checkProviderCommands() {
-  if (hasCommand("kiro-cli")) {
+  const hasLocalKiro = hasCommand("kiro-cli");
+  if (hasLocalKiro) {
     pushResult("pass", "provider", "kiro-cli", "command available");
+  } else if (hasWsl()) {
+    const wslCheck = runCommand(
+      "wsl.exe",
+      ["-e", "bash", "-lc", "command -v kiro-cli >/dev/null 2>&1"],
+      8000
+    );
+    if (wslCheck.ok) {
+      pushResult("pass", "provider", "kiro-cli", "available via WSL");
+    } else {
+      pushResult(
+        "warn",
+        "provider",
+        "kiro-cli",
+        "command not found (local/WSL)",
+        "Install/login Kiro CLI in Windows or WSL."
+      );
+    }
   } else {
     pushResult(
       "warn",
@@ -128,14 +166,25 @@ function checkProviderCommands() {
 
 function checkCodexCredential() {
   const filePath = path.join(home, ".codex", "auth.json");
-  const data = readJson(filePath);
+  let data = readJson(filePath);
+  if (!data.exists && isWindows) {
+    const wslRaw = readWslTextFile("~/.codex/auth.json");
+    if (wslRaw) {
+      try {
+        data = { exists: true, value: JSON.parse(wslRaw) };
+        pushResult("pass", "codex", "auth.json", "loaded from WSL ~/.codex/auth.json");
+      } catch (error) {
+        data = { exists: true, error: String(error.message || error) };
+      }
+    }
+  }
   if (!data.exists) {
     pushResult(
       "warn",
       "codex",
       "auth.json",
       `${filePath} not found`,
-      "Run `codex` CLI login first."
+      "Run `codex` CLI login first (Windows or WSL)."
     );
     return null;
   }
@@ -170,14 +219,30 @@ function checkCodexCredential() {
 
 function checkClaudeCredential() {
   const filePath = path.join(home, ".claude", ".credentials.json");
-  const data = readJson(filePath);
+  let data = readJson(filePath);
+  if (!data.exists && isWindows) {
+    const wslRaw = readWslTextFile("~/.claude/.credentials.json");
+    if (wslRaw) {
+      try {
+        data = { exists: true, value: JSON.parse(wslRaw) };
+        pushResult(
+          "pass",
+          "claude",
+          "credentials",
+          "loaded from WSL ~/.claude/.credentials.json"
+        );
+      } catch (error) {
+        data = { exists: true, error: String(error.message || error) };
+      }
+    }
+  }
   if (!data.exists) {
     pushResult(
       "warn",
       "claude",
       "credentials",
       `${filePath} not found`,
-      "Run `claude` CLI login first."
+      "Run `claude` CLI login first (Windows or WSL)."
     );
     return null;
   }
@@ -230,14 +295,30 @@ function checkClaudeCredential() {
 
 function checkGeminiCredential() {
   const filePath = path.join(home, ".gemini", "oauth_creds.json");
-  const data = readJson(filePath);
+  let data = readJson(filePath);
+  if (!data.exists && isWindows) {
+    const wslRaw = readWslTextFile("~/.gemini/oauth_creds.json");
+    if (wslRaw) {
+      try {
+        data = { exists: true, value: JSON.parse(wslRaw) };
+        pushResult(
+          "pass",
+          "gemini",
+          "oauth_creds",
+          "loaded from WSL ~/.gemini/oauth_creds.json"
+        );
+      } catch (error) {
+        data = { exists: true, error: String(error.message || error) };
+      }
+    }
+  }
   if (!data.exists) {
     pushResult(
       "warn",
       "gemini",
       "oauth_creds",
       `${filePath} not found`,
-      "Run Gemini CLI login first."
+      "Run Gemini CLI login first (Windows or WSL)."
     );
     return null;
   }
@@ -292,8 +373,24 @@ function checkGhAuth() {
 }
 
 function checkKiroUsageCli() {
-  if (!hasCommand("kiro-cli")) return;
-  const run = runCommand("kiro-cli", ["chat", "--no-interactive", "/usage"], 12000);
+  const hasLocal = hasCommand("kiro-cli");
+  const hasWslKiro = isWindows && hasWsl()
+    ? runCommand(
+        "wsl.exe",
+        ["-e", "bash", "-lc", "command -v kiro-cli >/dev/null 2>&1"],
+        8000
+      ).ok
+    : false;
+
+  if (!hasLocal && !hasWslKiro) return;
+
+  const run = hasLocal
+    ? runCommand("kiro-cli", ["chat", "--no-interactive", "/usage"], 12000)
+    : runCommand(
+        "wsl.exe",
+        ["-e", "bash", "-lc", "kiro-cli chat --no-interactive /usage"],
+        12000
+      );
   const combined = `${run.stdout}\n${run.stderr}`;
   const cleaned = stripAnsi(combined);
   if (!run.ok) {
@@ -302,7 +399,7 @@ function checkKiroUsageCli() {
       "kiro",
       "usage command",
       "kiro-cli command returned non-zero",
-      "Ensure kiro-cli is installed and logged in."
+      "Ensure kiro-cli is installed and logged in (Windows or WSL)."
     );
     return;
   }
@@ -452,4 +549,3 @@ main().catch((error) => {
   console.error("[FAIL] doctor:unexpected -", String(error.message || error));
   process.exit(1);
 });
-
