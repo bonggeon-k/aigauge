@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Plus, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -90,6 +90,7 @@ function DashboardApp() {
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const refreshTimerRef = useRef<number | null>(null);
 
   const [costSummary, setCostSummary] = useState<Awaited<ReturnType<typeof analyticsApi.getCostSummary>> | null>(null);
   const [costHistory, setCostHistory] = useState<Awaited<ReturnType<typeof analyticsApi.getCostHistory>>>([]);
@@ -142,14 +143,33 @@ function DashboardApp() {
   }, [providerApi, analyticsApi, checkForUpdate]);
 
   useTauriEvent<DashboardEntry>("usage-updated", () => {
+    if (refreshTimerRef.current != null) {
+      return;
+    }
+    refreshTimerRef.current = window.setTimeout(() => {
+      refreshTimerRef.current = null;
+      void loadDashboard();
+      void loadAnalytics();
+    }, 300);
+  });
+
+  useTauriEvent<boolean>("force-refresh", () => {
+    if (refreshTimerRef.current != null) {
+      window.clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
     void loadDashboard();
     void loadAnalytics();
   });
 
-  useTauriEvent<boolean>("force-refresh", () => {
-    void loadDashboard();
-    void loadAnalytics();
-  });
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current != null) {
+        window.clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useTauriEvent<DashboardEntry>("quota-warning", (payload) => {
     setAlert({ level: "warning", message: `${payload.info.name}: quota usage is above 80%` });

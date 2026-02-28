@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { detectPlatform, platformDataKey } from "@/lib/platform";
@@ -301,24 +301,37 @@ const fallbackDashboard: DashboardEntry[] = [
 ];
 
 export const useTauriEvent = <T>(eventName: string, handler: (payload: T) => void): void => {
+  const handlerRef = useRef(handler);
+
+  useEffect(() => {
+    handlerRef.current = handler;
+  }, [handler]);
+
   useEffect(() => {
     if (!isTauriRuntime) {
       return;
     }
 
+    let disposed = false;
     let unlisten: UnlistenFn | null = null;
+
     void listen<T>(eventName, (event) => {
-      handler(event.payload);
+      handlerRef.current(event.payload);
     }).then((fn) => {
+      if (disposed) {
+        void fn();
+        return;
+      }
       unlisten = fn;
     });
 
     return () => {
+      disposed = true;
       if (unlisten) {
         void unlisten();
       }
     };
-  }, [eventName, handler]);
+  }, [eventName]);
 };
 
 export const useProvider = () =>
