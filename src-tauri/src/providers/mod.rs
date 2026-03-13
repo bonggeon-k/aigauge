@@ -22,6 +22,30 @@ pub enum AuthMethod {
     None,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthSourceMode {
+    Auto,
+    ApiKey,
+    OAuthToken,
+    Token,
+    Cli,
+    None,
+}
+
+impl AuthSourceMode {
+    pub fn slot_key(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::ApiKey => "api_key",
+            Self::OAuthToken => "oauth_token",
+            Self::Token => "token",
+            Self::Cli => "cli",
+            Self::None => "none",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderStatus {
@@ -56,6 +80,8 @@ pub struct ProviderInfo {
     pub name: String,
     pub icon: String,
     pub auth_method: AuthMethod,
+    pub supported_auth_modes: Vec<AuthSourceMode>,
+    pub default_auth_mode: AuthSourceMode,
     pub plan_name: String,
     pub quota_limit: u64,
     pub reset_period: String,

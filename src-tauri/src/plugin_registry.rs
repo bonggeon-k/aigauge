@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use tauri::Manager;
 use tracing::instrument;
 
-use crate::commands::{ensure_trusted_window, AppState};
+use crate::commands::{ensure_main_window, AppState};
 use crate::providers::AuthMethod;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -145,7 +145,7 @@ pub fn register_plugin(
     app: tauri::AppHandle,
     window: tauri::Window,
 ) -> Result<PluginManifest, String> {
-    ensure_trusted_window(&window)?;
+    ensure_main_window(&window)?;
     if !is_valid_manifest(&manifest) {
         return Err("invalid plugin manifest".to_string());
     }

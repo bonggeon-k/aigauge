@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 
 export interface TraySettings {
   refreshIntervalMinutes: number;
-  notifications: boolean;
   enabledProviders: string[];
   pinned: boolean;
 }
@@ -11,7 +10,6 @@ const STORAGE_KEY = "aigauge.tray.settings";
 
 const defaultSettings: TraySettings = {
   refreshIntervalMinutes: 5,
-  notifications: true,
   enabledProviders: ["codex", "claude", "gemini", "kiro"],
   pinned: true,
 };

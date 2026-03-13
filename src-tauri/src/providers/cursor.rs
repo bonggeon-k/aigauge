@@ -1,4 +1,5 @@
 use crate::credentials::CredentialManager;
+use crate::platform;
 use once_cell::sync::Lazy;
 use reqwest::header::{ACCEPT, COOKIE};
 use reqwest::Client;
@@ -14,7 +15,8 @@ use tracing::instrument;
 
 use super::{
     not_configured_quota, not_configured_usage, unreachable_quota, unreachable_usage, AuthMethod,
-    CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit, Result, UsageData,
+    AuthSourceMode, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit, Result,
+    UsageData,
 };
 
 enum UsageFetchResult<T> {
@@ -463,7 +465,9 @@ impl CursorProvider {
     fn read_cookie_header_from_firefox() -> Option<String> {
         let query = "SELECT name || '=' || value FROM moz_cookies WHERE (host LIKE '%cursor.com%' OR host LIKE '%cursor.sh%') AND value != ''";
         for db in Self::firefox_cookie_dbs() {
-            let output = match Command::new("sqlite3").arg(db).arg(query).output() {
+            let mut process = Command::new("sqlite3");
+            platform::configure_hidden_process(&mut process);
+            let output = match process.arg(db).arg(query).output() {
                 Ok(output) => output,
                 Err(_) => continue,
             };
@@ -484,7 +488,9 @@ impl CursorProvider {
         // here as a best-effort fallback and keep encrypted-value decryption for phase 5.
         let query = "SELECT name || '=' || value FROM cookies WHERE (host_key LIKE '%cursor.com%' OR host_key LIKE '%cursor.sh%') AND value != ''";
         for db in Self::chromium_cookie_dbs() {
-            let output = match Command::new("sqlite3").arg(db).arg(query).output() {
+            let mut process = Command::new("sqlite3");
+            platform::configure_hidden_process(&mut process);
+            let output = match process.arg(db).arg(query).output() {
                 Ok(output) => output,
                 Err(_) => continue,
             };
@@ -730,6 +736,8 @@ impl Provider for CursorProvider {
             name: "Cursor".to_string(),
             icon: "mouse-pointer-click".to_string(),
             auth_method: AuthMethod::Token,
+            supported_auth_modes: vec![AuthSourceMode::Token],
+            default_auth_mode: AuthSourceMode::Token,
             plan_name: plan,
             quota_limit: 100,
             reset_period: "monthly".to_string(),

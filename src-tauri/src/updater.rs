@@ -1,7 +1,7 @@
 use serde::Serialize;
 use tracing::instrument;
 
-use crate::commands::ensure_trusted_window;
+use crate::commands::ensure_main_window;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UpdateInfo {
@@ -15,7 +15,7 @@ pub async fn check_for_update(
     app: tauri::AppHandle,
     window: tauri::Window,
 ) -> Result<Option<UpdateInfo>, String> {
-    ensure_trusted_window(&window)?;
+    ensure_main_window(&window)?;
     if cfg!(debug_assertions) {
         tracing::debug!("skip updater check in debug build");
         return Ok(None);
@@ -46,7 +46,7 @@ pub async fn check_for_update(
 #[tauri::command]
 #[instrument(skip(app))]
 pub async fn install_update(app: tauri::AppHandle, window: tauri::Window) -> Result<bool, String> {
-    ensure_trusted_window(&window)?;
+    ensure_main_window(&window)?;
     if cfg!(debug_assertions) {
         tracing::debug!("skip updater install in debug build");
         return Ok(false);

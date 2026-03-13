@@ -58,7 +58,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Verify IPC capability baseline
-        run: node -e "const fs=require('fs'); const path=require('path'); const dir='src-tauri/capabilities'; const files=fs.readdirSync(dir).filter((f)=>f.endsWith('.json')); if(files.length===0){throw new Error('no capability files')} let total=0; for(const file of files){const cap=JSON.parse(fs.readFileSync(path.join(dir,file),'utf8')); if(!Array.isArray(cap.permissions)){throw new Error(file+': no permissions array')} total+=cap.permissions.length;} console.log('Capabilities OK:', files.length, 'files,', total, 'permissions total')"
+        run: node ./scripts/check-capabilities.mjs
 
       - name: Rust clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings

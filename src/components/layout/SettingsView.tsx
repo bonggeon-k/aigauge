@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, RotateCcw } from "lucide-react";
+import { ChevronDown, Download, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useProvider, type AppConfig, type PluginManifest, type ShortcutInfo, type TelemetryStatus } from "@/hooks/useProvider";
 import { useExport } from "@/hooks/useExport";
 import { detectPlatform, formatShortcutAccelerator } from "@/lib/platform";
@@ -20,13 +27,24 @@ export const SettingsView = () => {
   const [telemetry, setTelemetry] = useState<TelemetryStatus | null>(null);
 
   useEffect(() => {
+    let disposed = false;
     void providerApi.getConfig().then((loaded) => {
+      if (disposed) return;
       setConfig(loaded);
       setBaselineConfig(loaded);
     });
-    void providerApi.getKeyboardShortcuts().then(setShortcuts);
-    void providerApi.getPlugins().then(setPlugins);
-    void providerApi.getTelemetryStatus().then(setTelemetry);
+    void providerApi.getKeyboardShortcuts().then((value) => {
+      if (!disposed) setShortcuts(value);
+    });
+    void providerApi.getPlugins().then((value) => {
+      if (!disposed) setPlugins(value);
+    });
+    void providerApi.getTelemetryStatus().then((value) => {
+      if (!disposed) setTelemetry(value);
+    });
+    return () => {
+      disposed = true;
+    };
   }, [providerApi]);
 
   if (!config) {
@@ -42,6 +60,25 @@ export const SettingsView = () => {
 
   const hasUnsavedChanges =
     baselineConfig != null && JSON.stringify(config) !== JSON.stringify(baselineConfig);
+  const themeLabel =
+    config.theme_preference === "light"
+      ? t("settings.options.light")
+      : config.theme_preference === "dark"
+        ? t("settings.options.dark")
+        : t("settings.options.system");
+  const languageLabel = config.language === "ko" ? "한국어" : "English";
+  const selectorTriggerClass =
+    "inline-flex h-10 w-full items-center justify-between rounded-xl border border-border/70 bg-[var(--surface-2)] px-3 text-left text-sm text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition-colors hover:border-border/90";
+  const switchTrackClass = (enabled: boolean): string =>
+    `relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
+      enabled
+        ? "border-transparent bg-primary"
+        : "border-border/70 bg-[var(--surface-2)]"
+    }`;
+  const switchThumbClass = (enabled: boolean): string =>
+    `inline-block h-[18px] w-[18px] rounded-full bg-white shadow transition-transform ${
+      enabled ? "translate-x-[22px]" : "translate-x-[3px]"
+    }`;
 
   return (
     <div className="space-y-4">
@@ -52,88 +89,138 @@ export const SettingsView = () => {
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="space-y-1 rounded-xl bg-[var(--surface-1)] p-3">
+            <div className="space-y-1 rounded-xl bg-[var(--surface-1)] p-3">
               <span className="block text-muted-foreground">{t("settings.theme")}</span>
-              <select
-                aria-label={t("settings.theme")}
-                className="w-full rounded-lg border border-border bg-background px-2 py-2"
-                value={config.theme_preference}
-                onChange={(event) => setConfig({ ...config, theme_preference: event.currentTarget.value })}
-              >
-                <option value="system">{t("settings.options.system")}</option>
-                <option value="light">{t("settings.options.light")}</option>
-                <option value="dark">{t("settings.options.dark")}</option>
-              </select>
-            </label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button type="button" aria-label={t("settings.theme")} className={selectorTriggerClass}>
+                    <span>{themeLabel}</span>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-40 border-border/70 bg-[var(--surface-1)] shadow-[var(--shadow-soft)]"
+                >
+                  <DropdownMenuRadioGroup
+                    value={config.theme_preference}
+                    onValueChange={(value) => setConfig({ ...config, theme_preference: value })}
+                  >
+                    <DropdownMenuRadioItem value="system">
+                      {t("settings.options.system")}
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="light">
+                      {t("settings.options.light")}
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="dark">
+                      {t("settings.options.dark")}
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
 
-            <label className="space-y-1 rounded-xl bg-[var(--surface-1)] p-3">
+            <div className="space-y-1 rounded-xl bg-[var(--surface-1)] p-3">
               <span className="block text-muted-foreground">{t("settings.language")}</span>
-              <select
-                aria-label={t("settings.language")}
-                className="w-full rounded-lg border border-border bg-background px-2 py-2"
-                value={config.language}
-                onChange={(event) => {
-                  const language = event.currentTarget.value;
-                  setConfig({ ...config, language });
-                  void i18n.changeLanguage(language);
-                }}
-              >
-                <option value="en">English</option>
-                <option value="ko">Korean</option>
-              </select>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button type="button" aria-label={t("settings.language")} className={selectorTriggerClass}>
+                    <span>{languageLabel}</span>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-40 border-border/70 bg-[var(--surface-1)] shadow-[var(--shadow-soft)]"
+                >
+                  <DropdownMenuRadioGroup
+                    value={config.language}
+                    onValueChange={async (value) => {
+                      const language = value === "ko" ? "ko" : "en";
+                      const next = { ...config, language };
+                      setConfig(next);
+                      void i18n.changeLanguage(language);
+                      try {
+                        const updated = await providerApi.updateConfig(next);
+                        setConfig(updated);
+                        setBaselineConfig(updated);
+                        setSavedAt(new Date().toLocaleTimeString());
+                      } catch {
+                        // Keep local language change even if persistence fails.
+                      }
+                    }}
+                  >
+                    <DropdownMenuRadioItem value="en">English</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="ko">한국어</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <label className="space-y-1 rounded-xl bg-[var(--surface-1)] p-3 md:col-span-2">
+              <span className="block text-muted-foreground">{t("settings.monthlyBudget")}</span>
+              <div className="inline-flex w-full items-center gap-2 rounded-lg border border-border/70 bg-[var(--surface-2)] px-3">
+                <span className="text-muted-foreground">$</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={Math.max(0, Math.round(config.monthly_budget_usd ?? 100))}
+                  onChange={(event) =>
+                    setConfig({
+                      ...config,
+                      monthly_budget_usd: Math.max(0, Number(event.currentTarget.value || 0)),
+                    })
+                  }
+                  className="h-10 w-full bg-transparent outline-none"
+                  aria-label={t("settings.monthlyBudget")}
+                />
+              </div>
             </label>
           </div>
 
-          <label className="space-y-1 rounded-xl bg-[var(--surface-1)] p-3">
-            <span className="block text-muted-foreground">{t("settings.monthlyBudget")}</span>
-            <div className="inline-flex w-full items-center gap-2 rounded-lg border border-border bg-background px-3">
-              <span className="text-muted-foreground">$</span>
-              <input
-                type="number"
-                min={0}
-                step={1}
-                value={Math.max(0, Math.round(config.monthly_budget_usd ?? 100))}
-                onChange={(event) =>
-                  setConfig({
-                    ...config,
-                    monthly_budget_usd: Math.max(0, Number(event.currentTarget.value || 0)),
-                  })
-                }
-                className="h-10 w-full bg-transparent outline-none"
-                aria-label={t("settings.monthlyBudget")}
-              />
-            </div>
-          </label>
-
-          <label className="flex items-center gap-2 rounded-xl bg-[var(--surface-1)] p-3">
-            <input
-              aria-label={t("settings.notificationsWarning")}
-              type="checkbox"
-              checked={config.notifications.quota_warning}
-              onChange={(event) =>
-                setConfig({
-                  ...config,
-                  notifications: { ...config.notifications, quota_warning: event.currentTarget.checked },
-                })
-              }
-            />
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--surface-1)] p-3">
             <span>{t("settings.notificationsWarning")}</span>
-          </label>
-
-          <label className="flex items-center gap-2 rounded-xl bg-[var(--surface-1)] p-3">
-            <input
-              aria-label={t("settings.notificationsCritical")}
-              type="checkbox"
-              checked={config.notifications.quota_critical}
-              onChange={(event) =>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={config.notifications.quota_warning}
+              aria-label={t("settings.notificationsWarning")}
+              className={switchTrackClass(config.notifications.quota_warning)}
+              onClick={() =>
                 setConfig({
                   ...config,
-                  notifications: { ...config.notifications, quota_critical: event.currentTarget.checked },
+                  notifications: {
+                    ...config.notifications,
+                    quota_warning: !config.notifications.quota_warning,
+                  },
                 })
               }
-            />
+            >
+              <span className={switchThumbClass(config.notifications.quota_warning)} />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--surface-1)] p-3">
             <span>{t("settings.notificationsCritical")}</span>
-          </label>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={config.notifications.quota_critical}
+              aria-label={t("settings.notificationsCritical")}
+              className={switchTrackClass(config.notifications.quota_critical)}
+              onClick={() =>
+                setConfig({
+                  ...config,
+                  notifications: {
+                    ...config.notifications,
+                    quota_critical: !config.notifications.quota_critical,
+                  },
+                })
+              }
+            >
+              <span className={switchThumbClass(config.notifications.quota_critical)} />
+            </button>
+          </div>
 
           {hasUnsavedChanges ? (
             <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
@@ -176,7 +263,7 @@ export const SettingsView = () => {
           <label className="flex items-center gap-2 rounded-xl bg-[var(--surface-1)] p-3">
             <input
               type="checkbox"
-              aria-label="Enable telemetry"
+              aria-label={t("settings.telemetryEnable")}
               checked={telemetry?.enabled ?? false}
               onChange={async (event) => {
                 const next = await providerApi.setTelemetryEnabled(event.currentTarget.checked);
@@ -212,7 +299,7 @@ export const SettingsView = () => {
         <CardContent className="space-y-2 text-sm">
           <p>{t("settings.versionLabel")}: 1.0.0</p>
           <p>{t("settings.licenseLabel")}: MIT</p>
-          <a href="https://github.com/everygoodnews-ship-it/aigauge" target="_blank" rel="noreferrer" className="text-primary underline">
+          <a href="https://github.com/bonggeon-k/aigauge" target="_blank" rel="noreferrer" className="text-primary underline">
             {t("settings.githubRepo")}
           </a>
           <div className="flex flex-wrap gap-2 pt-2">
@@ -234,7 +321,7 @@ export const SettingsView = () => {
               onClick={async () => {
                 await exporter.exportToFile(
                   { format: "json", include_cost: true },
-                  "/tmp/aigauge-export-all.json",
+                  "",
                 );
               }}
             >

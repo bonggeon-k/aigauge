@@ -27,13 +27,18 @@ export const TrayConfirmDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : null)}>
-      <DialogContent className="border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-hard)]" data-no-drag>
+      <DialogContent
+        className="w-[calc(100vw-1rem)] max-w-[360px] border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-hard)]"
+        data-no-drag
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">{description}</p>
         <DialogFooter>
-          <Button variant="outline" className="rounded-full" onClick={onClose}>{t("tray.confirm.cancel")}</Button>
+          <Button variant="outline" className="rounded-full" onClick={onClose}>
+            {t("tray.confirm.cancel")}
+          </Button>
           <Button
             className="rounded-full"
             onClick={() => {

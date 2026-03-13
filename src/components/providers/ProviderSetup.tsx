@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -8,13 +9,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import type { AuthMethod, CopilotDeviceFlowStart } from "@/hooks/useProvider";
+import type {
+  AuthMethod,
+  AuthSourceMode,
+  CopilotDeviceFlowStart,
+  ProviderInfo,
+} from "@/hooks/useProvider";
 import { useProvider } from "@/hooks/useProvider";
 
 interface ProviderSetupProps {
   open: boolean;
   providerId: string | null;
   authMethod: AuthMethod;
+  providerInfo?: ProviderInfo | null;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -23,9 +30,11 @@ export const ProviderSetup = ({
   open,
   providerId,
   authMethod,
+  providerInfo: providerInfoProp,
   onClose,
   onSaved,
 }: ProviderSetupProps) => {
+  const { t } = useTranslation();
   const providerApi = useProvider();
   const [credential, setCredential] = useState("");
   const [jetbrainsPath, setJetbrainsPath] = useState("");
@@ -35,29 +44,36 @@ export const ProviderSetup = ({
   const [copilotFlowStatus, setCopilotFlowStatus] = useState<string>("");
   const [copilotPollIntervalSec, setCopilotPollIntervalSec] = useState(5);
   const [copilotBusy, setCopilotBusy] = useState(false);
+  const [providerInfo, setProviderInfo] = useState<ProviderInfo | null>(providerInfoProp ?? null);
+  const [selectedMode, setSelectedMode] = useState<AuthSourceMode>("auto");
+  const previousProviderIdRef = useRef<string | null>(providerId);
 
   const setupGuidance = useMemo(() => {
     switch (providerId) {
       case "codex":
-        return "Run Codex CLI login first (auth.json), then test connection.";
+        return t("provider.setup.guide.codex");
       case "claude":
-        return "Install and log in to Claude CLI, then test connection.";
+        return t("provider.setup.guide.claude");
       case "gemini":
-        return "Install Gemini CLI and authenticate OAuth credentials.";
+        return t("provider.setup.guide.gemini");
       case "kiro":
-        return "Install Kiro CLI in your host/WSL environment.";
+        return t("provider.setup.guide.kiro");
       case "copilot":
-        return "Use GitHub auth token (or gh hosts.yml token) for Copilot usage API.";
+        return t("provider.setup.guide.copilot");
       case "cursor":
-        return "Paste a full Cookie header from cursor.com, or reuse CodexBar session cache.";
+        return t("provider.setup.guide.cursor");
       case "jetbrains":
-        return "No token required. AIGauge reads JetBrains local quota files automatically.";
+        return t("provider.setup.guide.jetbrains");
       default:
-        return "Configure provider credential and test connection.";
+        return t("provider.setup.guide.default");
     }
-  }, [providerId]);
+  }, [providerId, t]);
 
-  const isCredentialOptional = providerId === "jetbrains" || authMethod === "none";
+  const requiresCredentialInput = useMemo(
+    () => ["api_key", "oauth_token", "token"].includes(selectedMode),
+    [selectedMode],
+  );
+  const allowEmptyCredential = !requiresCredentialInput;
   const isCopilotProvider = providerId === "copilot";
   const isJetBrainsProvider = providerId === "jetbrains";
   const safeCopilotVerificationUrl = useMemo(() => {
@@ -79,37 +95,102 @@ export const ProviderSetup = ({
     }
   }, [copilotFlow]);
 
+  const resetFormState = useCallback(() => {
+    setCredential("");
+    setJetbrainsPath("");
+    setHealth("");
+    setCopilotFlow(null);
+    setCopilotFlowStatus("");
+    setCopilotPollIntervalSec(5);
+    setProviderInfo(providerInfoProp ?? null);
+    setSelectedMode("auto");
+  }, [providerInfoProp]);
+
   useEffect(() => {
-    if (!open) {
-      setCredential("");
-      setJetbrainsPath("");
-      setHealth("");
-      setCopilotFlow(null);
-      setCopilotFlowStatus("");
-      setCopilotPollIntervalSec(5);
+    const providerChanged = previousProviderIdRef.current !== providerId;
+    previousProviderIdRef.current = providerId;
+
+    if (!open || providerChanged) {
+      resetFormState();
     }
-  }, [open, providerId]);
+  }, [open, providerId, resetFormState]);
+
+  useEffect(() => {
+    if (!open || !providerId) return;
+    let disposed = false;
+
+    void Promise.all([
+      providerInfoProp
+        ? Promise.resolve(providerInfoProp)
+        : providerApi.getProviderInfo(providerId),
+      providerApi.getProviderAuthModes(),
+    ]).then(([info, modeMap]) => {
+      if (disposed) return;
+      setProviderInfo(info);
+      setSelectedMode(modeMap[providerId] ?? info.default_auth_mode);
+    });
+
+    return () => {
+      disposed = true;
+    };
+  }, [open, providerApi, providerId, providerInfoProp]);
 
   const label = useMemo(() => {
-    if (providerId === "cursor") return "Cookie Header";
-    if (providerId === "jetbrains") return "JetBrains IDE Base Path (Optional)";
-    if (authMethod === "none") return "No credential required";
-    if (authMethod === "oauth") return "OAuth Token";
-    if (authMethod === "token") return "Access Token";
-    return "API Key";
-  }, [authMethod, providerId]);
+    if (selectedMode === "none" || selectedMode === "auto" || selectedMode === "cli") {
+      return t("provider.setup.label.none");
+    }
+    if (selectedMode === "oauth_token") return t("provider.setup.label.oauthToken");
+    if (selectedMode === "token") return t("provider.setup.label.accessToken");
+    if (selectedMode === "api_key") return t("provider.setup.label.apiKey");
+    if (providerId === "cursor") return t("provider.setup.label.cookieHeader");
+    if (providerId === "jetbrains") return t("provider.setup.label.jetbrainsPath");
+    if (authMethod === "none") return t("provider.setup.label.none");
+    if (authMethod === "oauth") return t("provider.setup.label.oauthToken");
+    if (authMethod === "token") return t("provider.setup.label.accessToken");
+    return t("provider.setup.label.apiKey");
+  }, [authMethod, providerId, selectedMode, t]);
+
+  const supportedAuthModes = useMemo<AuthSourceMode[]>(() => {
+    if (providerInfo?.supported_auth_modes?.length) {
+      return providerInfo.supported_auth_modes;
+    }
+    return ["auto"];
+  }, [providerInfo]);
+
+  const modeLabel = useCallback(
+    (mode: AuthSourceMode): string => {
+      switch (mode) {
+        case "auto":
+          return t("provider.setup.mode.auto");
+        case "api_key":
+          return t("provider.setup.mode.api_key");
+        case "oauth_token":
+          return t("provider.setup.mode.oauth_token");
+        case "token":
+          return t("provider.setup.mode.token");
+        case "cli":
+          return t("provider.setup.mode.cli");
+        case "none":
+          return t("provider.setup.mode.none");
+        default:
+          return mode;
+      }
+    },
+    [t],
+  );
 
   const runHealthCheck = useCallback(async () => {
     if (!providerId) return;
+    await providerApi.setProviderAuthMode(providerId, selectedMode);
     const status = await providerApi.checkHealth(providerId);
     setHealth(
       status.configured && status.reachable
-        ? "Connected"
+        ? t("provider.setup.health.connected")
         : status.configured
-          ? "Configured but unreachable"
-          : "Not configured",
+          ? t("provider.setup.health.configuredUnreachable")
+          : t("provider.setup.health.notConfigured"),
     );
-  }, [providerApi, providerId]);
+  }, [providerApi, providerId, selectedMode, t]);
 
   const pollCopilotLogin = useCallback(async () => {
     if (!copilotFlow) return;
@@ -122,7 +203,7 @@ export const ProviderSetup = ({
       }
 
       if (result.status === "authorized") {
-        setHealth("Connected");
+        setHealth(t("provider.setup.health.connected"));
         await runHealthCheck();
         onSaved();
       } else if (result.message) {
@@ -131,7 +212,7 @@ export const ProviderSetup = ({
     } finally {
       setCopilotBusy(false);
     }
-  }, [copilotFlow, onSaved, providerApi, runHealthCheck]);
+  }, [copilotFlow, onSaved, providerApi, runHealthCheck, t]);
 
   useEffect(() => {
     if (!isCopilotProvider || !copilotFlow) return;
@@ -156,21 +237,23 @@ export const ProviderSetup = ({
       setCopilotFlow(flow);
       setCopilotFlowStatus("authorization_pending");
       setCopilotPollIntervalSec(flow.interval || 5);
-      setHealth("Open verification URL and complete GitHub login.");
+      setHealth(t("provider.setup.health.openVerification"));
     } finally {
       setCopilotBusy(false);
     }
-  }, [providerApi]);
+  }, [providerApi, t]);
 
   const save = async () => {
     if (!providerId) return;
+    await providerApi.setProviderAuthMode(providerId, selectedMode);
+
     if (isJetBrainsProvider) {
       setLoading(true);
       try {
-        if (jetbrainsPath.trim()) {
-          await providerApi.saveCredential(providerId, jetbrainsPath.trim());
+        if (requiresCredentialInput && jetbrainsPath.trim()) {
+          await providerApi.saveCredential(providerId, jetbrainsPath.trim(), selectedMode);
         } else {
-          await providerApi.deleteCredential(providerId);
+          await providerApi.deleteCredential(providerId, selectedMode);
         }
         await runHealthCheck();
         onSaved();
@@ -180,7 +263,14 @@ export const ProviderSetup = ({
       return;
     }
 
-    if (isCredentialOptional) {
+    if (allowEmptyCredential) {
+      await providerApi.deleteCredential(providerId, selectedMode);
+      await runHealthCheck();
+      onSaved();
+      return;
+    }
+
+    if (isCopilotProvider && selectedMode === "oauth_token" && !credential.trim()) {
       await runHealthCheck();
       onSaved();
       return;
@@ -188,7 +278,7 @@ export const ProviderSetup = ({
 
     setLoading(true);
     try {
-      await providerApi.saveCredential(providerId, credential);
+      await providerApi.saveCredential(providerId, credential, selectedMode);
       await runHealthCheck();
       setCredential("");
       onSaved();
@@ -199,21 +289,43 @@ export const ProviderSetup = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-hard)]">
         <DialogHeader>
-          <DialogTitle>Setup Provider</DialogTitle>
+          <DialogTitle>{t("provider.setup.title")}</DialogTitle>
           <DialogDescription>
-            Configure {providerId || "provider"} credential.
+            {t("provider.setup.description", {
+              provider: providerId || t("provider.common.provider"),
+            })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2">
+          <label className="text-sm font-medium" htmlFor="provider-auth-mode">
+            {t("provider.setup.mode.label")}
+          </label>
+          <select
+            id="provider-auth-mode"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+            value={selectedMode}
+            onChange={(event) => setSelectedMode(event.currentTarget.value as AuthSourceMode)}
+          >
+            {supportedAuthModes.map((mode) => (
+              <option key={mode} value={mode}>
+                {modeLabel(mode)}
+              </option>
+            ))}
+          </select>
+
           <label className="text-sm font-medium" htmlFor="provider-credential">
             {label}
           </label>
-          {isCredentialOptional && !isJetBrainsProvider ? (
+          {allowEmptyCredential && !isJetBrainsProvider ? (
             <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-              Local data source will be used automatically.
+              {selectedMode === "auto"
+                ? t("provider.setup.localSource")
+                : selectedMode === "cli"
+                  ? t("provider.setup.cliSource")
+                  : t("provider.setup.noneSource")}
             </div>
           ) : (
             <input
@@ -226,14 +338,14 @@ export const ProviderSetup = ({
                   ? setJetbrainsPath(event.currentTarget.value)
                   : setCredential(event.currentTarget.value)
               }
-              placeholder={`Enter ${label}`}
+              placeholder={t("provider.setup.placeholder", { label })}
             />
           )}
 
-          {isCopilotProvider ? (
+          {isCopilotProvider && selectedMode === "oauth_token" ? (
             <div className="space-y-2 rounded-md border border-border bg-muted/20 p-3 text-xs">
               <p className="text-muted-foreground">
-                Recommended: sign in with GitHub Device Flow.
+                {t("provider.setup.copilot.recommended")}
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -242,7 +354,7 @@ export const ProviderSetup = ({
                   onClick={startCopilotLogin}
                   disabled={copilotBusy || loading}
                 >
-                  Sign in with GitHub
+                  {t("provider.setup.copilot.signIn")}
                 </Button>
                 <Button
                   size="sm"
@@ -250,13 +362,13 @@ export const ProviderSetup = ({
                   onClick={pollCopilotLogin}
                   disabled={!copilotFlow || copilotBusy || loading}
                 >
-                  Check Login Status
+                  {t("provider.setup.copilot.checkStatus")}
                 </Button>
               </div>
               {copilotFlow ? (
                 <div className="space-y-1">
                   <p>
-                    Code: <strong>{copilotFlow.user_code}</strong>
+                    {t("provider.setup.copilot.code")}: <strong>{copilotFlow.user_code}</strong>
                   </p>
                   <a
                     className="underline"
@@ -269,10 +381,13 @@ export const ProviderSetup = ({
                       }
                     }}
                   >
-                    {safeCopilotVerificationUrl ?? "Invalid verification URL"}
+                    {safeCopilotVerificationUrl ??
+                      t("provider.setup.copilot.invalidVerificationUrl")}
                   </a>
                   {copilotFlowStatus ? (
-                    <p className="text-muted-foreground">Login status: {copilotFlowStatus}</p>
+                    <p className="text-muted-foreground">
+                      {t("provider.setup.copilot.loginStatus", { status: copilotFlowStatus })}
+                    </p>
                   ) : null}
                 </div>
               ) : null}
@@ -280,20 +395,29 @@ export const ProviderSetup = ({
           ) : null}
 
           <p className="text-xs text-muted-foreground">{setupGuidance}</p>
-          {health ? <p className="text-xs text-muted-foreground">Status: {health}</p> : null}
+          {health ? (
+            <p className="text-xs text-muted-foreground">
+              {t("provider.setup.status")}: {health}
+            </p>
+          ) : null}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={runHealthCheck}>
-            Test Connection
+            {t("provider.setup.testConnection")}
           </Button>
           <Button
             disabled={
-              loading || (copilotBusy && !isCredentialOptional) || (!isCredentialOptional && !isJetBrainsProvider && !credential)
+              loading ||
+              (copilotBusy && !allowEmptyCredential) ||
+              (!allowEmptyCredential &&
+                !isJetBrainsProvider &&
+                !credential &&
+                !(isCopilotProvider && selectedMode === "oauth_token"))
             }
             onClick={save}
           >
-            Save
+            {t("provider.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

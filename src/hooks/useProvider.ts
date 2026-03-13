@@ -4,6 +4,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { detectPlatform, platformDataKey } from "@/lib/platform";
 
 export type AuthMethod = "api_key" | "oauth" | "token" | "none";
+export type AuthSourceMode = "auto" | "api_key" | "oauth_token" | "token" | "cli" | "none";
 export type ProviderStatus = "ok" | "not_configured" | "unreachable";
 
 export interface ProviderDescriptor {
@@ -17,6 +18,8 @@ export interface ProviderInfo {
   name: string;
   icon: string;
   auth_method: AuthMethod;
+  supported_auth_modes: AuthSourceMode[];
+  default_auth_mode: AuthSourceMode;
   plan_name: string;
   quota_limit: number;
   reset_period: string;
@@ -92,6 +95,7 @@ export interface DashboardEntry {
 export interface AppConfig {
   polling_intervals: Record<string, number>;
   enabled_providers: string[];
+  provider_auth_modes: Record<string, AuthSourceMode>;
   theme_preference: string;
   language: string;
   onboarding_complete: boolean;
@@ -222,6 +226,8 @@ const fallbackDashboard: DashboardEntry[] = [
       name: "OpenAI Codex",
       icon: "bot",
       auth_method: "api_key",
+      supported_auth_modes: ["auto", "api_key", "oauth_token"],
+      default_auth_mode: "auto",
       plan_name: "Usage-based",
       quota_limit: 1_000_000,
       reset_period: "monthly",
@@ -289,6 +295,8 @@ const fallbackDashboard: DashboardEntry[] = [
       name: "JetBrains AI Assistant",
       icon: "brain-circuit",
       auth_method: "none",
+      supported_auth_modes: ["auto", "token"],
+      default_auth_mode: "auto",
       plan_name: "AI Pro",
       quota_limit: 150000,
       reset_period: "monthly",
@@ -449,10 +457,33 @@ export const useProvider = () =>
         return invoke<HealthStatus>("check_provider_health", { provider });
       },
 
-      async saveCredential(provider: string, credential: string): Promise<void> {
+      async getProviderAuthModes(): Promise<Record<string, AuthSourceMode>> {
+        if (!isTauriRuntime) {
+          return {
+            codex: "auto",
+            claude: "auto",
+            gemini: "api_key",
+            kiro: "cli",
+            copilot: "oauth_token",
+            cursor: "token",
+            jetbrains: "auto",
+          };
+        }
+        return invoke<Record<string, AuthSourceMode>>("get_provider_auth_modes");
+      },
+
+      async setProviderAuthMode(provider: string, mode: AuthSourceMode): Promise<AuthSourceMode> {
+        assertProviderId(provider);
+        if (!isTauriRuntime) {
+          return mode;
+        }
+        return invoke<AuthSourceMode>("set_provider_auth_mode", { provider, mode });
+      },
+
+      async saveCredential(provider: string, credential: string, mode?: AuthSourceMode): Promise<void> {
         assertProviderId(provider);
         if (isTauriRuntime) {
-          await invoke("save_credential", { provider, credential });
+          await invoke("save_credential", { provider, credential, mode });
         }
       },
 
@@ -477,10 +508,10 @@ export const useProvider = () =>
         return invoke<CopilotDeviceFlowPoll>("poll_copilot_device_flow", { deviceCode });
       },
 
-      async deleteCredential(provider: string): Promise<void> {
+      async deleteCredential(provider: string, mode?: AuthSourceMode): Promise<void> {
         assertProviderId(provider);
         if (isTauriRuntime) {
-          await invoke("delete_credential", { provider });
+          await invoke("delete_credential", { provider, mode });
         }
       },
 
@@ -569,6 +600,15 @@ export const useProvider = () =>
               jetbrains: 300,
             },
             enabled_providers: ["codex", "claude", "gemini", "kiro", "copilot", "cursor", "jetbrains"],
+            provider_auth_modes: {
+              codex: "auto",
+              claude: "auto",
+              gemini: "api_key",
+              kiro: "cli",
+              copilot: "oauth_token",
+              cursor: "token",
+              jetbrains: "auto",
+            },
             theme_preference: "system",
             language: "en",
             onboarding_complete: false,

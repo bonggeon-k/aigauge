@@ -136,6 +136,17 @@ async fn collect_rows(
     Ok(rows)
 }
 
+fn csv_escape(value: &str) -> String {
+    if !value
+        .chars()
+        .any(|ch| matches!(ch, ',' | '"' | '\n' | '\r'))
+    {
+        return value.to_string();
+    }
+
+    format!("\"{}\"", value.replace('"', "\"\""))
+}
+
 fn rows_to_csv(rows: &[ExportRow], include_cost: bool) -> String {
     let mut out = String::from(
         "provider,track_id,track_kind,track_label,track_used,track_limit,track_unit,track_reset_at,requests,tokens,period_start,period_end,stale",
@@ -146,43 +157,28 @@ fn rows_to_csv(rows: &[ExportRow], include_cost: bool) -> String {
     out.push('\n');
 
     for row in rows {
-        let line = if include_cost {
-            format!(
-                "{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
-                row.provider,
-                row.track_id.clone().unwrap_or_default(),
-                row.track_kind.clone().unwrap_or_default(),
-                row.track_label.clone().unwrap_or_default(),
-                row.track_used.unwrap_or(0),
-                row.track_limit.unwrap_or(0),
-                row.track_unit.clone().unwrap_or_default(),
-                row.track_reset_at.clone().unwrap_or_default(),
-                row.requests,
-                row.tokens,
-                row.period_start,
-                row.period_end,
-                row.stale,
-                row.cost.unwrap_or(0.0)
-            )
-        } else {
-            format!(
-                "{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
-                row.provider,
-                row.track_id.clone().unwrap_or_default(),
-                row.track_kind.clone().unwrap_or_default(),
-                row.track_label.clone().unwrap_or_default(),
-                row.track_used.unwrap_or(0),
-                row.track_limit.unwrap_or(0),
-                row.track_unit.clone().unwrap_or_default(),
-                row.track_reset_at.clone().unwrap_or_default(),
-                row.requests,
-                row.tokens,
-                row.period_start,
-                row.period_end,
-                row.stale
-            )
-        };
-        out.push_str(&line);
+        let mut fields = vec![
+            csv_escape(row.provider.as_str()),
+            csv_escape(row.track_id.as_deref().unwrap_or_default()),
+            csv_escape(row.track_kind.as_deref().unwrap_or_default()),
+            csv_escape(row.track_label.as_deref().unwrap_or_default()),
+            row.track_used.unwrap_or(0).to_string(),
+            row.track_limit.unwrap_or(0).to_string(),
+            csv_escape(row.track_unit.as_deref().unwrap_or_default()),
+            csv_escape(row.track_reset_at.as_deref().unwrap_or_default()),
+            row.requests.to_string(),
+            row.tokens.to_string(),
+            csv_escape(row.period_start.as_str()),
+            csv_escape(row.period_end.as_str()),
+            row.stale.to_string(),
+        ];
+
+        if include_cost {
+            fields.push(row.cost.unwrap_or(0.0).to_string());
+        }
+
+        out.push_str(fields.join(",").as_str());
+        out.push('\n');
     }
 
     out
@@ -197,16 +193,14 @@ async fn render_export_content(
     let rows = collect_rows(state, app, request).await?;
     match request.format {
         ExportFormat::Csv => Ok(rows_to_csv(&rows, request.include_cost)),
-        ExportFormat::Json => {
-            serde_json::to_string_pretty(&serde_json::json!({
-                "schema_version": 2,
-                "generated_at": Utc::now().to_rfc3339(),
-                "format": request.format,
-                "rows": rows,
-                "date_range": request.date_range,
-            }))
-            .map_err(|error| format!("failed to serialize export json: {error}"))
-        }
+        ExportFormat::Json => serde_json::to_string_pretty(&serde_json::json!({
+            "schema_version": 2,
+            "generated_at": Utc::now().to_rfc3339(),
+            "format": request.format,
+            "rows": rows,
+            "date_range": request.date_range,
+        }))
+        .map_err(|error| format!("failed to serialize export json: {error}")),
     }
 }
 
@@ -225,8 +219,7 @@ fn default_export_path(app: &tauri::AppHandle, format: &ExportFormat) -> Result<
 }
 
 fn export_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    app
-        .path()
+    app.path()
         .app_data_dir()
         .map_err(|error| format!("failed to resolve app data dir: {error}"))?
         .join("exports")
@@ -321,6 +314,15 @@ pub async fn export_to_file(
     Ok(target.display().to_string())
 }
 
+#[tauri::command]
+#[instrument(skip(app))]
+pub fn open_exports_folder(app: tauri::AppHandle, window: tauri::Window) -> Result<String, String> {
+    ensure_trusted_window(&window)?;
+    let root = export_root(&app)?;
+    open::that(root.as_path()).map_err(|error| format!("failed to open export folder: {error}"))?;
+    Ok(root.display().to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -346,5 +348,29 @@ mod tests {
         let csv = rows_to_csv(&rows, true);
         assert!(csv.contains("provider,track_id,track_kind"));
         assert!(csv.contains("codex,subscription:weekly,subscription,Weekly,1,100"));
+    }
+
+    #[test]
+    fn csv_escapes_special_characters() {
+        let rows = vec![ExportRow {
+            provider: "co,dex".to_string(),
+            track_id: Some("subscription:weekly".to_string()),
+            track_kind: Some("subscription".to_string()),
+            track_label: Some("weekly \"alpha\"\nline".to_string()),
+            track_used: Some(1),
+            track_limit: Some(100),
+            track_unit: Some("percent".to_string()),
+            track_reset_at: Some("2026-02-28".to_string()),
+            requests: 1,
+            tokens: 2,
+            period_start: "2026-02-01".to_string(),
+            period_end: "2026-02-28".to_string(),
+            stale: false,
+            cost: None,
+        }];
+
+        let csv = rows_to_csv(&rows, false);
+        assert!(csv.contains("\"co,dex\""));
+        assert!(csv.contains("\"weekly \"\"alpha\"\"\nline\""));
     }
 }

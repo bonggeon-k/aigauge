@@ -1,4 +1,5 @@
 use crate::credentials::CredentialManager;
+use crate::platform;
 use once_cell::sync::Lazy;
 use reqwest::header::{ACCEPT, AUTHORIZATION};
 use reqwest::Client;
@@ -11,7 +12,8 @@ use tracing::instrument;
 
 use super::{
     home_dir, not_configured_quota, not_configured_usage, unreachable_quota, unreachable_usage,
-    AuthMethod, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit, Result, UsageData,
+    AuthMethod, AuthSourceMode, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit,
+    Result, UsageData,
 };
 
 enum UsageFetchResult {
@@ -298,7 +300,9 @@ impl CopilotProvider {
         ];
 
         for args in commands {
-            let Ok(output) = Command::new("gh").args(args).output() else {
+            let mut process = Command::new("gh");
+            platform::configure_hidden_process(&mut process);
+            let Ok(output) = process.args(args).output() else {
                 continue;
             };
             if !output.status.success() {
@@ -466,6 +470,8 @@ impl Provider for CopilotProvider {
             name: "GitHub Copilot".to_string(),
             icon: "github".to_string(),
             auth_method: AuthMethod::OAuth,
+            supported_auth_modes: vec![AuthSourceMode::OAuthToken, AuthSourceMode::Token],
+            default_auth_mode: AuthSourceMode::OAuthToken,
             plan_name: plan,
             quota_limit: 100,
             reset_period: "monthly".to_string(),

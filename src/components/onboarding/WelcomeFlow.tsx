@@ -2,11 +2,11 @@ import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import type { AuthMethod } from "@/hooks/useProvider";
+import type { AuthMethod, ProviderDescriptor } from "@/hooks/useProvider";
 import { ProviderSetup } from "@/components/providers/ProviderSetup";
 
 interface WelcomeFlowProps {
-  providerIds: string[];
+  providers: ProviderDescriptor[];
   onComplete: (selectedProviders: string[]) => void;
   onSkip: () => void;
 }
@@ -17,14 +17,17 @@ const stepVariants = {
   exit: { opacity: 0, x: -24 },
 };
 
-export const WelcomeFlow = ({ providerIds, onComplete, onSkip }: WelcomeFlowProps) => {
+export const WelcomeFlow = ({ providers, onComplete, onSkip }: WelcomeFlowProps) => {
   const { t } = useTranslation();
   const [step, setStep] = useState(0);
-  const [selected, setSelected] = useState<string[]>(providerIds.slice(0, 2));
+  const [selected, setSelected] = useState<string[]>(providers.slice(0, 2).map((provider) => provider.id));
   const [setupIndex, setSetupIndex] = useState(0);
 
   const currentProvider = selected[setupIndex] ?? null;
-  const currentAuth = useMemo<AuthMethod>(() => "api_key", []);
+  const currentAuth = useMemo<AuthMethod>(() => {
+    if (!currentProvider) return "api_key";
+    return providers.find((provider) => provider.id === currentProvider)?.auth_method ?? "api_key";
+  }, [currentProvider, providers]);
 
   return (
     <div className="mx-auto max-w-2xl rounded-2xl border border-border bg-card/80 p-6 shadow-lg">
@@ -52,22 +55,22 @@ export const WelcomeFlow = ({ providerIds, onComplete, onSkip }: WelcomeFlowProp
               <h2 className="text-xl font-semibold">{t("onboarding.chooseTitle")}</h2>
               <p className="text-sm text-muted-foreground">{t("onboarding.chooseDesc")}</p>
               <div className="grid gap-2 sm:grid-cols-2">
-                {providerIds.map((provider) => {
-                  const checked = selected.includes(provider);
+                {providers.map((provider) => {
+                  const checked = selected.includes(provider.id);
                   return (
-                    <label key={provider} className="flex items-center gap-2 rounded-md border p-2 text-sm">
+                    <label key={provider.id} className="flex items-center gap-2 rounded-md border p-2 text-sm">
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={(event) => {
                           if (event.currentTarget.checked) {
-                            setSelected((prev) => [...prev, provider]);
+                            setSelected((prev) => [...prev, provider.id]);
                           } else {
-                            setSelected((prev) => prev.filter((item) => item !== provider));
+                            setSelected((prev) => prev.filter((item) => item !== provider.id));
                           }
                         }}
                       />
-                      {t(`onboarding.providers.${provider}`)}
+                      {t(`onboarding.providers.${provider.id}`)}
                     </label>
                   );
                 })}

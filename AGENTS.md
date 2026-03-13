@@ -4,7 +4,7 @@
 - **Name**: AIGauge
 - **Purpose**: FinOps dashboard for AI coding tools (usage, cost, ROI tracking)
 - **Stack**: Tauri 2.x (Rust) + React 19 + TypeScript + shadcn/ui + Tailwind v4
-- **Repo**: everygoodnews-ship-it/aigauge
+- **Repo**: bonggeon-k/aigauge
 - **License**: MIT
 
 ## Architecture

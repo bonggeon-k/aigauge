@@ -1,5 +1,6 @@
 import { Pie, PieChart, ResponsiveContainer, Cell, Tooltip } from "recharts";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { DashboardEntry } from "@/hooks/useProvider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -18,6 +19,8 @@ const colors = [
 ];
 
 export const CostSummary = ({ entries }: CostSummaryProps) => {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language.startsWith("ko") ? "ko-KR" : "en-US";
   const data = entries
     .map((entry) => ({
       name: entry.info.name,
@@ -32,13 +35,13 @@ export const CostSummary = ({ entries }: CostSummaryProps) => {
   return (
     <Card className="flex h-full min-h-[260px] border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-soft)]">
       <CardHeader>
-        <CardTitle>Cost Summary</CardTitle>
+        <CardTitle>{t("dashboard.costSummary.title")}</CardTitle>
       </CardHeader>
       <CardContent className="grid flex-1 gap-4 md:grid-cols-2">
         <div>
-          <p className="text-sm text-muted-foreground">Monthly total</p>
+          <p className="text-sm text-muted-foreground">{t("dashboard.costSummary.monthlyTotal")}</p>
           <p className="text-3xl font-semibold">
-            {new Intl.NumberFormat("en-US", {
+            {new Intl.NumberFormat(locale, {
               style: "currency",
               currency: "USD",
             }).format(total)}
@@ -52,7 +55,7 @@ export const CostSummary = ({ entries }: CostSummaryProps) => {
             <span className={diff >= 0 ? "text-red-500" : "text-emerald-500"}>
               {Math.abs(diff).toFixed(1)}%
             </span>
-            <span className="text-muted-foreground">vs last month</span>
+            <span className="text-muted-foreground">{t("dashboard.costSummary.vsLastMonth")}</span>
           </p>
         </div>
         <div className="h-52 min-h-[13rem]">
@@ -74,7 +77,7 @@ export const CostSummary = ({ entries }: CostSummaryProps) => {
               </Pie>
               <Tooltip
                 formatter={(value: number | string | undefined) =>
-                  new Intl.NumberFormat("en-US", {
+                  new Intl.NumberFormat(locale, {
                     style: "currency",
                     currency: "USD",
                   }).format(typeof value === "number" ? value : 0)

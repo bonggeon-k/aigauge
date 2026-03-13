@@ -68,6 +68,26 @@ h4 {
   line-height: 1.6;
 }
 
+:root[lang="ko"] .korean-keep {
+  word-break: keep-all;
+  line-break: strict;
+}
+
+.ui-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: border-color var(--transition-smooth), box-shadow var(--transition-smooth);
+}
+
+.ui-select:focus {
+  border-color: color-mix(in srgb, var(--color-primary) 70%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 3px color-mix(in srgb, var(--color-primary) 26%, transparent);
+}
+
 .skip-link {
   position: absolute;
   left: 0.5rem;
@@ -160,6 +180,59 @@ h4 {
   animation: aurora-float 8s ease-in-out infinite;
 }
 
+.analytics-segmented {
+  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent),
+    0 8px 18px color-mix(in srgb, #000 14%, transparent);
+}
+
+.analytics-segmented-item {
+  position: relative;
+  isolation: isolate;
+}
+
+.analytics-segmented-item[data-active="true"] {
+  color: var(--nav-active-fg);
+}
+
+.analytics-segmented-active {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--nav-active) 88%, #fff 12%) 0%,
+      color-mix(in srgb, var(--chart-2) 58%, var(--nav-active) 42%) 100%
+    );
+  box-shadow:
+    0 10px 24px color-mix(in srgb, var(--nav-active) 34%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 30%, transparent);
+}
+
+.analytics-metric-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+  padding: 0.2rem 0.55rem;
+  color: var(--muted-foreground);
+}
+
+.analytics-chart-frame :where(.recharts-wrapper, .recharts-wrapper *, .recharts-surface, .recharts-surface *):focus,
+.analytics-chart-frame :where(.recharts-wrapper, .recharts-wrapper *, .recharts-surface, .recharts-surface *):focus-visible {
+  outline: none;
+  outline-offset: 0;
+}
+
+.analytics-chart-frame :where(.recharts-tooltip-cursor) {
+  fill: transparent !important;
+  stroke: transparent !important;
+}
+
 .tray-tabs-scroll {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -167,6 +240,25 @@ h4 {
 
 .tray-tabs-scroll::-webkit-scrollbar {
   display: none;
+}
+
+.tray-tab-idle {
+  backdrop-filter: saturate(1.04);
+}
+
+.tray-tab-active {
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--nav-active) 90%, #ffffff 10%) 0%,
+      color-mix(in srgb, var(--chart-2) 62%, var(--nav-active) 38%) 100%
+    );
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--nav-active) 34%, transparent);
+  transform: translateY(-1px);
+}
+
+.dark .tray-tab-active {
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--nav-active) 44%, transparent);
 }
 
 .quota-meter {

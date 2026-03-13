@@ -11,7 +11,8 @@ use tracing::instrument;
 
 use super::{
     home_dir, not_configured_quota, not_configured_usage, unreachable_quota, unreachable_usage,
-    AuthMethod, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit, Result, UsageData,
+    AuthMethod, AuthSourceMode, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit,
+    Result, UsageData,
 };
 
 static LAST_PLAN: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("JetBrains AI".to_string()));
@@ -302,6 +303,8 @@ impl Provider for JetBrainsProvider {
             name: "JetBrains AI Assistant".to_string(),
             icon: "brain-circuit".to_string(),
             auth_method: AuthMethod::None,
+            supported_auth_modes: vec![AuthSourceMode::Auto, AuthSourceMode::Token],
+            default_auth_mode: AuthSourceMode::Auto,
             plan_name: plan,
             quota_limit: 100,
             reset_period: "monthly".to_string(),

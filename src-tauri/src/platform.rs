@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 #[cfg(target_os = "windows")]
 use std::process::Command;
+#[cfg(target_os = "windows")]
+use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostPlatform {
@@ -59,6 +61,18 @@ pub fn home_dir() -> Option<PathBuf> {
 }
 
 #[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+#[cfg(target_os = "windows")]
+pub fn configure_hidden_process(command: &mut std::process::Command) {
+    use std::os::windows::process::CommandExt;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn configure_hidden_process(_command: &mut std::process::Command) {}
+
+#[cfg(target_os = "windows")]
 fn shell_single_quote(value: &str) -> String {
     value.replace('\'', "'\\''")
 }
@@ -72,7 +86,9 @@ pub fn wsl_to_windows_path(unix_path: &str) -> Option<PathBuf> {
 
     let quoted = shell_single_quote(trimmed);
     let command = format!("wslpath -w '{quoted}'");
-    let output = Command::new("wsl.exe")
+    let mut process = Command::new("wsl.exe");
+    configure_hidden_process(&mut process);
+    let output = process
         .args(["-e", "bash", "-lc", command.as_str()])
         .output()
         .ok()?;
@@ -103,7 +119,9 @@ pub fn read_wsl_text_file(unix_path: &str) -> Option<String> {
 
     let quoted = shell_single_quote(trimmed);
     let command = format!("test -f '{quoted}' && cat '{quoted}'");
-    let output = Command::new("wsl.exe")
+    let mut process = Command::new("wsl.exe");
+    configure_hidden_process(&mut process);
+    let output = process
         .args(["-e", "bash", "-lc", command.as_str()])
         .output()
         .ok()?;
@@ -126,39 +144,21 @@ pub fn read_wsl_text_file(_unix_path: &str) -> Option<String> {
 
 #[cfg(target_os = "windows")]
 pub fn has_wsl() -> bool {
-    std::process::Command::new("wsl.exe")
-        .arg("--status")
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
+    static HAS_WSL: OnceLock<bool> = OnceLock::new();
+    *HAS_WSL.get_or_init(|| {
+        let mut process = std::process::Command::new("wsl.exe");
+        configure_hidden_process(&mut process);
+        process
+            .arg("--status")
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+    })
 }
 
 #[cfg(not(target_os = "windows"))]
 pub fn has_wsl() -> bool {
     false
-}
-
-pub fn kiro_usage_command() -> (String, Vec<String>) {
-    if detect_host_platform() == HostPlatform::Windows && has_wsl() {
-        return (
-            "wsl.exe".to_string(),
-            vec![
-                "-e".to_string(),
-                "bash".to_string(),
-                "-lc".to_string(),
-                "kiro-cli chat --no-interactive /usage".to_string(),
-            ],
-        );
-    }
-
-    (
-        "kiro-cli".to_string(),
-        vec![
-            "chat".to_string(),
-            "--no-interactive".to_string(),
-            "/usage".to_string(),
-        ],
-    )
 }
 
 #[cfg(test)]
@@ -188,13 +188,6 @@ mod tests {
             .expect("expected path for valid home drive/path");
         let rendered = path.to_string_lossy();
         assert!(rendered.contains("Users"));
-    }
-
-    #[test]
-    fn kiro_command_is_never_empty() {
-        let (program, args) = kiro_usage_command();
-        assert!(!program.trim().is_empty());
-        assert!(!args.is_empty());
     }
 
     #[test]

@@ -15,12 +15,45 @@
     "clearFilter": "Clear filter",
     "loadError": "Failed to load dashboard data. Please check provider/network status and retry.",
     "retry": "Retry",
-    "budgetInUse": "Current analytics budget: ${{budget}}"
+    "budgetInUse": "Current analytics budget: ${{budget}}",
+    "updateAvailable": "New version {{version}} available.",
+    "installUpdate": "Install update",
+    "trackKind": {
+      "subscription": "Subscription",
+      "api": "API",
+      "manual": "Manual"
+    },
+    "alerts": {
+      "quotaWarning": "{{provider}}: quota usage is above 80%",
+      "quotaCritical": "{{provider}}: quota usage is above 95%",
+      "trackWarning": "{{provider}} {{track}} track is above 80%",
+      "trackCritical": "{{provider}} {{track}} track is above 95%",
+      "dataStale": "{{provider}}: showing cached data older than 5 minutes"
+    },
+    "loading": {
+      "dashboard": "Loading dashboard...",
+      "onboarding": "Loading onboarding...",
+      "analytics": "Loading analytics...",
+      "settings": "Loading settings...",
+      "tray": "Loading tray..."
+    },
+    "providerPicker": {
+      "title": "Choose Provider",
+      "description": "Select a provider to configure credentials and enable polling.",
+      "empty": "No providers available.",
+      "configured": "Configured",
+      "notConfigured": "Not configured",
+      "refreshList": "Refresh list",
+      "close": "Close"
+    }
   },
   "nav": {
     "dashboard": "Dashboard",
     "analytics": "Analytics",
-    "settings": "Settings"
+    "settings": "Settings",
+    "primary": "Primary navigation",
+    "primaryMobile": "Primary navigation mobile",
+    "navigateTo": "Navigate to {{item}}"
   },
   "onboarding": {
     "welcomeTitle": "Welcome to AIGauge",
@@ -56,6 +89,7 @@
     "currentMonth": "Current Month",
     "previousMonth": "Previous Month",
     "momChange": "MoM Change",
+    "avgInRange": "Avg in Range",
     "peakInRange": "Peak in Range",
     "range": {
       "this_month": "This month",
@@ -87,6 +121,35 @@
       "spentSoFar": "Spent so far",
       "projected": "Projected",
       "budget": "Budget"
+    },
+    "export": {
+      "title": "Export",
+      "includeCost": "Include cost fields",
+      "providers": "Providers",
+      "preview": "Preview",
+      "download": "Download",
+      "rows": "Rows",
+      "size": "Size",
+      "bytesUnit": "{{count}} bytes",
+      "generated": "Generated",
+      "lastSaved": "Last saved",
+      "copyPath": "Copy path",
+      "openFolder": "Open exports folder",
+      "pathCopied": "Path copied",
+      "clipboardUnavailable": "Clipboard unavailable",
+      "messages": {
+        "previewReady": "Preview ready",
+        "exportReady": "Export generated",
+        "exportSaved": "Export saved to {{path}}",
+        "exportSavedShort": "Export file saved.",
+        "folderOpened": "Opened exports folder {{path}}",
+        "folderOpenedShort": "Exports folder opened."
+      }
+    },
+    "a11y": {
+      "monthlyTrendChart": "Area chart showing monthly cost movement.",
+      "providerShareChart": "Donut chart showing provider cost share.",
+      "roiChart": "Grouped bar chart comparing request and token costs."
     }
   },
   "settings": {
@@ -119,7 +182,71 @@
     "savedAt": "Saved at {{time}}"
   },
   "provider": {
-    "save": "Save"
+    "save": "Save",
+    "common": {
+      "provider": "provider"
+    },
+    "setup": {
+      "title": "Setup Provider",
+      "description": "Configure {{provider}} credential.",
+      "status": "Status",
+      "testConnection": "Test Connection",
+      "localSource": "Local data source will be used automatically.",
+      "cliSource": "CLI-based detection will be used automatically.",
+      "noneSource": "No credential is required for this mode.",
+      "placeholder": "Enter {{label}}",
+      "mode": {
+        "label": "Auth mode",
+        "auto": "Auto detect",
+        "api_key": "API key",
+        "oauth_token": "OAuth token",
+        "token": "Access token",
+        "cli": "CLI session",
+        "none": "No credential"
+      },
+      "guide": {
+        "codex": "Use Auto for ChatGPT/Codex subscription login, or switch to API key mode.",
+        "claude": "Install and log in to Claude CLI, then test connection.",
+        "gemini": "Use Gemini API key mode for direct usage fetch.",
+        "kiro": "Install Kiro CLI in your host/WSL environment.",
+        "copilot": "Use GitHub auth token (or gh hosts.yml token) for Copilot usage API.",
+        "cursor": "Paste a full Cookie header from cursor.com, or reuse CodexBar session cache.",
+        "jetbrains": "No token required. AIGauge reads JetBrains local quota files automatically.",
+        "default": "Configure provider credential and test connection."
+      },
+      "label": {
+        "cookieHeader": "Cookie Header",
+        "jetbrainsPath": "JetBrains IDE Base Path (Optional)",
+        "none": "No credential required",
+        "oauthToken": "OAuth Token",
+        "accessToken": "Access Token",
+        "apiKey": "API Key"
+      },
+      "health": {
+        "connected": "Connected",
+        "configuredUnreachable": "Configured but unreachable",
+        "notConfigured": "Not configured",
+        "openVerification": "Open verification URL and complete GitHub login."
+      },
+      "copilot": {
+        "recommended": "Recommended: sign in with GitHub Device Flow.",
+        "signIn": "Sign in with GitHub",
+        "checkStatus": "Check Login Status",
+        "code": "Code",
+        "invalidVerificationUrl": "Invalid verification URL",
+        "loginStatus": "Login status: {{status}}"
+      }
+    },
+    "settings": {
+      "title": "Provider Settings",
+      "authMode": "Auth mode",
+      "pollingIntervalSeconds": "Polling interval (seconds)",
+      "enableNotifications": "Enable notifications",
+      "removeCredential": "Remove Credential"
+    }
+  },
+  "common": {
+    "dismiss": "Dismiss"
   },
   "tray": {
     "title": "AIGauge Quick View",
@@ -154,11 +281,20 @@
       "trackManual": "Manual estimate",
       "used": "Used",
       "limit": "Limit",
-      "cost": "Monthly cost (USD)"
+      "cost": "Monthly cost (USD)",
+      "validation": {
+        "invalidNumbers": "Enter valid non-negative numbers.",
+        "rangeExceeded": "Values exceed allowed range."
+      },
+      "planNameManual": "Manual"
     },
     "settings": {
       "title": "Tray Settings",
       "refreshInterval": "Refresh interval (minutes)",
+      "minutesShort": "{{value}}m",
+      "language": "Language",
+      "languageEnglish": "English",
+      "languageKorean": "Korean",
       "notifications": "Enable threshold notifications",
       "notificationsDesc": "Notify when quota reaches warning/critical thresholds.",
       "close": "Close"
@@ -177,6 +313,80 @@
       "providers": "Providers",
       "configured": "Configured",
       "warnings": "Warnings"
+    },
+    "overview": {
+      "title": "Tray Overview",
+      "subtitle": "Quick glance while coding"
+    },
+    "tabBar": {
+      "providers": "Providers",
+      "scrollLeft": "Scroll providers left",
+      "scrollRight": "Scroll providers right"
+    },
+    "provider": {
+      "setupGuide": {
+        "codex": "Codex CLI login required.",
+        "claude": "Install and sign in to Claude CLI.",
+        "gemini": "Install Gemini CLI.",
+        "kiro": "Install Kiro CLI (WSL).",
+        "default": "Provider setup required."
+      },
+      "serviceStatus": {
+        "disrupted": "Incident",
+        "degraded": "Degraded",
+        "operational": "Operational",
+        "unknown": "Checking"
+      },
+      "dataStatus": {
+        "notConfigured": "Not configured",
+        "stale": "Stale",
+        "live": "Live",
+        "offline": "Offline"
+      },
+      "quotaStatus": {
+        "healthy": "Healthy",
+        "warning": "Watch",
+        "critical": "Near limit",
+        "exhausted": "Exhausted",
+        "notConfigured": "Not configured",
+        "unknown": "Checking"
+      },
+      "badges": {
+        "serviceStatus": "Service status: {{value}}",
+        "dataStatus": "Data: {{value}}",
+        "quotaStatus": "Quota: {{value}}"
+      },
+      "subscriptionQuota": "Subscription quota",
+      "primaryWindowRemaining": "Primary window remaining",
+      "resetIn": "Reset {{value}}",
+      "apiTrack": "API Track",
+      "unavailable": "Unavailable",
+      "paceLabel": "Pace (usage vs time):",
+    "pace": {
+      "behind": "Over pace (risk)",
+      "ahead": "Under pace (safe)",
+      "onPace": "On pace (balanced)",
+      "unknown": "Pace pending (insufficient time data)"
+    },
+      "countdown": {
+        "days": "{{days}}d",
+        "hours": "{{hours}}h",
+        "soon": "soon"
+      },
+      "cost": {
+        "title": "Cost",
+        "input": "Input",
+        "output": "Output",
+        "reasoning": "Reasoning",
+        "sessions": "Sessions",
+        "events": "Events",
+        "monthly": "Monthly",
+        "noAdditionalCharge": "No additional charge within plan quota.",
+        "apiEquivalent30d": "API-equivalent estimate (30d): ${{value}}",
+        "highCostWarning": "High cost warning"
+      },
+      "riskLabel": "Risk (quota used)",
+      "riskUsed": "{{value}}% used"
     }
   },
   "empty": {
@@ -186,5 +396,107 @@
   },
   "a11y": {
     "skipToContent": "Skip to content"
+  },
+  "shell": {
+    "toggleTheme": "Toggle theme",
+    "menu": "Menu",
+    "shortcuts": {
+      "toggleWindow": "{{key}}: Toggle window",
+      "refreshProviders": "{{key}}: Refresh providers"
+    },
+    "version": "v{{version}}"
+  },
+  "dashboard": {
+    "providerCard": {
+      "auth": {
+        "apiKey": "API Key",
+        "oauth": "OAuth",
+        "token": "Token",
+        "none": "None"
+      },
+      "dataStatus": {
+        "notConfigured": "Not configured",
+        "stale": "Stale",
+        "live": "Live",
+        "offline": "Offline"
+      },
+      "quotaStatus": {
+        "healthy": "Healthy",
+        "warning": "Watch",
+        "critical": "Near limit",
+        "exhausted": "Exhausted",
+        "notConfigured": "Not configured",
+        "unknown": "Checking"
+      },
+      "providerMenu": "Provider menu",
+      "providerSettings": "Provider Settings",
+      "setupCredential": "Setup Credential",
+      "notConfigured": "Not Configured",
+      "setupProvider": "Setup Provider",
+      "quotaModelLabel": "Quota model",
+      "windowCount": "{{count}} windows",
+      "usageWindow": "Usage window",
+      "noTrackWindows": "No subscription windows reported from this provider yet.",
+      "noDataYet": "No data yet",
+      "additionalWindow": "Additional window",
+      "notAvailable": "Not available",
+      "resetIn": "Reset in {{value}}",
+      "resetInLabel": "Reset in",
+      "resetSoon": "Reset soon",
+      "countdownDaysHours": "{{days}}d {{hours}}h",
+      "countdownHours": "{{hours}}h",
+      "period": "Period",
+      "source": "Source",
+      "primaryWindow": "Primary window",
+      "costPerMonth": "Cost / month",
+      "primaryUsage": "Primary usage",
+      "apiTrack": "API Track",
+      "unavailable": "Unavailable",
+      "lastChecked": "Last checked",
+      "included": "Included",
+      "fallbackSubscriptionLabel": "Subscription quota",
+      "quotaModels": {
+        "codex": "Session + weekly limit",
+        "claude": "5-hour + 7-day windows",
+        "gemini": "Daily request quota",
+        "kiro": "Monthly credit pool",
+        "copilot": "Monthly interaction quota",
+        "cursor": "Monthly plan window",
+        "jetbrains": "Monthly AI credits",
+        "default": "Provider quota window"
+      }
+    },
+    "quotaTimeline": {
+      "title": "Quota Timeline",
+      "subtitle": "Time-adjusted view: compares usage consumed against elapsed billing time.",
+    "timeElapsed": "Time elapsed",
+    "usageConsumed": "Usage consumed",
+    "projectedTooltip": "Projected usage by period end if the current time-adjusted pace continues.",
+    "projectedEndUsage": "Projected end usage: {{value}}",
+    "projectedPending": "Collecting enough time data for projection...",
+    "pace": {
+      "atRisk": {
+        "label": "At risk",
+        "hint": "Likely to exceed quota at current pace."
+      },
+      "belowPlan": {
+        "label": "Below plan",
+        "hint": "Usage is below period progress."
+      },
+      "onTrack": {
+        "label": "On track",
+        "hint": "Usage is aligned with period progress."
+      },
+      "unknown": {
+        "label": "Pending",
+        "hint": "Need more elapsed time before pace can be estimated."
+      }
+    }
+  },
+    "costSummary": {
+      "title": "Cost Summary",
+      "monthlyTotal": "Monthly total",
+      "vsLastMonth": "vs last month"
+    }
   }
 }

@@ -1,6 +1,7 @@
-use crate::config::ConfigStore;
+use crate::config::{AppConfig, ConfigStore};
 use crate::cost_engine::CostEngine;
 use crate::credentials::CredentialManager;
+use crate::platform;
 use crate::providers::claude::ClaudeProvider;
 use crate::providers::codex::CodexProvider;
 use crate::providers::copilot::CopilotProvider;
@@ -9,17 +10,18 @@ use crate::providers::gemini::GeminiProvider;
 use crate::providers::jetbrains::JetBrainsProvider;
 use crate::providers::kiro::KiroProvider;
 use crate::providers::{
-    build_shared_http_client, AuthMethod, CostData, Provider, ProviderError, ProviderInfo,
-    ProviderStatus, QuotaLimit, UsageData,
+    build_shared_http_client, AuthMethod, AuthSourceMode, CostData, Provider, ProviderError,
+    ProviderInfo, ProviderStatus, QuotaLimit, UsageData,
 };
 use crate::quota_cache::{ProviderSnapshot, QuotaCache};
 use chrono::Utc;
+use futures::future::join_all;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tauri::{Emitter, Manager};
 use tracing::instrument;
@@ -34,6 +36,7 @@ pub const PROVIDER_IDS: &[&str] = &[
     "jetbrains",
 ];
 pub const TRUSTED_WINDOWS: &[&str] = &["main", "tray-popup"];
+pub const MAIN_WINDOW_LABEL: &str = "main";
 const MANUAL_INPUT_MAX: u64 = 1_000_000_000_000;
 
 #[derive(Debug, Clone, Serialize)]
@@ -144,6 +147,37 @@ pub enum DataSource {
     Snapshot,
 }
 
+fn provider_default_auth_mode(provider: &str) -> AuthSourceMode {
+    match provider {
+        "codex" => AuthSourceMode::Auto,
+        "claude" => AuthSourceMode::Auto,
+        "gemini" => AuthSourceMode::ApiKey,
+        "kiro" => AuthSourceMode::Cli,
+        "copilot" => AuthSourceMode::OAuthToken,
+        "cursor" => AuthSourceMode::Token,
+        "jetbrains" => AuthSourceMode::Auto,
+        _ => AuthSourceMode::Auto,
+    }
+}
+
+fn provider_supports_mode(provider: &str, mode: AuthSourceMode) -> bool {
+    let supported = match provider {
+        "codex" => &[
+            AuthSourceMode::Auto,
+            AuthSourceMode::ApiKey,
+            AuthSourceMode::OAuthToken,
+        ][..],
+        "claude" => &[AuthSourceMode::Auto, AuthSourceMode::OAuthToken][..],
+        "gemini" => &[AuthSourceMode::ApiKey][..],
+        "kiro" => &[AuthSourceMode::Cli][..],
+        "copilot" => &[AuthSourceMode::OAuthToken, AuthSourceMode::Token][..],
+        "cursor" => &[AuthSourceMode::Token][..],
+        "jetbrains" => &[AuthSourceMode::Auto, AuthSourceMode::Token][..],
+        _ => &[][..],
+    };
+    supported.contains(&mode)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ManualInputDocument {
     schema_version: u32,
@@ -199,6 +233,13 @@ pub fn ensure_trusted_window(window: &tauri::Window) -> Result<(), String> {
     Err("unauthorized window context".to_string())
 }
 
+pub fn ensure_main_window(window: &tauri::Window) -> Result<(), String> {
+    if window.label() == MAIN_WINDOW_LABEL {
+        return Ok(());
+    }
+    Err("this command is restricted to the main window".to_string())
+}
+
 pub fn ensure_known_provider(provider: &str) -> Result<(), String> {
     if PROVIDER_IDS.contains(&provider) {
         return Ok(());
@@ -223,6 +264,315 @@ fn validate_manual_input(input: &ManualProviderInput) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn path_exists(path: &Path) -> bool {
+    std::fs::metadata(path).is_ok()
+}
+
+fn provider_enabled_in_config(config: &AppConfig, provider: &str) -> bool {
+    config
+        .enabled_providers
+        .iter()
+        .any(|configured| configured == provider)
+}
+
+fn load_config_or_default(state: &AppState, app: &tauri::AppHandle) -> AppConfig {
+    let mut config = state
+        .config_store
+        .load(app)
+        .unwrap_or_else(|_| AppConfig::default());
+    normalize_provider_auth_modes(&mut config);
+    config
+}
+
+fn provider_selected_auth_mode(
+    state: &AppState,
+    app: &tauri::AppHandle,
+    provider: &str,
+) -> AuthSourceMode {
+    let config = load_config_or_default(state, app);
+    config
+        .provider_auth_modes
+        .get(provider)
+        .copied()
+        .unwrap_or_else(|| provider_default_auth_mode(provider))
+}
+
+fn normalize_provider_auth_modes(config: &mut AppConfig) {
+    for provider in PROVIDER_IDS {
+        config
+            .provider_auth_modes
+            .entry((*provider).to_string())
+            .or_insert_with(|| provider_default_auth_mode(provider));
+    }
+}
+
+fn sync_primary_credential_with_mode(
+    state: &AppState,
+    provider: &str,
+    mode: AuthSourceMode,
+) -> Result<(), String> {
+    match mode {
+        AuthSourceMode::ApiKey | AuthSourceMode::OAuthToken | AuthSourceMode::Token => {
+            let slot = mode.slot_key();
+            match state
+                .credential_manager
+                .get_credential_for_slot(provider, slot)
+                .map_err(|error| error.to_string())?
+            {
+                Some(value) => state
+                    .credential_manager
+                    .save_credential(provider, value.to_string())
+                    .map_err(|error| error.to_string())?,
+                None => state
+                    .credential_manager
+                    .delete_credential(provider)
+                    .map_err(|error| error.to_string())?,
+            }
+        }
+        AuthSourceMode::Auto | AuthSourceMode::Cli | AuthSourceMode::None => {
+            state
+                .credential_manager
+                .delete_credential(provider)
+                .map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+fn provider_has_manual_input(app: &tauri::AppHandle, provider: &str) -> bool {
+    load_manual_inputs(app)
+        .map(|entries| entries.contains_key(provider))
+        .unwrap_or(false)
+}
+
+fn provider_has_local_auth_artifact(provider: &str) -> bool {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if provider == "kiro" {
+        let has_local = {
+            #[cfg(target_os = "windows")]
+            {
+                let mut command = std::process::Command::new("cmd.exe");
+                platform::configure_hidden_process(&mut command);
+                command
+                    .args(["/C", "where kiro-cli >NUL 2>&1 || where kiro >NUL 2>&1"])
+                    .status()
+                    .map(|status| status.success())
+                    .unwrap_or(false)
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                let mut command = std::process::Command::new("bash");
+                platform::configure_hidden_process(&mut command);
+                command
+                    .args([
+                        "-lc",
+                        "command -v kiro-cli >/dev/null 2>&1 || command -v kiro >/dev/null 2>&1",
+                    ])
+                    .status()
+                    .map(|status| status.success())
+                    .unwrap_or(false)
+            }
+        };
+
+        let has_wsl = if platform::has_wsl() {
+            let mut command = std::process::Command::new("wsl.exe");
+            platform::configure_hidden_process(&mut command);
+            command
+                .args([
+                    "-e",
+                    "bash",
+                    "-lc",
+                    "command -v kiro-cli >/dev/null 2>&1 || command -v kiro >/dev/null 2>&1",
+                ])
+                .status()
+                .map(|status| status.success())
+                .unwrap_or(false)
+        } else {
+            false
+        };
+
+        return has_local || has_wsl;
+    }
+
+    match provider {
+        "codex" => {
+            if let Ok(codex_home) = std::env::var("CODEX_HOME") {
+                let trimmed = codex_home.trim();
+                if !trimmed.is_empty() {
+                    candidates.push(PathBuf::from(trimmed).join("auth.json"));
+                }
+            }
+            if let Some(home) = platform::home_dir() {
+                candidates.push(home.join(".codex").join("auth.json"));
+            }
+            if let Some(path) = platform::wsl_to_windows_path("~/.codex/auth.json") {
+                candidates.push(path);
+            }
+        }
+        "claude" => {
+            if let Some(home) = platform::home_dir() {
+                candidates.push(home.join(".claude").join(".credentials.json"));
+            }
+            if let Some(path) = platform::wsl_to_windows_path("~/.claude/.credentials.json") {
+                candidates.push(path);
+            }
+        }
+        "gemini" => {
+            if let Some(home) = platform::home_dir() {
+                candidates.push(home.join(".gemini").join("oauth_creds.json"));
+            }
+            if let Some(path) = platform::wsl_to_windows_path("~/.gemini/oauth_creds.json") {
+                candidates.push(path);
+            }
+        }
+        "copilot" => {
+            if let Some(home) = platform::home_dir() {
+                candidates.push(home.join(".config").join("gh").join("hosts.yml"));
+                candidates.push(
+                    home.join(".config")
+                        .join("github-copilot")
+                        .join("apps.json"),
+                );
+                candidates.push(
+                    home.join(".config")
+                        .join("github-copilot")
+                        .join("token.json"),
+                );
+            }
+            if let Ok(app_data) = std::env::var("APPDATA") {
+                candidates.push(
+                    PathBuf::from(&app_data)
+                        .join("GitHub CLI")
+                        .join("hosts.yml"),
+                );
+                candidates.push(
+                    PathBuf::from(&app_data)
+                        .join("GitHub Copilot")
+                        .join("apps.json"),
+                );
+                candidates.push(
+                    PathBuf::from(app_data)
+                        .join("GitHub Copilot")
+                        .join("token.json"),
+                );
+            }
+        }
+        "cursor" => {
+            if let Ok(custom) = std::env::var("CURSOR_SESSION_FILE") {
+                let trimmed = custom.trim();
+                if !trimmed.is_empty() {
+                    candidates.push(PathBuf::from(trimmed));
+                }
+            }
+            if let Some(home) = platform::home_dir() {
+                candidates.push(
+                    home.join(".config")
+                        .join("CodexBar")
+                        .join("cursor-session.json"),
+                );
+                candidates.push(
+                    home.join(".local")
+                        .join("share")
+                        .join("CodexBar")
+                        .join("cursor-session.json"),
+                );
+                candidates.push(
+                    home.join("AppData")
+                        .join("Roaming")
+                        .join("CodexBar")
+                        .join("cursor-session.json"),
+                );
+            }
+            if let Ok(app_data) = std::env::var("APPDATA") {
+                candidates.push(
+                    PathBuf::from(app_data)
+                        .join("CodexBar")
+                        .join("cursor-session.json"),
+                );
+            }
+        }
+        "jetbrains" => {
+            if let Some(home) = platform::home_dir() {
+                candidates.push(home.join(".config").join("JetBrains"));
+                candidates.push(home.join(".local").join("share").join("JetBrains"));
+                candidates.push(
+                    home.join("Library")
+                        .join("Application Support")
+                        .join("JetBrains"),
+                );
+                candidates.push(home.join("AppData").join("Roaming").join("JetBrains"));
+                candidates.push(home.join("AppData").join("Local").join("JetBrains"));
+            }
+            if let Ok(app_data) = std::env::var("APPDATA") {
+                candidates.push(PathBuf::from(app_data).join("JetBrains"));
+            }
+            if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+                candidates.push(PathBuf::from(local_app_data).join("JetBrains"));
+            }
+        }
+        _ => {}
+    }
+
+    candidates.iter().any(|path| path_exists(path.as_path()))
+}
+
+pub(crate) fn provider_has_runtime_configuration(
+    provider: &str,
+    state: &AppState,
+    app: &tauri::AppHandle,
+) -> bool {
+    if provider_has_manual_input(app, provider) {
+        return true;
+    }
+
+    let mode = provider_selected_auth_mode(state, app, provider);
+    match mode {
+        AuthSourceMode::ApiKey => state
+            .credential_manager
+            .has_credential(provider)
+            .unwrap_or(false),
+        AuthSourceMode::OAuthToken | AuthSourceMode::Token => {
+            state
+                .credential_manager
+                .has_credential(provider)
+                .unwrap_or(false)
+                || provider_has_local_auth_artifact(provider)
+        }
+        AuthSourceMode::Auto | AuthSourceMode::Cli | AuthSourceMode::None => {
+            provider_has_local_auth_artifact(provider)
+        }
+    }
+}
+
+pub(crate) fn active_provider_ids(state: &AppState, app: &tauri::AppHandle) -> Vec<String> {
+    let config = load_config_or_default(state, app);
+    PROVIDER_IDS
+        .iter()
+        .copied()
+        .filter(|provider| provider_enabled_in_config(&config, provider))
+        .filter(|provider| provider_has_runtime_configuration(provider, state, app))
+        .map(str::to_string)
+        .collect()
+}
+
+fn set_provider_enabled(
+    state: &AppState,
+    app: &tauri::AppHandle,
+    provider: &str,
+    enabled: bool,
+) -> Result<(), String> {
+    let mut config = load_config_or_default(state, app);
+    if enabled {
+        if !provider_enabled_in_config(&config, provider) {
+            config.enabled_providers.push(provider.to_string());
+        }
+    } else {
+        config.enabled_providers.retain(|value| value != provider);
+    }
+    state.config_store.save(app, &config).map(|_| ())
 }
 
 impl Default for AppState {
@@ -418,8 +768,10 @@ fn subscription_track(
     label: &str,
     used: u64,
     limit: u64,
+    unit: &str,
     reset_at: String,
     source: DataSource,
+    status: ProviderStatus,
 ) -> UsageTrack {
     UsageTrack {
         id: format!("subscription:{}", label.to_lowercase().replace(' ', "_")),
@@ -427,9 +779,126 @@ fn subscription_track(
         label: label.to_string(),
         used,
         limit,
-        unit: "percent".to_string(),
+        unit: unit.to_string(),
         reset_at,
-        status: ProviderStatus::Ok,
+        status,
+        source,
+    }
+}
+
+fn default_subscription_tracks(
+    provider: &str,
+    usage: &UsageData,
+    quota: &QuotaLimit,
+    source: DataSource,
+    status: ProviderStatus,
+    zero_usage: bool,
+) -> Vec<UsageTrack> {
+    let pick_used = |value: u64| if zero_usage { 0 } else { value };
+    let quota_unit = if quota.unit.trim().is_empty() {
+        "percent"
+    } else {
+        quota.unit.as_str()
+    };
+
+    match provider {
+        "codex" => vec![
+            subscription_track(
+                "5-hour session",
+                pick_used(usage.requests),
+                100,
+                "percent",
+                usage.period_end.clone(),
+                source,
+                status.clone(),
+            ),
+            subscription_track(
+                "Weekly limit",
+                pick_used(quota.used),
+                quota.limit.max(100),
+                quota_unit,
+                quota.reset_at.clone(),
+                source,
+                status.clone(),
+            ),
+        ],
+        "claude" => vec![
+            subscription_track(
+                "5-hour window",
+                pick_used(usage.requests),
+                100,
+                "percent",
+                usage.period_end.clone(),
+                source,
+                status.clone(),
+            ),
+            subscription_track(
+                "7-day window",
+                pick_used(usage.tokens),
+                100,
+                "percent",
+                quota.reset_at.clone(),
+                source,
+                status.clone(),
+            ),
+        ],
+        "gemini" => vec![subscription_track(
+            "Daily requests",
+            pick_used(quota.used),
+            quota.limit,
+            if quota_unit == "percent" {
+                "requests"
+            } else {
+                quota_unit
+            },
+            quota.reset_at.clone(),
+            source,
+            status,
+        )],
+        "kiro" => vec![subscription_track(
+            "Monthly credits",
+            pick_used(quota.used),
+            quota.limit,
+            if quota_unit == "percent" {
+                "credits"
+            } else {
+                quota_unit
+            },
+            quota.reset_at.clone(),
+            source,
+            status,
+        )],
+        "copilot" | "cursor" | "jetbrains" => vec![subscription_track(
+            "Monthly quota",
+            pick_used(quota.used),
+            quota.limit,
+            quota_unit,
+            quota.reset_at.clone(),
+            source,
+            status,
+        )],
+        _ => vec![subscription_track(
+            "Subscription quota",
+            pick_used(quota.used),
+            quota.limit,
+            quota_unit,
+            quota.reset_at.clone(),
+            source,
+            status,
+        )],
+    }
+}
+
+fn default_api_track(status: ProviderStatus, source: DataSource) -> UsageTrack {
+    UsageTrack {
+        id: "api:primary".to_string(),
+        kind: TrackKind::Api,
+        label: "API usage".to_string(),
+        used: 0,
+        limit: 0,
+        unit: "tokens".to_string(),
+        reset_at: String::new(),
+        status,
         source,
     }
 }
@@ -443,62 +912,41 @@ fn build_tracks_for_entry(
 ) -> Vec<UsageTrack> {
     let status = usage.status.clone();
     if status == ProviderStatus::NotConfigured {
-        return vec![
-            UsageTrack {
-                id: "subscription:primary".to_string(),
-                kind: TrackKind::Subscription,
-                label: "Subscription quota".to_string(),
-                used: 0,
-                limit: 0,
-                unit: quota.unit.clone(),
-                reset_at: quota.reset_at.clone(),
-                status,
-                source,
-            },
-            UsageTrack {
-                id: "api:primary".to_string(),
-                kind: TrackKind::Api,
-                label: "API usage".to_string(),
-                used: 0,
-                limit: 0,
-                unit: "tokens".to_string(),
-                reset_at: String::new(),
-                status: ProviderStatus::NotConfigured,
-                source,
-            },
-        ];
+        let mut tracks = default_subscription_tracks(
+            provider,
+            usage,
+            quota,
+            source,
+            ProviderStatus::NotConfigured,
+            true,
+        );
+        if matches!(provider, "codex" | "claude" | "gemini") {
+            tracks.push(default_api_track(ProviderStatus::NotConfigured, source));
+        }
+        return tracks;
     }
     if status == ProviderStatus::Unreachable {
-        return vec![UsageTrack {
-            id: "subscription:primary".to_string(),
-            kind: TrackKind::Subscription,
-            label: "Subscription quota".to_string(),
-            used: quota.used,
-            limit: quota.limit,
-            unit: quota.unit.clone(),
-            reset_at: quota.reset_at.clone(),
-            status: ProviderStatus::Unreachable,
+        return default_subscription_tracks(
+            provider,
+            usage,
+            quota,
             source,
-        }];
+            ProviderStatus::Unreachable,
+            false,
+        );
     }
 
     match provider {
-        "codex" => vec![
-            subscription_track(
-                "5-hour session",
-                usage.requests,
-                100,
-                usage.period_end.clone(),
+        "codex" => {
+            let mut tracks = default_subscription_tracks(
+                provider,
+                usage,
+                quota,
                 source,
-            ),
-            subscription_track(
-                "Weekly limit",
-                quota.used,
-                quota.limit.max(100),
-                quota.reset_at.clone(),
-                source,
-            ),
-            UsageTrack {
+                ProviderStatus::Ok,
+                false,
+            );
+            tracks.push(UsageTrack {
                 id: "api:primary".to_string(),
                 kind: TrackKind::Api,
                 label: "API tokens (30d)".to_string(),
@@ -512,70 +960,22 @@ fn build_tracks_for_entry(
                     ProviderStatus::NotConfigured
                 },
                 source: DataSource::Snapshot,
-            },
-        ],
-        "claude" => vec![
-            subscription_track(
-                "5-hour window",
-                usage.requests,
-                100,
-                usage.period_end.clone(),
+            });
+            tracks
+        }
+        "claude" | "gemini" => {
+            let mut tracks = default_subscription_tracks(
+                provider,
+                usage,
+                quota,
                 source,
-            ),
-            subscription_track(
-                "7-day window",
-                usage.tokens,
-                100,
-                quota.reset_at.clone(),
-                source,
-            ),
-            UsageTrack {
-                id: "api:primary".to_string(),
-                kind: TrackKind::Api,
-                label: "API usage".to_string(),
-                used: 0,
-                limit: 0,
-                unit: "tokens".to_string(),
-                reset_at: String::new(),
-                status: ProviderStatus::NotConfigured,
-                source,
-            },
-        ],
-        "gemini" => vec![
-            UsageTrack {
-                id: "subscription:daily".to_string(),
-                kind: TrackKind::Subscription,
-                label: "Daily requests".to_string(),
-                used: quota.used,
-                limit: quota.limit,
-                unit: quota.unit.clone(),
-                reset_at: quota.reset_at.clone(),
-                status: ProviderStatus::Ok,
-                source,
-            },
-            UsageTrack {
-                id: "api:primary".to_string(),
-                kind: TrackKind::Api,
-                label: "API usage".to_string(),
-                used: 0,
-                limit: 0,
-                unit: "tokens".to_string(),
-                reset_at: String::new(),
-                status: ProviderStatus::NotConfigured,
-                source,
-            },
-        ],
-        _ => vec![UsageTrack {
-            id: "subscription:primary".to_string(),
-            kind: TrackKind::Subscription,
-            label: "Subscription quota".to_string(),
-            used: quota.used,
-            limit: quota.limit,
-            unit: quota.unit.clone(),
-            reset_at: quota.reset_at.clone(),
-            status: ProviderStatus::Ok,
-            source,
-        }],
+                ProviderStatus::Ok,
+                false,
+            );
+            tracks.push(default_api_track(ProviderStatus::NotConfigured, source));
+            tracks
+        }
+        _ => default_subscription_tracks(provider, usage, quota, source, ProviderStatus::Ok, false),
     }
 }
 
@@ -830,6 +1230,8 @@ pub(crate) async fn resolve_dashboard_entry(
                 name: provider.to_string(),
                 icon: "circle".to_string(),
                 auth_method: AuthMethod::None,
+                supported_auth_modes: vec![AuthSourceMode::None],
+                default_auth_mode: AuthSourceMode::None,
                 plan_name: "Manual".to_string(),
                 quota_limit: manual.limit,
                 reset_period: "manual".to_string(),
@@ -930,12 +1332,15 @@ pub async fn get_all_dashboard_data(
     state: tauri::State<'_, AppState>,
     app: tauri::AppHandle,
 ) -> Result<Vec<DashboardEntry>, String> {
-    let mut entries = Vec::with_capacity(PROVIDER_IDS.len());
+    let providers = active_provider_ids(&state, &app);
+    let tasks = providers
+        .iter()
+        .map(|provider| resolve_dashboard_entry(provider.as_str(), &state, &app));
+    let resolved = join_all(tasks).await;
+    let mut entries = Vec::with_capacity(resolved.len());
 
-    for provider in PROVIDER_IDS {
-        let (entry, _) = resolve_dashboard_entry(provider, &state, &app)
-            .await
-            .map_err(|error| error.to_string())?;
+    for result in resolved {
+        let (entry, _) = result.map_err(|error| error.to_string())?;
         entries.push(entry);
     }
 
@@ -954,38 +1359,148 @@ pub async fn check_provider_health(
 }
 
 #[tauri::command]
+pub fn get_provider_auth_modes(
+    state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
+) -> Result<HashMap<String, AuthSourceMode>, String> {
+    let config = load_config_or_default(&state, &app);
+    Ok(config.provider_auth_modes)
+}
+
+#[tauri::command]
+pub fn set_provider_auth_mode(
+    provider: String,
+    mode: AuthSourceMode,
+    state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
+    window: tauri::Window,
+) -> Result<AuthSourceMode, String> {
+    ensure_trusted_window(&window)?;
+    ensure_known_provider(provider.as_str())?;
+    if !provider_supports_mode(provider.as_str(), mode) {
+        return Err(format!(
+            "unsupported auth mode '{}' for provider '{}'",
+            mode.slot_key(),
+            provider
+        ));
+    }
+
+    let mut config = load_config_or_default(&state, &app);
+    config.provider_auth_modes.insert(provider.clone(), mode);
+    normalize_provider_auth_modes(&mut config);
+    state.config_store.save(&app, &config)?;
+    sync_primary_credential_with_mode(&state, provider.as_str(), mode)?;
+
+    if !provider_has_runtime_configuration(provider.as_str(), &state, &app) {
+        set_provider_enabled(&state, &app, provider.as_str(), false)?;
+    } else {
+        set_provider_enabled(&state, &app, provider.as_str(), true)?;
+    }
+    Ok(mode)
+}
+
+#[tauri::command]
 pub fn save_credential(
     provider: String,
     credential: String,
+    mode: Option<AuthSourceMode>,
     state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     window: tauri::Window,
 ) -> Result<(), String> {
-    ensure_trusted_window(&window)?;
+    ensure_main_window(&window)?;
     ensure_known_provider(provider.as_str())?;
-    state
-        .credential_manager
-        .save_credential(provider.as_str(), credential)
-        .map_err(|error| error.to_string())
+    let selected_mode =
+        mode.unwrap_or_else(|| provider_selected_auth_mode(&state, &app, provider.as_str()));
+    if !provider_supports_mode(provider.as_str(), selected_mode) {
+        return Err(format!(
+            "unsupported auth mode '{}' for provider '{}'",
+            selected_mode.slot_key(),
+            provider
+        ));
+    }
+
+    let slot = selected_mode.slot_key();
+    if matches!(
+        selected_mode,
+        AuthSourceMode::ApiKey | AuthSourceMode::OAuthToken | AuthSourceMode::Token
+    ) {
+        if credential.trim().is_empty() {
+            return Err("credential cannot be empty for selected auth mode".to_string());
+        }
+        state
+            .credential_manager
+            .save_credential_for_slot(provider.as_str(), slot, credential.clone())
+            .map_err(|error| error.to_string())?;
+        state
+            .credential_manager
+            .save_credential(provider.as_str(), credential)
+            .map_err(|error| error.to_string())?;
+    } else {
+        state
+            .credential_manager
+            .delete_credential(provider.as_str())
+            .map_err(|error| error.to_string())?;
+    }
+
+    let mut config = load_config_or_default(&state, &app);
+    config
+        .provider_auth_modes
+        .insert(provider.clone(), selected_mode);
+    normalize_provider_auth_modes(&mut config);
+    state.config_store.save(&app, &config)?;
+    set_provider_enabled(&state, &app, provider.as_str(), true)
 }
 
 #[tauri::command]
 pub fn delete_credential(
     provider: String,
+    mode: Option<AuthSourceMode>,
     state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     window: tauri::Window,
 ) -> Result<(), String> {
-    ensure_trusted_window(&window)?;
+    ensure_main_window(&window)?;
     ensure_known_provider(provider.as_str())?;
-    state
-        .credential_manager
-        .delete_credential(provider.as_str())
-        .map_err(|error| error.to_string())
+    if let Some(mode) = mode {
+        let slot = mode.slot_key();
+        state
+            .credential_manager
+            .delete_credential_for_slot(provider.as_str(), slot)
+            .map_err(|error| error.to_string())?;
+        let selected_mode = provider_selected_auth_mode(&state, &app, provider.as_str());
+        if selected_mode == mode {
+            sync_primary_credential_with_mode(&state, provider.as_str(), selected_mode)?;
+        }
+    } else {
+        state
+            .credential_manager
+            .delete_credential(provider.as_str())
+            .map_err(|error| error.to_string())?;
+        let selected_mode = provider_selected_auth_mode(&state, &app, provider.as_str());
+        if matches!(
+            selected_mode,
+            AuthSourceMode::ApiKey | AuthSourceMode::OAuthToken | AuthSourceMode::Token
+        ) {
+            state
+                .credential_manager
+                .delete_credential_for_slot(provider.as_str(), selected_mode.slot_key())
+                .map_err(|error| error.to_string())?;
+        }
+    }
+    state.quota_cache.clear(Some(provider.as_str()));
+    if !provider_has_runtime_configuration(provider.as_str(), &state, &app) {
+        set_provider_enabled(&state, &app, provider.as_str(), false)?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn start_copilot_device_flow(
     state: tauri::State<'_, AppState>,
+    window: tauri::Window,
 ) -> Result<CopilotDeviceFlowStart, String> {
+    ensure_main_window(&window)?;
     let response = state
         .http_client
         .post("https://github.com/login/device/code")
@@ -1046,7 +1561,10 @@ pub async fn start_copilot_device_flow(
 pub async fn poll_copilot_device_flow(
     device_code: String,
     state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
+    window: tauri::Window,
 ) -> Result<CopilotDeviceFlowPoll, String> {
+    ensure_main_window(&window)?;
     let response = state
         .http_client
         .post("https://github.com/login/oauth/access_token")
@@ -1066,10 +1584,16 @@ pub async fn poll_copilot_device_flow(
         .map_err(|error| format!("failed to parse poll response: {error}"))?;
 
     if let Some(token) = payload.get("access_token").and_then(Value::as_str) {
+        let _ = state.credential_manager.save_credential_for_slot(
+            "copilot",
+            AuthSourceMode::OAuthToken.slot_key(),
+            token.to_string(),
+        );
         state
             .credential_manager
             .save_credential("copilot", token.to_string())
             .map_err(|error| format!("failed to persist copilot token: {error}"))?;
+        let _ = set_provider_enabled(&state, &app, "copilot", true);
         return Ok(CopilotDeviceFlowPoll {
             status: "authorized".to_string(),
             message: Some("GitHub authorization complete".to_string()),
@@ -1110,6 +1634,7 @@ pub async fn poll_copilot_device_flow(
 pub fn save_manual_input(
     provider: String,
     input: ManualProviderInput,
+    state: tauri::State<'_, AppState>,
     app: tauri::AppHandle,
     window: tauri::Window,
 ) -> Result<(), String> {
@@ -1120,9 +1645,12 @@ pub fn save_manual_input(
     }
     validate_manual_input(&input)?;
 
+    let provider_id = provider.clone();
     let mut manual = load_manual_inputs(&app)?;
     manual.insert(provider, input);
-    save_manual_inputs(&app, &manual)
+    save_manual_inputs(&app, &manual)?;
+    state.quota_cache.clear(Some(provider_id.as_str()));
+    set_provider_enabled(&state, &app, provider_id.as_str(), true)
 }
 
 #[tauri::command]
@@ -1138,7 +1666,11 @@ pub fn clear_provider_data(
 
     let mut manual = load_manual_inputs(&app)?;
     manual.remove(provider.as_str());
-    save_manual_inputs(&app, &manual)
+    save_manual_inputs(&app, &manual)?;
+    if !provider_has_runtime_configuration(provider.as_str(), &state, &app) {
+        set_provider_enabled(&state, &app, provider.as_str(), false)?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -1231,8 +1763,12 @@ mod tests {
         };
 
         let tracks = build_tracks_for_entry("claude", &usage, &quota, DataSource::OAuth, None);
-        let session = tracks.iter().find(|track| track.id == "subscription:5-hour_window");
-        let weekly = tracks.iter().find(|track| track.id == "subscription:7-day_window");
+        let session = tracks
+            .iter()
+            .find(|track| track.id == "subscription:5-hour_window");
+        let weekly = tracks
+            .iter()
+            .find(|track| track.id == "subscription:7-day_window");
         assert_eq!(
             session.map(|track| track.reset_at.as_str()),
             Some("2026-03-01T12:00:00Z")
@@ -1250,6 +1786,8 @@ mod tests {
             name: "Claude".to_string(),
             icon: "brain".to_string(),
             auth_method: AuthMethod::OAuth,
+            supported_auth_modes: vec![AuthSourceMode::Auto, AuthSourceMode::OAuthToken],
+            default_auth_mode: AuthSourceMode::Auto,
             plan_name: "Claude Pro".to_string(),
             quota_limit: 100,
             reset_period: "rolling".to_string(),
@@ -1267,6 +1805,8 @@ mod tests {
             name: "OpenAI Codex".to_string(),
             icon: "bot".to_string(),
             auth_method: AuthMethod::OAuth,
+            supported_auth_modes: vec![AuthSourceMode::Auto, AuthSourceMode::ApiKey],
+            default_auth_mode: AuthSourceMode::Auto,
             plan_name: "Pro".to_string(),
             quota_limit: 100,
             reset_period: "rolling".to_string(),

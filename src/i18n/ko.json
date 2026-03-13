@@ -15,12 +15,45 @@
     "clearFilter": "필터 초기화",
     "loadError": "대시보드 데이터를 불러오지 못했습니다. 프로바이더/네트워크 상태를 확인한 뒤 다시 시도하세요.",
     "retry": "다시 시도",
-    "budgetInUse": "현재 분석 예산: ${{budget}}"
+    "budgetInUse": "현재 분석 예산: ${{budget}}",
+    "updateAvailable": "새 버전 {{version}}을 설치할 수 있습니다.",
+    "installUpdate": "업데이트 설치",
+    "trackKind": {
+      "subscription": "Subscription",
+      "api": "API",
+      "manual": "Manual"
+    },
+    "alerts": {
+      "quotaWarning": "{{provider}}: 쿼터 사용량이 80%를 초과했습니다.",
+      "quotaCritical": "{{provider}}: 쿼터 사용량이 95%를 초과했습니다.",
+      "trackWarning": "{{provider}} {{track}} Track 사용량이 80%를 초과했습니다.",
+      "trackCritical": "{{provider}} {{track}} Track 사용량이 95%를 초과했습니다.",
+      "dataStale": "{{provider}}: 5분 이상 지난 캐시 데이터를 표시 중입니다."
+    },
+    "loading": {
+      "dashboard": "대시보드 불러오는 중...",
+      "onboarding": "온보딩 불러오는 중...",
+      "analytics": "분석 화면 불러오는 중...",
+      "settings": "설정 불러오는 중...",
+      "tray": "퀵뷰 불러오는 중..."
+    },
+    "providerPicker": {
+      "title": "프로바이더 선택",
+      "description": "인증 정보를 설정하고 폴링을 활성화할 프로바이더를 선택하세요.",
+      "empty": "사용 가능한 프로바이더가 없습니다.",
+      "configured": "설정 완료",
+      "notConfigured": "미설정",
+      "refreshList": "목록 새로고침",
+      "close": "닫기"
+    }
   },
   "nav": {
     "dashboard": "대시보드",
     "analytics": "분석",
-    "settings": "설정"
+    "settings": "설정",
+    "primary": "기본 내비게이션",
+    "primaryMobile": "모바일 기본 내비게이션",
+    "navigateTo": "{{item}} 화면으로 이동"
   },
   "onboarding": {
     "welcomeTitle": "AIGauge에 오신 것을 환영합니다",
@@ -48,14 +81,15 @@
   },
   "analytics": {
     "title": "비용 분석",
-    "subtitle": "월별 지출 추이, 프로바이더 비중, 예산 페이스",
+    "subtitle": "월별 지출 추이, 프로바이더별 비중, 예산 대비 지출 페이스",
     "designTuned": "고밀도 인사이트에 맞춘 시각화",
     "costCoverageNote": "차트는 과금형/추정 비용이 있는 프로바이더를 중심으로 강조됩니다. 구독 포함형 플랜은 $0.00으로 유지될 수 있습니다.",
     "monthlyTrend": "월별 추이",
     "providerShare": "프로바이더 비중",
     "currentMonth": "이번 달",
     "previousMonth": "지난 달",
-    "momChange": "전월 대비",
+    "momChange": "전월 대비 변화",
+    "avgInRange": "선택 구간 평균",
     "peakInRange": "구간 최고치",
     "range": {
       "this_month": "이번 달",
@@ -83,10 +117,39 @@
       "onTrack": "예산 범위 내",
       "overBudget": "예산 초과 페이스",
       "daysRemaining": "남은 기간 {{count}}일",
-      "projectedAgainstBudget": "예산 대비 예상 지출",
+      "projectedAgainstBudget": "예산 대비 예상 지출 비율",
       "spentSoFar": "현재까지 지출",
       "projected": "월말 예상",
       "budget": "예산"
+    },
+    "export": {
+      "title": "내보내기",
+      "includeCost": "비용 필드 포함",
+      "providers": "프로바이더",
+      "preview": "미리보기",
+      "download": "다운로드",
+      "rows": "행",
+      "size": "크기",
+      "bytesUnit": "{{count}} 바이트",
+      "generated": "생성 시각",
+      "lastSaved": "최근 저장 위치",
+      "copyPath": "경로 복사",
+      "openFolder": "내보내기 폴더 열기",
+      "pathCopied": "경로를 복사했습니다",
+      "clipboardUnavailable": "클립보드를 사용할 수 없습니다",
+      "messages": {
+        "previewReady": "미리보기가 준비되었습니다",
+        "exportReady": "내보내기 데이터가 생성되었습니다",
+        "exportSaved": "{{path}}에 저장했습니다",
+        "exportSavedShort": "내보내기 파일을 저장했습니다",
+        "folderOpened": "내보내기 폴더 {{path}}를 열었습니다",
+        "folderOpenedShort": "내보내기 폴더를 열었습니다"
+      }
+    },
+    "a11y": {
+      "monthlyTrendChart": "월별 비용 추이 영역 차트",
+      "providerShareChart": "프로바이더 비용 비중 도넛 차트",
+      "roiChart": "요청/토큰 비용 비교 막대 차트"
     }
   },
   "settings": {
@@ -119,7 +182,71 @@
     "savedAt": "{{time}}에 저장됨"
   },
   "provider": {
-    "save": "저장"
+    "save": "저장",
+    "common": {
+      "provider": "프로바이더"
+    },
+    "setup": {
+      "title": "프로바이더 설정",
+      "description": "{{provider}} 인증 정보를 설정합니다.",
+      "status": "상태",
+      "testConnection": "연결 테스트",
+      "localSource": "로컬 데이터 소스를 자동으로 사용합니다.",
+      "cliSource": "CLI 세션을 자동 감지해서 사용합니다.",
+      "noneSource": "이 모드에서는 인증 정보가 필요하지 않습니다.",
+      "placeholder": "{{label}} 입력",
+      "mode": {
+        "label": "인증 모드",
+        "auto": "자동 감지",
+        "api_key": "API 키",
+        "oauth_token": "OAuth 토큰",
+        "token": "액세스 토큰",
+        "cli": "CLI 세션",
+        "none": "인증 불필요"
+      },
+      "guide": {
+        "codex": "자동 감지는 ChatGPT/Codex 구독 로그인 기준이며, 필요하면 API 키 모드로 전환하세요.",
+        "claude": "Claude CLI 설치/로그인 후 연결 테스트를 진행하세요.",
+        "gemini": "Gemini는 API 키 모드로 설정해 사용량을 조회하세요.",
+        "kiro": "호스트/WSL 환경에 Kiro CLI를 설치하세요.",
+        "copilot": "Copilot 사용량 API를 위해 GitHub 토큰(또는 gh hosts.yml 토큰)을 사용하세요.",
+        "cursor": "cursor.com 쿠키 헤더를 붙여넣거나 CodexBar 세션 캐시를 재사용하세요.",
+        "jetbrains": "토큰 없이 사용 가능합니다. AIGauge가 JetBrains 로컬 쿼터 파일을 자동으로 읽습니다.",
+        "default": "프로바이더 인증 정보를 설정하고 연결 테스트를 진행하세요."
+      },
+      "label": {
+        "cookieHeader": "쿠키 헤더",
+        "jetbrainsPath": "JetBrains IDE 기본 경로 (선택)",
+        "none": "인증 정보 불필요",
+        "oauthToken": "OAuth 토큰",
+        "accessToken": "액세스 토큰",
+        "apiKey": "API 키"
+      },
+      "health": {
+        "connected": "연결됨",
+        "configuredUnreachable": "설정됨(접근 불가)",
+        "notConfigured": "미설정",
+        "openVerification": "인증 URL을 열어 GitHub 로그인을 완료하세요."
+      },
+      "copilot": {
+        "recommended": "권장: GitHub Device Flow로 로그인하세요.",
+        "signIn": "GitHub로 로그인",
+        "checkStatus": "로그인 상태 확인",
+        "code": "코드",
+        "invalidVerificationUrl": "유효하지 않은 인증 URL",
+        "loginStatus": "로그인 상태: {{status}}"
+      }
+    },
+    "settings": {
+      "title": "프로바이더 설정",
+      "authMode": "인증 모드",
+      "pollingIntervalSeconds": "폴링 간격 (초)",
+      "enableNotifications": "알림 사용",
+      "removeCredential": "인증 정보 삭제"
+    }
+  },
+  "common": {
+    "dismiss": "닫기"
   },
   "tray": {
     "title": "AIGauge 빠른 보기",
@@ -154,11 +281,20 @@
       "trackManual": "수동 추정치",
       "used": "사용량",
       "limit": "한도",
-      "cost": "월간 비용 (USD)"
+      "cost": "월간 비용 (USD)",
+      "validation": {
+        "invalidNumbers": "0 이상의 유효한 숫자를 입력하세요.",
+        "rangeExceeded": "입력값이 허용 범위를 초과했습니다."
+      },
+      "planNameManual": "수동 입력"
     },
     "settings": {
       "title": "트레이 설정",
       "refreshInterval": "새로고침 간격 (분)",
+      "minutesShort": "{{value}}분",
+      "language": "언어",
+      "languageEnglish": "영어",
+      "languageKorean": "한국어",
       "notifications": "임계치 알림 사용",
       "notificationsDesc": "쿼터가 경고/위험 임계치에 도달하면 알림을 보냅니다.",
       "close": "닫기"
@@ -177,6 +313,80 @@
       "providers": "프로바이더",
       "configured": "설정됨",
       "warnings": "경고"
+    },
+    "overview": {
+      "title": "Tray Overview",
+      "subtitle": "코딩 중 빠르게 확인"
+    },
+    "tabBar": {
+      "providers": "프로바이더",
+      "scrollLeft": "프로바이더 탭 왼쪽으로 스크롤",
+      "scrollRight": "프로바이더 탭 오른쪽으로 스크롤"
+    },
+    "provider": {
+      "setupGuide": {
+        "codex": "codex CLI 로그인 필요",
+        "claude": "Claude CLI 설치 및 로그인 필요",
+        "gemini": "Gemini CLI 설치 필요",
+        "kiro": "Kiro CLI 설치 필요 (WSL)",
+        "default": "프로바이더 설정이 필요합니다."
+      },
+      "serviceStatus": {
+        "disrupted": "이슈",
+        "degraded": "저하",
+        "operational": "정상",
+        "unknown": "확인 중"
+      },
+      "dataStatus": {
+        "notConfigured": "미설정",
+        "stale": "데이터 지연",
+        "live": "최신",
+        "offline": "오프라인"
+      },
+      "quotaStatus": {
+        "healthy": "정상",
+        "warning": "주의",
+        "critical": "임박",
+        "exhausted": "소진",
+        "notConfigured": "미설정",
+        "unknown": "확인 중"
+      },
+      "badges": {
+        "serviceStatus": "서비스 상태: {{value}}",
+        "dataStatus": "데이터: {{value}}",
+        "quotaStatus": "쿼터: {{value}}"
+      },
+      "subscriptionQuota": "Subscription quota",
+      "primaryWindowRemaining": "Primary window 잔여",
+      "resetIn": "Reset {{value}}",
+      "apiTrack": "API Track",
+      "unavailable": "Unavailable",
+      "paceLabel": "페이스 (사용률 vs 경과시간):",
+    "pace": {
+      "behind": "초과 추세 (주의)",
+      "ahead": "여유 추세 (안전)",
+      "onPace": "정상 추세 (균형)",
+      "unknown": "판단 보류 (시간 데이터 부족)"
+    },
+      "countdown": {
+        "days": "{{days}}일",
+        "hours": "{{hours}}시간",
+        "soon": "soon"
+      },
+      "cost": {
+        "title": "Cost",
+        "input": "Input",
+        "output": "Output",
+        "reasoning": "Reasoning",
+        "sessions": "Sessions",
+        "events": "Events",
+        "monthly": "월 비용",
+        "noAdditionalCharge": "플랜 쿼터 내에서는 추가 과금이 없습니다.",
+        "apiEquivalent30d": "API 환산 추정치(30일): ${{value}}",
+        "highCostWarning": "고비용 경고"
+      },
+      "riskLabel": "Risk (쿼터 사용률)",
+      "riskUsed": "{{value}}% 사용"
     }
   },
   "empty": {
@@ -186,5 +396,107 @@
   },
   "a11y": {
     "skipToContent": "본문으로 건너뛰기"
+  },
+  "shell": {
+    "toggleTheme": "테마 전환",
+    "menu": "메뉴",
+    "shortcuts": {
+      "toggleWindow": "{{key}}: 창 토글",
+      "refreshProviders": "{{key}}: 프로바이더 새로고침"
+    },
+    "version": "v{{version}}"
+  },
+  "dashboard": {
+    "providerCard": {
+      "auth": {
+        "apiKey": "API Key",
+        "oauth": "OAuth",
+        "token": "Token",
+        "none": "None"
+      },
+      "dataStatus": {
+        "notConfigured": "설정 안 됨",
+        "stale": "오래된 데이터",
+        "live": "정상",
+        "offline": "오프라인"
+      },
+      "quotaStatus": {
+        "healthy": "정상",
+        "warning": "주의",
+        "critical": "임박",
+        "exhausted": "소진",
+        "notConfigured": "미설정",
+        "unknown": "확인 중"
+      },
+      "providerMenu": "프로바이더 메뉴",
+      "providerSettings": "Provider Settings",
+      "setupCredential": "인증 설정",
+      "notConfigured": "설정되지 않음",
+      "setupProvider": "프로바이더 설정",
+      "quotaModelLabel": "쿼터 모델",
+      "windowCount": "윈도우 {{count}}개",
+      "usageWindow": "사용량 구간",
+      "noTrackWindows": "이 프로바이더에서 보고된 구독 윈도우가 아직 없습니다.",
+      "noDataYet": "아직 데이터 없음",
+      "additionalWindow": "추가 구간",
+      "notAvailable": "표시할 수 없음",
+      "resetIn": "{{value}} 후 초기화",
+      "resetInLabel": "초기화까지",
+      "resetSoon": "곧 초기화",
+      "countdownDaysHours": "{{days}}일 {{hours}}시간",
+      "countdownHours": "{{hours}}시간",
+      "period": "기간",
+      "source": "소스",
+      "primaryWindow": "Primary window",
+      "costPerMonth": "월 비용",
+      "primaryUsage": "Primary 사용량",
+      "apiTrack": "API Track",
+      "unavailable": "Unavailable",
+      "lastChecked": "마지막 확인",
+      "included": "플랜 포함",
+      "fallbackSubscriptionLabel": "Subscription quota",
+      "quotaModels": {
+        "codex": "세션 + 주간 한도",
+        "claude": "5시간 + 7일 윈도우",
+        "gemini": "일일 요청 쿼터",
+        "kiro": "월간 크레딧 풀",
+        "copilot": "월간 상호작용 쿼터",
+        "cursor": "월간 플랜 윈도우",
+        "jetbrains": "월간 AI 크레딧",
+        "default": "프로바이더 쿼터 윈도우"
+      }
+    },
+    "quotaTimeline": {
+      "title": "Quota Timeline",
+      "subtitle": "시간 보정 뷰: 과금 기간의 시간 경과율과 사용량 소진율을 비교합니다.",
+    "timeElapsed": "시간 경과",
+    "usageConsumed": "사용량 소진",
+    "projectedTooltip": "현재 시간 보정 페이스가 유지될 때 주기 종료 시점의 예상 사용량입니다.",
+    "projectedEndUsage": "예상 종료 사용량: {{value}}",
+    "projectedPending": "예상치를 계산하기 위해 시간 데이터가 더 필요합니다.",
+    "pace": {
+      "atRisk": {
+        "label": "At risk",
+        "hint": "현재 속도라면 쿼터를 초과할 가능성이 큽니다."
+      },
+      "belowPlan": {
+        "label": "Below plan",
+        "hint": "기간 진행률 대비 사용량이 낮습니다."
+      },
+      "onTrack": {
+        "label": "On track",
+        "hint": "기간 진행률과 사용량이 대체로 일치합니다."
+      },
+      "unknown": {
+        "label": "판단 보류",
+        "hint": "페이스를 계산하기엔 경과 시간이 아직 부족합니다."
+      }
+    }
+  },
+    "costSummary": {
+      "title": "비용 요약",
+      "monthlyTotal": "월 합계",
+      "vsLastMonth": "지난달 대비"
+    }
   }
 }

@@ -13,7 +13,8 @@ use once_cell::sync::Lazy;
 
 use super::{
     home_dir, not_configured_quota, not_configured_usage, unreachable_quota, unreachable_usage,
-    AuthMethod, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit, Result, UsageData,
+    AuthMethod, AuthSourceMode, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit,
+    Result, UsageData,
 };
 
 static LAST_PLAN: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("Unknown".to_string()));
@@ -46,8 +47,6 @@ struct CodexQuotaState {
 #[derive(Debug, Deserialize)]
 struct CodexTokenRefreshResponse {
     access_token: Option<String>,
-    refresh_token: Option<String>,
-    id_token: Option<String>,
 }
 
 pub struct CodexProvider {
@@ -190,54 +189,26 @@ impl CodexProvider {
             .map_err(|_| ())
     }
 
-    fn persist_refreshed_auth(
-        auth: &CodexAuth,
-        refreshed: &CodexTokenRefreshResponse,
-    ) -> std::result::Result<(), ()> {
-        let path = Self::auth_path().ok_or(())?;
-        let mut value = serde_json::to_value(auth).map_err(|_| ())?;
-
-        let tokens = value
-            .as_object_mut()
-            .and_then(|object| object.get_mut("tokens"))
-            .and_then(|tokens| tokens.as_object_mut())
-            .ok_or(())?;
-
-        if let Some(access) = refreshed.access_token.as_ref() {
-            tokens.insert(
-                "access_token".to_string(),
-                serde_json::Value::String(access.to_string()),
-            );
-        }
-        if let Some(refresh) = refreshed.refresh_token.as_ref() {
-            tokens.insert(
-                "refresh_token".to_string(),
-                serde_json::Value::String(refresh.to_string()),
-            );
-        }
-        if let Some(id_token) = refreshed.id_token.as_ref() {
-            tokens.insert(
-                "id_token".to_string(),
-                serde_json::Value::String(id_token.to_string()),
-            );
-        }
-
-        value.as_object_mut().ok_or(())?.insert(
-            "last_refresh".to_string(),
-            serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
-        );
-
-        let serialized = serde_json::to_string_pretty(&value).map_err(|_| ())?;
-        fs::write(path, serialized).map_err(|_| ())
-    }
-
     async fn auth_header_value(&self) -> Option<(String, Option<String>)> {
+        if let Some(saved) = self
+            .credential_manager
+            .get_credential("codex")
+            .ok()
+            .flatten()
+            .filter(|value| !value.trim().is_empty())
+        {
+            return Some((saved.to_string(), None));
+        }
+
         if let Some(auth) = Self::read_auth_from_file() {
             if let Some(api_key) = auth
                 .openai_api_key
                 .as_ref()
                 .filter(|value| !value.is_empty())
             {
+                let _ = self
+                    .credential_manager
+                    .save_credential("codex", api_key.to_string());
                 return Some((api_key.to_string(), None));
             }
 
@@ -253,22 +224,22 @@ impl CodexProvider {
                     if let Ok(refreshed) = self.refresh_access_token(refresh).await {
                         if let Some(new_access) = refreshed.access_token.as_ref() {
                             access = Some(new_access.to_string());
+                            let _ = self
+                                .credential_manager
+                                .save_credential("codex", new_access.to_string());
                         }
-                        let _ = Self::persist_refreshed_auth(&auth, &refreshed);
                     }
                 }
 
                 if let Some(access_token) = access.filter(|value| !value.is_empty()) {
+                    let _ = self
+                        .credential_manager
+                        .save_credential("codex", access_token.clone());
                     return Some((access_token, tokens.account_id.clone()));
                 }
             }
         }
-
-        self.credential_manager
-            .get_credential("codex")
-            .ok()
-            .flatten()
-            .map(|value| (value.to_string(), None))
+        None
     }
 
     fn parse_plan(value: &Value) -> String {
@@ -307,16 +278,36 @@ impl CodexProvider {
         }
     }
 
+    fn parse_number(raw: &Value) -> Option<f64> {
+        raw.as_f64()
+            .or_else(|| raw.as_i64().map(|value| value as f64))
+            .or_else(|| raw.as_u64().map(|value| value as f64))
+            .or_else(|| raw.as_str().and_then(|value| value.parse::<f64>().ok()))
+    }
+
+    fn percent_from_ratio(window: &Value, used_key: &str, limit_key: &str) -> Option<f64> {
+        let used = window.get(used_key).and_then(Self::parse_number)?;
+        let limit = window.get(limit_key).and_then(Self::parse_number)?;
+        if limit <= 0.0 {
+            return None;
+        }
+        Some(Self::normalize_percent((used / limit) * 100.0))
+    }
+
     fn window_percent(window: &Value) -> Option<f64> {
         window
             .get("used_percent")
-            .and_then(Value::as_f64)
+            .and_then(Self::parse_number)
             .or_else(|| {
                 window
                     .get("remaining_percent")
-                    .and_then(Value::as_f64)
+                    .and_then(Self::parse_number)
                     .map(|remaining| 100.0 - remaining)
             })
+            .or_else(|| Self::percent_from_ratio(window, "used", "limit"))
+            .or_else(|| Self::percent_from_ratio(window, "consumed", "limit"))
+            .or_else(|| Self::percent_from_ratio(window, "count", "max_count"))
+            .or_else(|| Self::percent_from_ratio(window, "requests_used", "requests_limit"))
             .map(Self::normalize_percent)
     }
 
@@ -446,6 +437,12 @@ impl Provider for CodexProvider {
             name: "OpenAI Codex".to_string(),
             icon: "bot".to_string(),
             auth_method: AuthMethod::OAuth,
+            supported_auth_modes: vec![
+                AuthSourceMode::Auto,
+                AuthSourceMode::ApiKey,
+                AuthSourceMode::OAuthToken,
+            ],
+            default_auth_mode: AuthSourceMode::Auto,
             plan_name: plan,
             quota_limit: 100,
             reset_period: "rolling".to_string(),

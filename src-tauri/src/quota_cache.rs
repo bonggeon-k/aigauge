@@ -72,7 +72,7 @@ impl QuotaCache {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::providers::{AuthMethod, ProviderStatus};
+    use crate::providers::{AuthMethod, AuthSourceMode, ProviderStatus};
 
     fn snapshot() -> ProviderSnapshot {
         ProviderSnapshot {
@@ -81,6 +81,8 @@ mod tests {
                 name: "Codex".to_string(),
                 icon: "bot".to_string(),
                 auth_method: AuthMethod::ApiKey,
+                supported_auth_modes: vec![AuthSourceMode::ApiKey],
+                default_auth_mode: AuthSourceMode::ApiKey,
                 plan_name: "Plus".to_string(),
                 quota_limit: 100,
                 reset_period: "weekly".to_string(),

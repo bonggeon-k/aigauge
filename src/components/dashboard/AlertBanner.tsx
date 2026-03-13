@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, BellRing } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 
 type AlertLevel = "warning" | "critical";
@@ -12,6 +13,7 @@ interface AlertBannerProps {
 }
 
 export const AlertBanner = ({ message, level, onDismiss }: AlertBannerProps) => {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(true);
 
   const bgClass =
@@ -47,7 +49,7 @@ export const AlertBanner = ({ message, level, onDismiss }: AlertBannerProps) => 
                 onDismiss();
               }}
             >
-              Dismiss
+              {t("common.dismiss")}
             </Button>
           </div>
         </motion.div>

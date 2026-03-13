@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import {
   Bot,
@@ -44,6 +45,14 @@ interface DataStatusMeta {
   dotClass: string;
 }
 
+interface QuotaStatusMeta {
+  label: string;
+  toneClass: string;
+  dotClass: string;
+}
+
+type Translator = (key: string, options?: Record<string, unknown>) => string;
+
 const iconMap = {
   codex: Bot,
   claude: Brain,
@@ -53,6 +62,68 @@ const iconMap = {
   cursor: MousePointerClick,
   jetbrains: BrainCircuit,
 } as const;
+
+interface ProviderAccent {
+  stripeClass: string;
+  iconClass: string;
+  modelClass: string;
+  trackClass: string;
+}
+
+const providerAccentMap: Record<string, ProviderAccent> = {
+  codex: {
+    stripeClass: "from-emerald-500 via-teal-500 to-cyan-500",
+    iconClass: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-200",
+    modelClass: "border-emerald-500/30 bg-emerald-500/10",
+    trackClass: "border-emerald-500/20 bg-emerald-500/5",
+  },
+  claude: {
+    stripeClass: "from-amber-500 via-orange-500 to-rose-500",
+    iconClass: "bg-amber-500/15 text-amber-700 dark:text-amber-200",
+    modelClass: "border-amber-500/30 bg-amber-500/10",
+    trackClass: "border-amber-500/20 bg-amber-500/5",
+  },
+  gemini: {
+    stripeClass: "from-blue-500 via-indigo-500 to-violet-500",
+    iconClass: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-200",
+    modelClass: "border-indigo-500/30 bg-indigo-500/10",
+    trackClass: "border-indigo-500/20 bg-indigo-500/5",
+  },
+  kiro: {
+    stripeClass: "from-orange-500 via-amber-500 to-yellow-500",
+    iconClass: "bg-orange-500/15 text-orange-700 dark:text-orange-200",
+    modelClass: "border-orange-500/30 bg-orange-500/10",
+    trackClass: "border-orange-500/20 bg-orange-500/5",
+  },
+  copilot: {
+    stripeClass: "from-sky-500 via-blue-500 to-indigo-500",
+    iconClass: "bg-blue-500/15 text-blue-700 dark:text-blue-200",
+    modelClass: "border-blue-500/30 bg-blue-500/10",
+    trackClass: "border-blue-500/20 bg-blue-500/5",
+  },
+  cursor: {
+    stripeClass: "from-fuchsia-500 via-pink-500 to-rose-500",
+    iconClass: "bg-pink-500/15 text-pink-700 dark:text-pink-200",
+    modelClass: "border-pink-500/30 bg-pink-500/10",
+    trackClass: "border-pink-500/20 bg-pink-500/5",
+  },
+  jetbrains: {
+    stripeClass: "from-red-500 via-orange-500 to-yellow-500",
+    iconClass: "bg-red-500/15 text-red-700 dark:text-red-200",
+    modelClass: "border-red-500/30 bg-red-500/10",
+    trackClass: "border-red-500/20 bg-red-500/5",
+  },
+};
+
+const providerQuotaModelKey: Record<string, string> = {
+  codex: "dashboard.providerCard.quotaModels.codex",
+  claude: "dashboard.providerCard.quotaModels.claude",
+  gemini: "dashboard.providerCard.quotaModels.gemini",
+  kiro: "dashboard.providerCard.quotaModels.kiro",
+  copilot: "dashboard.providerCard.quotaModels.copilot",
+  cursor: "dashboard.providerCard.quotaModels.cursor",
+  jetbrains: "dashboard.providerCard.quotaModels.jetbrains",
+};
 
 const getQuotaColor = (ratio: number): string => {
   if (ratio < 0.6) return "quota-meter-safe";
@@ -70,9 +141,14 @@ const AnimatedNumber = ({ value }: { value: number }) => {
   return <motion.span>{display}</motion.span>;
 };
 
-const getResetCountdown = (resetAt: string): string => {
+const getResetCountdown = (resetAt: string, t: Translator): string => {
   if (!resetAt) {
     return "-";
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(resetAt)) {
+    // Date-only values are not precise enough for hour-level countdown.
+    return resetAt;
   }
 
   let targetMs: number | null = null;
@@ -101,15 +177,15 @@ const getResetCountdown = (resetAt: string): string => {
 
   const diffMs = targetMs - Date.now();
   if (diffMs <= 0) {
-    return "Reset soon";
+    return t("dashboard.providerCard.resetSoon");
   }
 
   const hours = Math.floor(diffMs / (1000 * 60 * 60));
   const days = Math.floor(hours / 24);
   if (days > 0) {
-    return `${days}d ${hours % 24}h`;
+    return t("dashboard.providerCard.countdownDaysHours", { days, hours: hours % 24 });
   }
-  return `${hours}h`;
+  return t("dashboard.providerCard.countdownHours", { hours });
 };
 
 const trackPercent = (track: UsageTrack): number => {
@@ -127,129 +203,196 @@ const formatTrackUsage = (track: UsageTrack): string => {
   return `${used} ${track.unit}`;
 };
 
-const formatAuthMethod = (value: string): string => {
+const formatAuthMethod = (value: string, t: Translator): string => {
   switch (value) {
     case "api_key":
-      return "API Key";
+      return t("dashboard.providerCard.auth.apiKey");
     case "oauth":
-      return "OAuth";
+      return t("dashboard.providerCard.auth.oauth");
     case "token":
-      return "Token";
+      return t("dashboard.providerCard.auth.token");
     case "none":
-      return "None";
+      return t("dashboard.providerCard.auth.none");
     default:
       return value;
   }
 };
 
-const getDataStatusBadge = (entry: DashboardEntry): DataStatusMeta => {
+const getQuotaModelLabel = (providerId: string, t: Translator): string => {
+  const key = providerQuotaModelKey[providerId] ?? "dashboard.providerCard.quotaModels.default";
+  return t(key);
+};
+
+const getDataStatusBadge = (entry: DashboardEntry, t: Translator): DataStatusMeta => {
   if (entry.usage.status === "not_configured") {
       return {
-        label: "Not configured",
+        label: t("dashboard.providerCard.dataStatus.notConfigured"),
         toneClass: "border-slate-400/30 bg-slate-400/10 text-slate-700 dark:text-slate-300",
         dotClass: "bg-slate-400",
       };
   }
   if (entry.stale) {
       return {
-        label: "Stale",
+        label: t("dashboard.providerCard.dataStatus.stale"),
         toneClass: "border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300",
         dotClass: "bg-amber-500",
       };
   }
   if (entry.health.reachable) {
       return {
-        label: "Live",
+        label: t("dashboard.providerCard.dataStatus.live"),
         toneClass: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
         dotClass: "bg-emerald-500",
       };
   }
   return {
-    label: "Offline",
+    label: t("dashboard.providerCard.dataStatus.offline"),
     toneClass: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300",
     dotClass: "bg-rose-500",
   };
 };
 
-export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardProps) => {
-  const Icon = iconMap[entry.info.id as keyof typeof iconMap] ?? Bot;
+const getQuotaStatusBadge = (
+  entry: DashboardEntry,
+  ratio: number | null,
+  t: Translator,
+): QuotaStatusMeta => {
+  if (entry.usage.status === "not_configured") {
+    return {
+      label: t("dashboard.providerCard.quotaStatus.notConfigured"),
+      toneClass: "border-slate-400/30 bg-slate-400/10 text-slate-700 dark:text-slate-300",
+      dotClass: "bg-slate-400",
+    };
+  }
 
-  const fallbackTrack = useMemo(
-    (): UsageTrack => ({
-      id: "subscription:primary",
-      kind: "subscription",
-      label: "Subscription quota",
-      used: entry.quota.used,
-      limit: entry.quota.limit,
-      unit: entry.quota.unit,
-      reset_at: entry.quota.reset_at,
-      status: entry.quota.status,
-      source: "snapshot",
-    }),
-    [
-      entry.quota.limit,
-      entry.quota.reset_at,
-      entry.quota.status,
-      entry.quota.unit,
-      entry.quota.used,
-    ],
-  );
+  if (ratio == null) {
+    return {
+      label: t("dashboard.providerCard.quotaStatus.unknown"),
+      toneClass: "border-slate-400/30 bg-slate-400/10 text-slate-700 dark:text-slate-300",
+      dotClass: "bg-slate-400",
+    };
+  }
+
+  if (ratio >= 1) {
+    return {
+      label: t("dashboard.providerCard.quotaStatus.exhausted"),
+      toneClass: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300",
+      dotClass: "bg-rose-500",
+    };
+  }
+
+  if (ratio >= 0.95) {
+    return {
+      label: t("dashboard.providerCard.quotaStatus.critical"),
+      toneClass: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300",
+      dotClass: "bg-rose-500",
+    };
+  }
+
+  if (ratio >= 0.8) {
+    return {
+      label: t("dashboard.providerCard.quotaStatus.warning"),
+      toneClass: "border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+      dotClass: "bg-amber-500",
+    };
+  }
+
+  return {
+    label: t("dashboard.providerCard.quotaStatus.healthy"),
+    toneClass: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+    dotClass: "bg-emerald-500",
+  };
+};
+
+export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardProps) => {
+  const { t, i18n } = useTranslation();
+  const Icon = iconMap[entry.info.id as keyof typeof iconMap] ?? Bot;
+  const locale = i18n.language.startsWith("ko") ? "ko-KR" : "en-US";
 
   const subscriptionTracks = useMemo(() => {
-    const tracks = entry.tracks.filter((track) => track.kind === "subscription");
-    if (tracks.length === 0) {
-      return [fallbackTrack];
-    }
-    return tracks.slice(0, 2);
-  }, [entry.tracks, fallbackTrack]);
+    return entry.tracks.filter(
+      (track) => track.kind === "subscription" && track.status !== "not_configured",
+    );
+  }, [entry.tracks]);
 
-  const paddedSubscriptionTracks = useMemo(() => {
-    const rows: Array<UsageTrack | null> = [...subscriptionTracks];
-    while (rows.length < 2) {
-      rows.push(null);
-    }
-    return rows;
-  }, [subscriptionTracks]);
-
-  const primaryTrack = subscriptionTracks[0] ?? fallbackTrack;
+  const accent =
+    providerAccentMap[entry.info.id] ?? {
+      stripeClass: "from-[var(--chart-1)] via-[var(--chart-2)] to-[var(--chart-3)]",
+      iconClass: "bg-[var(--surface-1)] text-primary",
+      modelClass: "border-border/70 bg-[var(--surface-1)]",
+      trackClass: "border-border/60 bg-[var(--surface-1)]",
+    };
+  const primaryTrack = subscriptionTracks[0] ?? null;
+  const quotaModelLabel = getQuotaModelLabel(entry.info.id, t);
   const apiTrack = useMemo(
     () => entry.tracks.find((track) => track.kind === "api"),
     [entry.tracks],
   );
+  const showApiPanel = apiTrack != null;
   const quotaRatio =
-    primaryTrack.limit > 0 ? primaryTrack.used / primaryTrack.limit : 0;
+    primaryTrack != null && primaryTrack.limit > 0
+      ? primaryTrack.used / primaryTrack.limit
+      : 0;
   const quotaPct = Math.min(100, Math.round(quotaRatio * 100));
 
   const isNotConfigured = entry.usage.status === "not_configured";
-  const dataStatusBadge = getDataStatusBadge(entry);
+  const dataStatusBadge = getDataStatusBadge(entry, t);
+  const quotaStatusRatio =
+    primaryTrack != null && primaryTrack.limit > 0
+      ? Math.max(0, primaryTrack.used / primaryTrack.limit)
+      : entry.quota.limit > 0
+        ? Math.max(0, entry.quota.used / entry.quota.limit)
+        : null;
+  const quotaStatusBadge = getQuotaStatusBadge(entry, quotaStatusRatio, t);
+  const planLabel =
+    entry.info.plan_name.toLowerCase() === "manual"
+      ? t("tray.manual.planNameManual")
+      : entry.info.plan_name;
 
   const costLabel = useMemo(() => {
     if (entry.cost_view.mode === "included") {
-      return "Included";
+      return t("dashboard.providerCard.included");
     }
     if (entry.cost_view.mode !== "metered" || entry.cost_view.total == null) return "-";
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: entry.cost_view.currency || "USD",
       minimumFractionDigits: 2,
     }).format(entry.cost_view.total);
-  }, [entry.cost_view.currency, entry.cost_view.mode, entry.cost_view.total]);
+  }, [entry.cost_view.currency, entry.cost_view.mode, entry.cost_view.total, locale, t]);
+  const primaryUsageLabel =
+    primaryTrack == null
+      ? isNotConfigured
+        ? t("dashboard.providerCard.noDataYet")
+        : t("dashboard.providerCard.unavailable")
+      : formatTrackUsage(primaryTrack);
+  const primaryResetLabel =
+    primaryTrack == null || isNotConfigured
+      ? "-"
+      : getResetCountdown(primaryTrack.reset_at, t);
+  const apiSummary = apiTrack
+    ? apiTrack.limit > 0 || apiTrack.used > 0
+      ? formatTrackUsage(apiTrack)
+      : apiTrack.status === "not_configured"
+        ? t("dashboard.providerCard.notConfigured")
+        : t("dashboard.providerCard.unavailable")
+    : t("dashboard.providerCard.unavailable");
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ scale: 1.02, y: -2 }}
+      whileHover={{ scale: 1.015, y: -2 }}
       transition={{ duration: 0.35, ease: "easeOut" }}
       className="h-full"
     >
-      <Card className="flex h-full min-h-[430px] flex-col overflow-hidden border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-soft)] transition-all duration-300 hover:shadow-[var(--shadow-hard)]">
-        <div className="pointer-events-none h-1 bg-gradient-to-r from-[var(--chart-1)] via-[var(--chart-2)] to-[var(--chart-3)]" />
-        <CardHeader className="pb-3">
+      <Card className="flex h-full min-h-[380px] flex-col overflow-hidden border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-soft)] transition-all duration-300 hover:shadow-[var(--shadow-hard)]">
+        <div className={`pointer-events-none h-1 bg-gradient-to-r ${accent.stripeClass}`} />
+        <CardHeader className="pb-2">
           <div className="flex min-w-0 items-start justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
-              <div className="rounded-xl bg-[var(--surface-1)] p-2">
-                <Icon className="h-5 w-5 text-primary" />
+              <div className={`rounded-xl p-2 ${accent.iconClass}`}>
+                <Icon className="h-5 w-5" />
               </div>
               <div className="min-w-0">
                 <CardTitle className="truncate text-base font-semibold tracking-tight">{entry.info.name}</CardTitle>
@@ -258,149 +401,152 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Provider menu" className="shrink-0">
+                <Button variant="ghost" size="icon" aria-label={t("dashboard.providerCard.providerMenu")} className="shrink-0">
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-[14rem] max-w-[18rem]">
                 <DropdownMenuItem className="whitespace-normal break-words leading-snug" onClick={() => onOpenSettings(entry.info.id)}>
-                  Provider Settings
+                  {t("dashboard.providerCard.providerSettings")}
                 </DropdownMenuItem>
                 <DropdownMenuItem className="whitespace-normal break-words leading-snug" onClick={() => onSetup(entry.info.id)}>
-                  Setup Credential
+                  {t("dashboard.providerCard.setupCredential")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <Badge variant="secondary" className="max-w-full truncate">
-              {entry.info.plan_name}
+          <div className="mt-1 flex min-h-8 flex-wrap items-center gap-1.5">
+            <Badge variant="secondary" className="max-w-full truncate korean-keep">
+              {planLabel}
             </Badge>
-            <Badge variant="outline" className="max-w-full truncate">
-              {formatAuthMethod(entry.info.auth_method)}
+            <Badge variant="outline" className="max-w-full truncate korean-keep">
+              {formatAuthMethod(entry.info.auth_method, t)}
             </Badge>
             <span
-              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${dataStatusBadge.toneClass}`}
+              className={`inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${dataStatusBadge.toneClass}`}
             >
               <span className={`inline-block h-2 w-2 rounded-full ${dataStatusBadge.dotClass}`} />
-              {dataStatusBadge.label}
+              <span className="truncate korean-keep">{dataStatusBadge.label}</span>
             </span>
+            <span
+              className={`inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${quotaStatusBadge.toneClass}`}
+            >
+              <span className={`inline-block h-2 w-2 rounded-full ${quotaStatusBadge.dotClass}`} />
+              <span className="truncate korean-keep">{quotaStatusBadge.label}</span>
+            </span>
+          </div>
+          <div className={`mt-2 rounded-xl border px-3 py-2 ${accent.modelClass}`}>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground korean-keep">
+                {t("dashboard.providerCard.quotaModelLabel")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t("dashboard.providerCard.windowCount", { count: subscriptionTracks.length })}
+              </p>
+            </div>
+            <p className="mt-1 text-sm font-semibold korean-keep">{quotaModelLabel}</p>
           </div>
         </CardHeader>
 
-        <CardContent className="flex flex-1 flex-col gap-4">
-          {isNotConfigured ? (
-            <div className="flex h-full flex-col gap-3">
+        <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            {isNotConfigured ? (
               <div className="rounded-xl border border-dashed border-border bg-[var(--surface-1)] p-3">
-                <p className="mb-2 text-sm text-muted-foreground">Not Configured</p>
+                <p className="mb-2 text-sm text-muted-foreground korean-keep">{t("dashboard.providerCard.notConfigured")}</p>
                 <Button size="sm" onClick={() => onSetup(entry.info.id)}>
-                  Setup Provider
+                  {t("dashboard.providerCard.setupProvider")}
                 </Button>
               </div>
-              {paddedSubscriptionTracks.map((track, index) => (
-                <div key={`placeholder-${entry.info.id}-${index}`} className="rounded-xl border border-border/60 bg-[var(--surface-1)] p-3">
-                  <p className="text-xs text-muted-foreground">{track?.label || "Usage window"}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">No data yet</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <>
-              <div className="space-y-2">
-                {paddedSubscriptionTracks.map((track, index) => {
-                  if (!track) {
-                    return (
-                      <div key={`empty-track-${entry.info.id}-${index}`} className="rounded-xl border border-border/60 bg-[var(--surface-1)] p-3">
-                        <p className="text-xs text-muted-foreground">Additional window</p>
-                        <p className="text-sm text-muted-foreground">Not available</p>
-                      </div>
-                    );
-                  }
+            ) : null}
 
+            {!isNotConfigured && subscriptionTracks.length === 0 ? (
+              <div className="rounded-xl border border-border/60 bg-[var(--surface-1)] p-3">
+                <p className="text-sm text-muted-foreground korean-keep">{t("dashboard.providerCard.noTrackWindows")}</p>
+              </div>
+            ) : null}
+
+            {!isNotConfigured
+              ? subscriptionTracks.map((track) => {
                   const usagePct = trackPercent(track);
                   const usageRatio = track.limit > 0 ? track.used / track.limit : 0;
                   const usageColorClass = getQuotaColor(usageRatio);
                   return (
                     <Tooltip key={track.id}>
                       <TooltipTrigger asChild>
-                        <div className="rounded-xl border border-border/60 bg-[var(--surface-1)] p-3">
+                        <div className={`rounded-xl border p-3 ${accent.trackClass}`}>
                           <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                            <span>{track.label}</span>
+                            <span className="min-w-0 truncate korean-keep">{track.label || t("dashboard.providerCard.usageWindow")}</span>
                             <span>{usagePct}%</span>
                           </div>
                           <progress
                             className={`quota-meter h-2 w-full rounded-full ${usageColorClass}`}
                             max={100}
                             value={usagePct}
+                            aria-label={`${track.label} ${t("dashboard.providerCard.primaryUsage")}`}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={usagePct}
                           />
                           <div className="mt-2 flex items-center justify-between gap-2 text-xs">
                             <span className="min-w-0 truncate font-medium" title={formatTrackUsage(track)}>
                               {formatTrackUsage(track)}
                             </span>
-                            <span className="shrink-0 text-muted-foreground">
-                              Reset in {getResetCountdown(track.reset_at)}
+                            <span className="shrink-0 text-muted-foreground korean-keep">
+                              {t("dashboard.providerCard.resetIn", { value: getResetCountdown(track.reset_at, t) })}
                             </span>
                           </div>
                         </div>
                       </TooltipTrigger>
                       <TooltipContent>
                         <p className="text-xs">
-                          Period: {entry.usage.period_start || "-"} ~ {track.reset_at || "-"}
+                          {t("dashboard.providerCard.period")}: {entry.usage.period_start || "-"} ~ {track.reset_at || "-"}
                         </p>
-                        <p className="text-xs">Source: {track.source}</p>
+                        <p className="text-xs">{t("dashboard.providerCard.source")}: {track.source}</p>
                       </TooltipContent>
                     </Tooltip>
                   );
-                })}
-              </div>
+                })
+              : null}
+          </div>
 
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
-                  <p className="text-xs text-muted-foreground">Primary window</p>
-                  <p className="text-base font-semibold">
-                    <AnimatedNumber value={quotaPct} />%
-                  </p>
-                </div>
-                <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
-                  <p className="text-xs text-muted-foreground">Cost / month</p>
-                  <p className="text-base font-semibold">{costLabel}</p>
-                </div>
-                <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
-                  <p className="text-xs text-muted-foreground">Primary usage</p>
-                  <p className="text-base font-semibold">
-                    {formatTrackUsage(primaryTrack)}
-                  </p>
-                </div>
-                <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
-                  <p className="text-xs text-muted-foreground">Reset in</p>
-                  <p className="text-base font-semibold">{getResetCountdown(primaryTrack.reset_at)}</p>
-                </div>
-              </div>
+          <div className="grid grid-cols-2 gap-2.5 text-sm">
+            <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
+              <p className="text-xs text-muted-foreground korean-keep">
+                {primaryTrack?.label || t("dashboard.providerCard.primaryWindow")}
+              </p>
+              <p className="text-base font-semibold">
+                <AnimatedNumber value={isNotConfigured ? 0 : quotaPct} />%
+              </p>
+            </div>
+            <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
+              <p className="text-xs text-muted-foreground korean-keep">{t("dashboard.providerCard.costPerMonth")}</p>
+              <p className="text-base font-semibold">{isNotConfigured ? "-" : costLabel}</p>
+            </div>
+            <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
+              <p className="text-xs text-muted-foreground korean-keep">{t("dashboard.providerCard.primaryUsage")}</p>
+              <p className="text-base font-semibold truncate" title={primaryUsageLabel}>
+                {primaryUsageLabel}
+              </p>
+            </div>
+            <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
+              <p className="text-xs text-muted-foreground korean-keep">{t("dashboard.providerCard.resetInLabel")}</p>
+              <p className="text-base font-semibold">{primaryResetLabel}</p>
+            </div>
+          </div>
 
-              {apiTrack ? (
-                <div className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-2.5 text-xs">
-                  <p className="mb-1 text-muted-foreground">API Track</p>
-                  {apiTrack.limit > 0 || apiTrack.used > 0 ? (
-                    <p className="font-medium">{formatTrackUsage(apiTrack)}</p>
-                  ) : (
-                    <p className="font-medium text-muted-foreground">
-                      {apiTrack.status === "not_configured" ? "Not configured" : "Unavailable"}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-2.5 text-xs">
-                  <p className="mb-1 text-muted-foreground">API Track</p>
-                  <p className="font-medium text-muted-foreground">Unavailable</p>
-                </div>
-              )}
-
-              <div className="mt-auto rounded-xl border border-border/70 bg-[var(--surface-1)] p-2.5 text-xs">
-                <p className="text-muted-foreground">Last checked</p>
-                <p className="font-medium">{new Date(entry.health.last_checked).toLocaleString()}</p>
+          <div className="space-y-2">
+            {showApiPanel ? (
+              <div className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-2.5 text-xs">
+                <p className="mb-1 text-muted-foreground korean-keep">{t("dashboard.providerCard.apiTrack")}</p>
+                <p className="font-medium">{apiSummary}</p>
               </div>
-            </>
-          )}
+            ) : null}
+
+            <div className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-2.5 text-xs">
+              <p className="text-muted-foreground korean-keep">{t("dashboard.providerCard.lastChecked")}</p>
+              <p className="font-medium">{new Date(entry.health.last_checked).toLocaleString(locale)}</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </motion.div>

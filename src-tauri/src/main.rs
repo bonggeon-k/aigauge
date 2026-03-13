@@ -20,16 +20,16 @@ mod updater;
 use anyhow::{anyhow, Result};
 use commands::{
     check_provider_health, clear_provider_data, delete_credential, get_all_dashboard_data,
-    get_cost, get_provider_info, get_providers, get_quota, get_usage, open_main_dashboard,
-    poll_copilot_device_flow, save_credential, save_manual_input, start_copilot_device_flow,
-    AppState,
+    get_cost, get_provider_auth_modes, get_provider_info, get_providers, get_quota, get_usage,
+    open_main_dashboard, poll_copilot_device_flow, save_credential, save_manual_input,
+    set_provider_auth_mode, start_copilot_device_flow, AppState,
 };
 use config::{get_config, update_config};
 use cost_engine::{
     get_codex_cost_breakdown, get_cost_history, get_cost_summary, get_pace_analysis,
     get_roi_analysis,
 };
-use export::{export_data, export_to_file};
+use export::{export_data, export_to_file, open_exports_folder};
 use keyboard::{get_keyboard_shortcuts, register_shortcuts};
 use plugin_registry::{get_plugins, register_plugin};
 use polling::PollingManager;
@@ -40,8 +40,8 @@ use tray::init_tray;
 use updater::{check_for_update, install_update};
 
 fn init_tracing() {
-    let filter = std::env::var("RUST_LOG")
-        .unwrap_or_else(|_| "info,tao=error,winit=error".to_string());
+    let filter =
+        std::env::var("RUST_LOG").unwrap_or_else(|_| "info,tao=error,winit=error".to_string());
     let _ = tracing_subscriber::fmt()
         .with_env_filter(filter)
         .without_time()
@@ -120,6 +120,8 @@ fn run() -> Result<()> {
             get_quota,
             get_all_dashboard_data,
             check_provider_health,
+            get_provider_auth_modes,
+            set_provider_auth_mode,
             save_credential,
             delete_credential,
             start_copilot_device_flow,
@@ -136,6 +138,7 @@ fn run() -> Result<()> {
             get_codex_cost_breakdown,
             export_data,
             export_to_file,
+            open_exports_folder,
             check_for_update,
             install_update,
             get_keyboard_shortcuts,

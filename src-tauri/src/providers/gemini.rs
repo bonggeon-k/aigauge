@@ -1,23 +1,14 @@
 use crate::credentials::CredentialManager;
-use crate::platform;
 use reqwest::header::AUTHORIZATION;
 use reqwest::Client;
-use serde::Deserialize;
 use serde_json::Value;
-use std::fs;
-use std::path::PathBuf;
 use tracing::instrument;
 
 use super::{
-    home_dir, not_configured_quota, not_configured_usage, unreachable_quota, unreachable_usage,
-    AuthMethod, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit, Result, UsageData,
+    not_configured_quota, not_configured_usage, unreachable_quota, unreachable_usage, AuthMethod,
+    AuthSourceMode, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit, Result,
+    UsageData,
 };
-
-#[derive(Debug, Clone, Deserialize)]
-struct GeminiOauthCreds {
-    access_token: Option<String>,
-    expires_at: Option<i64>,
-}
 
 pub struct GeminiProvider {
     credential_manager: CredentialManager,
@@ -31,31 +22,6 @@ impl GeminiProvider {
             credential_manager,
             client,
         }
-    }
-
-    fn creds_path() -> Option<PathBuf> {
-        home_dir()
-            .map(|home| home.join(".gemini").join("oauth_creds.json"))
-            .or_else(|| platform::wsl_to_windows_path("~/.gemini/oauth_creds.json"))
-    }
-
-    fn read_creds() -> Option<GeminiOauthCreds> {
-        let raw = if let Some(path) = Self::creds_path() {
-            fs::read_to_string(path).ok()
-        } else {
-            None
-        }
-        .or_else(|| platform::read_wsl_text_file("~/.gemini/oauth_creds.json"))?;
-        serde_json::from_str(raw.as_str()).ok()
-    }
-
-    fn is_valid(creds: &GeminiOauthCreds) -> bool {
-        let now = chrono::Utc::now().timestamp();
-        let min_valid_until = now + 5 * 60;
-        creds
-            .expires_at
-            .map(|exp| exp > min_valid_until)
-            .unwrap_or(false)
     }
 
     fn parse_quota_number(raw: &Value) -> Option<u64> {
@@ -100,40 +66,40 @@ impl Provider for GeminiProvider {
             id: "gemini".to_string(),
             name: "Google Gemini".to_string(),
             icon: "sparkles".to_string(),
-            auth_method: AuthMethod::OAuth,
-            plan_name: "Gemini Advanced".to_string(),
+            auth_method: AuthMethod::ApiKey,
+            supported_auth_modes: vec![AuthSourceMode::ApiKey],
+            default_auth_mode: AuthSourceMode::ApiKey,
+            plan_name: "Gemini API".to_string(),
             quota_limit: 100,
             reset_period: "daily".to_string(),
         }
     }
 
     async fn fetch_usage(&self) -> Result<UsageData> {
-        let creds = Self::read_creds();
-        let token = creds
-            .as_ref()
-            .and_then(|value| value.access_token.clone())
-            .filter(|_| creds.as_ref().map(Self::is_valid).unwrap_or(false))
-            .or_else(|| {
-                self.credential_manager
-                    .get_credential("gemini")
-                    .ok()
-                    .flatten()
-                    .map(|value| value.to_string())
-            });
+        let credential = self
+            .credential_manager
+            .get_credential("gemini")
+            .ok()
+            .flatten()
+            .map(|value| value.to_string())
+            .filter(|value| !value.trim().is_empty());
 
-        let Some(token) = token else {
+        let Some(secret) = credential else {
             return Ok(not_configured_usage("gemini"));
         };
 
-        let response = self
+        let mut request = self
             .client
             .post("https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota")
-            .header(AUTHORIZATION, format!("Bearer {token}"))
-            .json(&serde_json::json!({}))
-            .send()
-            .await;
+            .json(&serde_json::json!({}));
 
-        let response = match response {
+        if secret.starts_with("AIza") {
+            request = request.query(&[("key", secret.as_str())]);
+        } else {
+            request = request.header(AUTHORIZATION, format!("Bearer {secret}"));
+        }
+
+        let response = match request.send().await {
             Ok(response) => response,
             Err(_) => return Ok(unreachable_usage("gemini")),
         };
@@ -187,31 +153,13 @@ impl Provider for GeminiProvider {
     }
 
     fn auth_method(&self) -> AuthMethod {
-        AuthMethod::OAuth
+        AuthMethod::ApiKey
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn validates_expiry() {
-        let valid = GeminiOauthCreds {
-            access_token: Some("x".to_string()),
-            expires_at: Some(chrono::Utc::now().timestamp() + 1000),
-        };
-        assert!(GeminiProvider::is_valid(&valid));
-    }
-
-    #[test]
-    fn rejects_expiring_soon_token() {
-        let invalid = GeminiOauthCreds {
-            access_token: Some("x".to_string()),
-            expires_at: Some(chrono::Utc::now().timestamp() + 30),
-        };
-        assert!(!GeminiProvider::is_valid(&invalid));
-    }
 
     #[test]
     fn reads_nested_quota_shape() {

@@ -23,11 +23,26 @@ import { useTrayProviders } from "@/tray/hooks/useTrayProviders";
 import { useTraySettings } from "@/tray/hooks/useTraySettings";
 import { useTrayAutoRefresh } from "@/tray/hooks/useTrayAutoRefresh";
 import { useTrayNotifications } from "@/tray/hooks/useTrayNotifications";
-import { useTauriEvent, type DashboardEntry } from "@/hooks/useProvider";
+import { useProvider, useTauriEvent, type AppConfig, type DashboardEntry } from "@/hooks/useProvider";
 import { useTheme } from "@/hooks/useTheme";
 import { applyPlatformDataAttribute, detectPlatform } from "@/lib/platform";
 import type { CodexCostBreakdown } from "@/tray/hooks/useTrayProviders";
 import { Button } from "@/components/ui/button";
+
+const isTauriRuntime =
+  typeof window !== "undefined" &&
+  "__TAURI_INTERNALS__" in (window as unknown as Record<string, unknown>);
+
+const getCurrentWindowSafe = (): Window | null => {
+  if (!isTauriRuntime) {
+    return null;
+  }
+  try {
+    return getCurrentWindow();
+  } catch {
+    return null;
+  }
+};
 
 const isInteractiveElement = (target: EventTarget | null): boolean => {
   if (!(target instanceof Element)) {
@@ -62,10 +77,18 @@ const orderTrayEntries = (entries: DashboardEntry[], enabledProviders: string[])
 };
 
 export const TrayApp = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const providerApi = useTrayProviders();
+  const appProviderApi = useProvider();
   const { settings, patchSettings } = useTraySettings();
-  const notify = useTrayNotifications({ enabled: settings.notifications });
+  const [notificationSettings, setNotificationSettings] = useState<AppConfig["notifications"]>({
+    quota_warning: true,
+    quota_critical: true,
+  });
+  const notify = useTrayNotifications({
+    warningEnabled: notificationSettings.quota_warning,
+    criticalEnabled: notificationSettings.quota_critical,
+  });
   const { theme, toggleTheme } = useTheme();
 
   const [entries, setEntries] = useState<DashboardEntry[]>([]);
@@ -112,16 +135,28 @@ export const TrayApp = () => {
     const ordered = orderTrayEntries(data, settings.enabledProviders);
     setEntries(ordered);
     setCodexCost(codexBreakdown);
-    if (ordered.length > 0 && !ordered.some((entry) => entry.info.id === activeProviderId)) {
-      setActiveProviderId(ordered[0].info.id);
-    } else if (ordered.length > 0 && !ordered.find((entry) => entry.info.id === activeProviderId)?.health.configured) {
-      const firstConfigured = ordered.find((entry) => entry.health.configured);
-      if (firstConfigured) {
-        setActiveProviderId(firstConfigured.info.id);
+    setActiveProviderId((previous) => {
+      if (ordered.length === 0) {
+        return previous;
       }
-    }
+
+      const currentId = previous ?? ordered[0].info.id;
+      const current = ordered.find((entry) => entry.info.id === currentId);
+      if (!current) {
+        return ordered[0].info.id;
+      }
+
+      if (!current.health.configured) {
+        const firstConfigured = ordered.find((entry) => entry.health.configured);
+        if (firstConfigured) {
+          return firstConfigured.info.id;
+        }
+      }
+
+      return currentId;
+    });
     notify.notifyThresholds(ordered);
-  }, [providerApi, notify, activeProviderId, settings.enabledProviders]);
+  }, [providerApi, notify, settings.enabledProviders]);
 
   const refreshStatuses = useCallback(async (force = false) => {
     const now = Date.now();
@@ -144,24 +179,41 @@ export const TrayApp = () => {
   }, [providerApi]);
 
   useEffect(() => {
+    let disposed = false;
     const initTimer = window.setTimeout(() => {
       void refreshProviders()
         .then(() => {
+          if (disposed) return;
           setLastRefreshedAt(Date.now());
           setActionNotice(null);
         })
         .catch(() => {
+          if (disposed) return;
           setActionNotice(t("tray.status.initialRefreshFailed"));
         });
       void refreshStatuses(true);
     }, 0);
+    void appProviderApi
+      .getConfig()
+      .then((config) => {
+        if (disposed) return;
+        if (config.language && config.language !== i18n.language) {
+          void i18n.changeLanguage(config.language);
+        }
+        setNotificationSettings(config.notifications);
+      })
+      .catch(() => undefined);
     return () => {
+      disposed = true;
       window.clearTimeout(initTimer);
     };
-  }, [refreshProviders, refreshStatuses, t]);
+  }, [appProviderApi, i18n, refreshProviders, refreshStatuses, t]);
 
   useEffect(() => {
-    const currentWindow = getCurrentWindow();
+    const currentWindow = getCurrentWindowSafe();
+    if (!currentWindow) {
+      return;
+    }
     void currentWindow.setAlwaysOnTop(settings.pinned);
   }, [settings.pinned]);
 
@@ -181,6 +233,24 @@ export const TrayApp = () => {
     void refreshStatuses(true);
   });
 
+  useTauriEvent<AppConfig>(
+    "config-updated",
+    (config) => {
+      if (config.language && config.language !== i18n.language) {
+        void i18n.changeLanguage(config.language);
+      }
+      setNotificationSettings(config.notifications);
+    },
+    (value: unknown): value is AppConfig =>
+      typeof value === "object" &&
+      value !== null &&
+      typeof (value as { language?: unknown }).language === "string" &&
+      typeof (value as { notifications?: { quota_warning?: unknown } }).notifications
+        ?.quota_warning === "boolean" &&
+      typeof (value as { notifications?: { quota_critical?: unknown } }).notifications
+        ?.quota_critical === "boolean",
+  );
+
   const refreshNow = useCallback(async () => {
     if (isRefreshing) {
       return;
@@ -197,18 +267,43 @@ export const TrayApp = () => {
     }
   }, [isRefreshing, refreshProviders, refreshStatuses, t]);
 
+  const updateLanguage = useCallback(
+    async (language: "en" | "ko") => {
+      if (language === i18n.language) {
+        return;
+      }
+      await i18n.changeLanguage(language);
+      try {
+        const config = await appProviderApi.getConfig();
+        await appProviderApi.updateConfig({
+          ...config,
+          language,
+        });
+      } catch {
+        // Keep local language change even if config persistence fails.
+      }
+    },
+    [appProviderApi, i18n],
+  );
+
   const startWindowDrag = (event: MouseEvent<HTMLElement>) => {
     if (event.button !== 0 || isInteractiveElement(event.target)) {
       return;
     }
-    void getCurrentWindow().startDragging();
+    const currentWindow = getCurrentWindowSafe();
+    if (!currentWindow) {
+      return;
+    }
+    void currentWindow.startDragging();
   };
 
   const openMainDashboard = useCallback(async () => {
     setActionNotice(null);
+    const currentWindow = getCurrentWindowSafe();
+
     try {
       await invoke("open_main_dashboard");
-      await getCurrentWindow().hide().catch(() => undefined);
+      await currentWindow?.hide().catch(() => undefined);
       return;
     } catch {
       // Fallback path below.
@@ -227,14 +322,14 @@ export const TrayApp = () => {
       await main.unminimize().catch(() => undefined);
       await emit("open-dashboard", true).catch(() => undefined);
       await main.setFocus();
-      await getCurrentWindow().hide().catch(() => undefined);
+      await currentWindow?.hide().catch(() => undefined);
     } catch {
       setActionNotice(t("tray.status.unableToOpenDashboard"));
     }
   }, [t]);
 
   const closeQuickView = useCallback(async () => {
-    await getCurrentWindow().hide().catch(() => undefined);
+    await getCurrentWindowSafe()?.hide().catch(() => undefined);
   }, []);
 
   const refreshedLabel = useMemo(() => {
@@ -382,40 +477,49 @@ export const TrayApp = () => {
         </div>
       </div>
 
-      <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1" data-no-drag>
-        {activeEntry ? (
-          <TrayProviderDetail
-            entry={activeEntry}
-            status={statuses[activeEntry.info.id]}
-            codexCost={activeEntry.info.id === "codex" ? codexCost : null}
-            onOpenManualInput={() => setManualOpen(true)}
-          />
-        ) : (
-          <div className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-4 text-sm text-muted-foreground">
-            {t("tray.emptyNoData")}
-          </div>
-        )}
+      <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1 pb-1" data-no-drag>
+        <section
+          role="tabpanel"
+          id="tray-panel-active"
+          aria-labelledby={`tray-tab-${activeProviderId}`}
+          tabIndex={0}
+          data-no-drag
+        >
+          {activeEntry ? (
+            <TrayProviderDetail
+              entry={activeEntry}
+              status={statuses[activeEntry.info.id]}
+              codexCost={activeEntry.info.id === "codex" ? codexCost : null}
+              onOpenManualInput={() => setManualOpen(true)}
+            />
+          ) : (
+            <div className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-4 text-sm text-muted-foreground">
+              {t("tray.emptyNoData")}
+            </div>
+          )}
+        </section>
+      </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            className="w-full rounded-xl border border-border/70 bg-[var(--surface-1)] px-3 py-2 text-xs transition hover:bg-[var(--surface-2)]"
-            onClick={() => void openMainDashboard()}
-            title={t("tray.actions.openDashboard")}
-          >
-            {t("tray.buttons.openDashboard")}
-          </button>
-          <button
-            type="button"
-            className="w-full rounded-xl border border-border/70 bg-[var(--surface-1)] px-3 py-2 text-xs transition hover:bg-[var(--surface-2)]"
-            onClick={() => setConfirmOpen(true)}
-          >
-            {t("tray.buttons.clearProviderData")}
-          </button>
-        </div>
+      <div className="mt-3 grid shrink-0 grid-cols-2 gap-2" data-no-drag>
+        <button
+          type="button"
+          className="w-full rounded-xl border border-border/70 bg-[var(--surface-1)] px-3 py-2 text-xs transition hover:bg-[var(--surface-2)]"
+          onClick={() => void openMainDashboard()}
+          title={t("tray.actions.openDashboard")}
+        >
+          {t("tray.buttons.openDashboard")}
+        </button>
+        <button
+          type="button"
+          className="w-full rounded-xl border border-border/70 bg-[var(--surface-1)] px-3 py-2 text-xs transition hover:bg-[var(--surface-2)]"
+          onClick={() => setConfirmOpen(true)}
+        >
+          {t("tray.buttons.clearProviderData")}
+        </button>
       </div>
 
       <TrayManualInput
+        key={`${activeEntry?.info.id ?? activeProviderId}:${manualOpen ? "open" : "closed"}`}
         open={manualOpen}
         providerId={activeEntry?.info.id ?? activeProviderId}
         onClose={() => setManualOpen(false)}
@@ -428,8 +532,12 @@ export const TrayApp = () => {
       <TraySettings
         open={settingsOpen}
         settings={settings}
+        language={i18n.language === "ko" ? "ko" : "en"}
         onClose={() => setSettingsOpen(false)}
         onPatchSettings={patchSettings}
+        onChangeLanguage={(language) => {
+          void updateLanguage(language);
+        }}
       />
 
       <TrayConfirmDialog

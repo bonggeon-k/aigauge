@@ -79,6 +79,10 @@ impl CredentialManager {
         format!("provider::{provider}")
     }
 
+    fn slot_account_name(provider: &str, slot: &str) -> String {
+        format!("provider::{provider}::{slot}")
+    }
+
     #[instrument(skip(self, secret), fields(provider = provider))]
     pub fn save_credential(&self, provider: &str, secret: String) -> Result<()> {
         let account = Self::account_name(provider);
@@ -90,6 +94,25 @@ impl CredentialManager {
         )?;
         secret_buffer.zeroize();
         info!(provider = provider, "credential saved");
+        Ok(())
+    }
+
+    #[instrument(skip(self, secret), fields(provider = provider, slot = slot))]
+    pub fn save_credential_for_slot(
+        &self,
+        provider: &str,
+        slot: &str,
+        secret: String,
+    ) -> Result<()> {
+        let account = Self::slot_account_name(provider, slot);
+        let mut secret_buffer = secret;
+        self.backend.set_password(
+            self.service_name.as_str(),
+            account.as_str(),
+            secret_buffer.as_str(),
+        )?;
+        secret_buffer.zeroize();
+        info!(provider = provider, slot = slot, "credential slot saved");
         Ok(())
     }
 
@@ -129,12 +152,41 @@ impl CredentialManager {
         Ok(credential)
     }
 
+    #[instrument(skip(self), fields(provider = provider, slot = slot))]
+    pub fn get_credential_for_slot(
+        &self,
+        provider: &str,
+        slot: &str,
+    ) -> Result<Option<Zeroizing<String>>> {
+        let account = Self::slot_account_name(provider, slot);
+        let credential = self
+            .backend
+            .get_password(self.service_name.as_str(), account.as_str())?
+            .map(Zeroizing::new);
+        debug!(
+            provider = provider,
+            slot = slot,
+            found = credential.is_some(),
+            "credential slot loaded"
+        );
+        Ok(credential)
+    }
+
     #[instrument(skip(self), fields(provider = provider))]
     pub fn delete_credential(&self, provider: &str) -> Result<()> {
         let account = Self::account_name(provider);
         self.backend
             .delete_password(self.service_name.as_str(), account.as_str())?;
         info!(provider = provider, "credential deleted");
+        Ok(())
+    }
+
+    #[instrument(skip(self), fields(provider = provider, slot = slot))]
+    pub fn delete_credential_for_slot(&self, provider: &str, slot: &str) -> Result<()> {
+        let account = Self::slot_account_name(provider, slot);
+        self.backend
+            .delete_password(self.service_name.as_str(), account.as_str())?;
+        info!(provider = provider, slot = slot, "credential slot deleted");
         Ok(())
     }
 }
@@ -221,5 +273,29 @@ mod tests {
             credential.map(|value| value.to_string()),
             Some("token-123".to_string())
         );
+    }
+
+    #[test]
+    fn slot_credentials_are_isolated() {
+        let backend = Arc::new(MockKeyring::default());
+        let manager = CredentialManager::with_backend("test.aigauge", backend);
+
+        manager
+            .save_credential_for_slot("codex", "api_key", "sk-api".to_string())
+            .expect("slot save should succeed");
+        manager
+            .save_credential_for_slot("codex", "oauth_token", "oauth-token".to_string())
+            .expect("slot save should succeed");
+
+        let api = manager
+            .get_credential_for_slot("codex", "api_key")
+            .expect("api slot should load")
+            .map(|value| value.to_string());
+        let oauth = manager
+            .get_credential_for_slot("codex", "oauth_token")
+            .expect("oauth slot should load")
+            .map(|value| value.to_string());
+        assert_eq!(api.as_deref(), Some("sk-api"));
+        assert_eq!(oauth.as_deref(), Some("oauth-token"));
     }
 }

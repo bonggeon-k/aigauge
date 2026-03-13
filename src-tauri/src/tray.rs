@@ -24,6 +24,16 @@ enum TrayStatus {
     Critical,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct TrayDerivedStatus {
+    status: TrayStatus,
+    top_pct: f64,
+    bottom_pct: f64,
+    worst_pct: Option<f64>,
+    codex_session_pct: Option<f64>,
+    codex_weekly_pct: Option<f64>,
+}
+
 #[instrument(skip(app))]
 pub fn init_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
     let menu = MenuBuilder::new(app)
@@ -43,7 +53,7 @@ pub fn init_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
     let mut builder = TrayIconBuilder::<R>::with_id("main-tray")
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .tooltip("AIGauge — OK 0%");
+        .tooltip("AIGauge — No active quota data");
 
     if let Some(icon) = app.default_window_icon().cloned() {
         builder = builder.icon(icon);
@@ -185,7 +195,10 @@ fn toggle_tray_popup<R: Runtime>(app: &AppHandle<R>, click: Option<(f64, f64)>) 
             remember_popup_position(&window);
             let _ = window.hide();
         } else {
-            let should_position = POPUP_SHOWN_ONCE.lock().map(|shown| !*shown).unwrap_or(false);
+            let should_position = POPUP_SHOWN_ONCE
+                .lock()
+                .map(|shown| !*shown)
+                .unwrap_or(false);
             if should_position && !restore_popup_position(&window) {
                 position_popup_window(&window, click);
             }
@@ -209,80 +222,120 @@ fn toggle_tray_popup<R: Runtime>(app: &AppHandle<R>, click: Option<(f64, f64)>) 
     }
 }
 
-fn derive_status(entries: &[DashboardEntry]) -> (TrayStatus, f64, f64) {
+fn entry_subscription_used_pct(entry: &DashboardEntry) -> Option<f64> {
+    entry
+        .tracks
+        .iter()
+        .filter(|track| track.kind == TrackKind::Subscription)
+        .filter_map(track_usage_pct)
+        .map(|value| value * 100.0)
+        .reduce(f64::max)
+        .or_else(|| {
+            if entry.quota.limit > 0 {
+                Some((entry.quota.used as f64 / entry.quota.limit as f64) * 100.0)
+            } else {
+                None
+            }
+        })
+}
+
+fn codex_subscription_track_pct(entry: &DashboardEntry, marker: &str) -> Option<f64> {
+    entry
+        .tracks
+        .iter()
+        .find(|track| track.kind == TrackKind::Subscription && track.id.contains(marker))
+        .and_then(track_usage_pct)
+        .map(|value| value * 100.0)
+}
+
+fn derive_status(entries: &[DashboardEntry]) -> TrayDerivedStatus {
     let mut status = TrayStatus::Ok;
     let mut top_pct = 0.0_f64;
     let mut bottom_pct = 0.0_f64;
+    let mut codex_session_pct = None;
+    let mut codex_weekly_pct = None;
 
     if let Some(codex) = entries
         .iter()
         .find(|entry| entry.info.id == "codex" && !entry.tracks.is_empty())
     {
-        let session = codex
-            .tracks
-            .iter()
-            .find(|track| track.kind == TrackKind::Subscription && track.id.contains("5-hour"))
-            .and_then(track_usage_pct);
-        let weekly = codex
-            .tracks
-            .iter()
-            .find(|track| track.kind == TrackKind::Subscription && track.id.contains("weekly"))
-            .and_then(track_usage_pct);
-
-        top_pct = session
-            .map(|value| value * 100.0)
-            .unwrap_or(codex.usage.requests as f64);
-        bottom_pct = weekly
-            .map(|value| value * 100.0)
-            .or_else(|| {
-                codex
-                    .tracks
-                    .iter()
-                    .find(|track| track.kind == TrackKind::Subscription)
-                    .and_then(track_usage_pct)
-                    .map(|value| value * 100.0)
-            })
-            .unwrap_or_else(|| {
-                if codex.quota.limit > 0 {
-                    (codex.quota.used as f64 / codex.quota.limit as f64) * 100.0
-                } else {
-                    codex.usage.tokens as f64
-                }
-            });
-    } else if let Some(first) = entries.first() {
-        let used = first
-            .tracks
-            .iter()
-            .find(|track| track.kind == TrackKind::Subscription)
-            .and_then(track_usage_pct)
-            .map(|value| value * 100.0)
-            .or_else(|| {
-                if first.quota.limit > 0 {
-                    Some((first.quota.used as f64 / first.quota.limit as f64) * 100.0)
-                } else {
-                    None
-                }
-            })
-            .unwrap_or(0.0);
-        top_pct = used;
-        bottom_pct = used;
+        codex_session_pct = codex_subscription_track_pct(codex, "5-hour");
+        codex_weekly_pct = codex_subscription_track_pct(codex, "weekly");
+        let codex_used_pct = entry_subscription_used_pct(codex);
+        top_pct = codex_session_pct.or(codex_used_pct).unwrap_or(0.0);
+        bottom_pct = codex_weekly_pct.or(codex_used_pct).unwrap_or(top_pct);
+    } else if let Some(first_active_pct) = entries.iter().find_map(entry_subscription_used_pct) {
+        top_pct = first_active_pct;
+        bottom_pct = first_active_pct;
     }
 
-    let worst_pct = top_pct.max(bottom_pct);
-    if worst_pct >= 95.0 {
-        status = TrayStatus::Critical;
-    } else if worst_pct >= 80.0 {
-        status = TrayStatus::Warning;
+    let worst_pct = entries
+        .iter()
+        .filter_map(entry_subscription_used_pct)
+        .reduce(f64::max);
+    if let Some(value) = worst_pct {
+        if value >= 95.0 {
+            status = TrayStatus::Critical;
+        } else if value >= 80.0 {
+            status = TrayStatus::Warning;
+        }
     }
     if status == TrayStatus::Ok && entries.iter().any(|entry| entry.stale) {
         status = TrayStatus::Warning;
     }
 
-    (
+    TrayDerivedStatus {
         status,
-        top_pct.clamp(0.0, 100.0),
-        bottom_pct.clamp(0.0, 100.0),
-    )
+        top_pct: top_pct.clamp(0.0, 100.0),
+        bottom_pct: bottom_pct.clamp(0.0, 100.0),
+        worst_pct: worst_pct.map(|value| value.clamp(0.0, 100.0)),
+        codex_session_pct: codex_session_pct.map(|value| value.clamp(0.0, 100.0)),
+        codex_weekly_pct: codex_weekly_pct.map(|value| value.clamp(0.0, 100.0)),
+    }
+}
+
+fn build_tray_tooltip(derived: TrayDerivedStatus, stale_count: usize) -> String {
+    let mut tooltip = if let Some(worst_pct) = derived.worst_pct {
+        format!("AIGauge — Risk {worst_pct:.0}% (max subscription used across active providers)")
+    } else {
+        "AIGauge — No active quota data".to_string()
+    };
+
+    let mut codex_parts = Vec::new();
+    if let Some(session_pct) = derived.codex_session_pct {
+        codex_parts.push(format!("session {session_pct:.0}%"));
+    }
+    if let Some(weekly_pct) = derived.codex_weekly_pct {
+        codex_parts.push(format!("weekly {weekly_pct:.0}%"));
+    }
+    if !codex_parts.is_empty() {
+        tooltip.push_str(" · Codex ");
+        tooltip.push_str(codex_parts.join(", ").as_str());
+    }
+
+    if stale_count > 0 {
+        tooltip.push_str(format!(" · stale {stale_count}").as_str());
+    }
+
+    tooltip
+}
+
+fn provider_menu_label(entry: &DashboardEntry) -> String {
+    let stale_suffix = if entry.stale { " (stale)" } else { "" };
+    match entry_subscription_used_pct(entry) {
+        Some(pct) => format!(
+            "{}: {pct:.0}% subscription used{stale_suffix}",
+            entry.info.name
+        ),
+        None => format!("{}: No active quota data{stale_suffix}", entry.info.name),
+    }
+}
+
+fn provider_fingerprint(entry: &DashboardEntry) -> String {
+    match entry_subscription_used_pct(entry) {
+        Some(pct) => format!("{}:{pct:.0}:{}", entry.info.id, entry.stale),
+        None => format!("{}:none:{}", entry.info.id, entry.stale),
+    }
 }
 
 fn bar_color(used_pct: f64) -> [u8; 4] {
@@ -376,23 +429,23 @@ pub fn update_tray_menu(app: &AppHandle, entries: &[DashboardEntry]) {
         .filter_map(|entry| entry.cost.as_ref().map(|cost| cost.total))
         .sum::<f64>();
 
-    let (status, top_pct, bottom_pct) = derive_status(entries);
-    let status_label = match status {
+    let derived = derive_status(entries);
+    let status_label = match derived.status {
         TrayStatus::Ok => "OK",
         TrayStatus::Warning => "Warning",
         TrayStatus::Critical => "Critical",
     };
 
-    let shown_pct = top_pct.max(bottom_pct).round();
     let stale_count = entries.iter().filter(|entry| entry.stale).count();
-    let mut fingerprint = format!("{status_label}|{total:.2}|{top_pct:.0}|{bottom_pct:.0}");
+    let tooltip = build_tray_tooltip(derived, stale_count);
+    let mut fingerprint = format!(
+        "{status_label}|{total:.2}|{:.0}|{:.0}|{tooltip}",
+        derived.top_pct, derived.bottom_pct
+    );
     for entry in entries {
-        let pct = if entry.quota.limit > 0 {
-            (entry.quota.used as f64 / entry.quota.limit as f64) * 100.0
-        } else {
-            0.0
-        };
-        fingerprint.push_str(format!("|{}:{pct:.0}", entry.info.id).as_str());
+        let component = provider_fingerprint(entry);
+        fingerprint.push('|');
+        fingerprint.push_str(component.as_str());
     }
 
     if let Ok(mut guard) = LAST_TRAY_FINGERPRINT.lock() {
@@ -412,27 +465,9 @@ pub fn update_tray_menu(app: &AppHandle, entries: &[DashboardEntry]) {
             .separator();
 
         for entry in entries {
-            let pct = entry
-                .tracks
-                .iter()
-                .find(|track| track.kind == TrackKind::Subscription)
-                .and_then(track_usage_pct)
-                .map(|value| value * 100.0)
-                .or_else(|| {
-                    if entry.quota.limit > 0 {
-                        Some((entry.quota.used as f64 / entry.quota.limit as f64) * 100.0)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(0.0);
             menu_builder = menu_builder.text(
                 format!("provider-{}", entry.info.id),
-                format!(
-                    "{}: {pct:.0}% used{}",
-                    entry.info.name,
-                    if entry.stale { " (stale)" } else { "" }
-                ),
+                provider_menu_label(entry),
             );
         }
 
@@ -455,15 +490,12 @@ pub fn update_tray_menu(app: &AppHandle, entries: &[DashboardEntry]) {
             let _ = tray.set_menu(Some(menu));
         }
 
-        let stale_suffix = if stale_count > 0 {
-            format!(" · stale {stale_count}")
-        } else {
-            String::new()
-        };
-        let _ = tray.set_tooltip(Some(format!(
-            "AIGauge — {status_label} {shown_pct:.0}%{stale_suffix}"
+        let _ = tray.set_tooltip(Some(tooltip));
+        let _ = tray.set_icon(Some(render_tray_icon(
+            derived.top_pct,
+            derived.bottom_pct,
+            derived.status,
         )));
-        let _ = tray.set_icon(Some(render_tray_icon(top_pct, bottom_pct, status)));
     }
 
     let _ = app.emit(TRAY_EVENT_UPDATE, total);
@@ -472,10 +504,149 @@ pub fn update_tray_menu(app: &AppHandle, entries: &[DashboardEntry]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::{CostDisplayMode, CostView, DataSource, HealthStatus, UsageTrack};
+    use crate::providers::{
+        AuthMethod, AuthSourceMode, ProviderInfo, ProviderStatus, QuotaLimit, UsageData,
+    };
 
     #[test]
     fn tray_event_constant_is_stable() {
         assert_eq!(TRAY_EVENT_UPDATE, "tray-update");
         assert_eq!(TRAY_EVENT_REFRESH, "tray-refresh");
+    }
+
+    #[test]
+    fn tooltip_explains_subscription_risk_and_codex_breakdown() {
+        let entries = vec![
+            dashboard_entry(
+                "codex",
+                "Codex",
+                vec![
+                    subscription_track("subscription:5-hour_session", 40, 100),
+                    subscription_track("subscription:weekly_limit", 70, 100),
+                ],
+                70,
+                100,
+                false,
+            ),
+            dashboard_entry(
+                "claude",
+                "Claude",
+                vec![subscription_track("subscription:7-day_window", 60, 100)],
+                60,
+                100,
+                false,
+            ),
+        ];
+
+        let derived = derive_status(&entries);
+        let tooltip = build_tray_tooltip(derived, 0);
+
+        assert_eq!(
+            derived.worst_pct.map(|value| value.round() as u64),
+            Some(70)
+        );
+        assert!(tooltip.contains("Risk 70%"));
+        assert!(tooltip.contains("max subscription used across active providers"));
+        assert!(tooltip.contains("Codex session 40%, weekly 70%"));
+    }
+
+    #[test]
+    fn tooltip_falls_back_when_no_active_subscription_data_exists() {
+        let entries = vec![dashboard_entry("copilot", "Copilot", vec![], 0, 0, false)];
+        let derived = derive_status(&entries);
+        let tooltip = build_tray_tooltip(derived, 0);
+
+        assert!(derived.worst_pct.is_none());
+        assert_eq!(tooltip, "AIGauge — No active quota data");
+    }
+
+    #[test]
+    fn provider_menu_label_uses_subscription_basis_with_fallback() {
+        let with_data = dashboard_entry(
+            "claude",
+            "Claude",
+            vec![subscription_track("subscription:7-day_window", 55, 100)],
+            55,
+            100,
+            false,
+        );
+        let without_data = dashboard_entry("cursor", "Cursor", vec![], 0, 0, true);
+
+        assert_eq!(
+            provider_menu_label(&with_data),
+            "Claude: 55% subscription used"
+        );
+        assert_eq!(
+            provider_menu_label(&without_data),
+            "Cursor: No active quota data (stale)"
+        );
+    }
+
+    fn subscription_track(id: &str, used: u64, limit: u64) -> UsageTrack {
+        UsageTrack {
+            id: id.to_string(),
+            kind: TrackKind::Subscription,
+            label: id.to_string(),
+            used,
+            limit,
+            unit: "percent".to_string(),
+            reset_at: String::new(),
+            status: ProviderStatus::Ok,
+            source: DataSource::Snapshot,
+        }
+    }
+
+    fn dashboard_entry(
+        id: &str,
+        name: &str,
+        tracks: Vec<UsageTrack>,
+        quota_used: u64,
+        quota_limit: u64,
+        stale: bool,
+    ) -> DashboardEntry {
+        DashboardEntry {
+            info: ProviderInfo {
+                id: id.to_string(),
+                name: name.to_string(),
+                icon: String::new(),
+                auth_method: AuthMethod::OAuth,
+                supported_auth_modes: vec![AuthSourceMode::Auto],
+                default_auth_mode: AuthSourceMode::Auto,
+                plan_name: "test".to_string(),
+                quota_limit: quota_limit.max(100),
+                reset_period: "monthly".to_string(),
+            },
+            usage: UsageData {
+                provider: id.to_string(),
+                requests: 0,
+                tokens: 0,
+                period_start: String::new(),
+                period_end: String::new(),
+                status: ProviderStatus::Ok,
+            },
+            quota: QuotaLimit {
+                used: quota_used,
+                limit: quota_limit,
+                unit: "percent".to_string(),
+                reset_at: String::new(),
+                status: ProviderStatus::Ok,
+            },
+            cost: None,
+            tracks,
+            preferred_track: TrackKind::Subscription,
+            cost_view: CostView {
+                mode: CostDisplayMode::Unavailable,
+                currency: "USD".to_string(),
+                total: None,
+                note: String::new(),
+            },
+            stale,
+            health: HealthStatus {
+                configured: true,
+                reachable: true,
+                last_checked: String::new(),
+            },
+        }
     }
 }

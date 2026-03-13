@@ -49,6 +49,18 @@ i18n.on("languageChanged", (language) => {
   }
 });
 
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event: StorageEvent) => {
+    if (event.key !== LANGUAGE_STORAGE_KEY) {
+      return;
+    }
+    const next = event.newValue;
+    if ((next === "en" || next === "ko") && i18n.language !== next) {
+      void i18n.changeLanguage(next);
+    }
+  });
+}
+
 setDocumentLanguage(i18n.language || "en");
 
 export default i18n;

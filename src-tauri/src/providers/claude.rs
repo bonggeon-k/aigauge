@@ -13,7 +13,8 @@ use once_cell::sync::Lazy;
 
 use super::{
     home_dir, not_configured_quota, not_configured_usage, unreachable_quota, unreachable_usage,
-    AuthMethod, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit, Result, UsageData,
+    AuthMethod, AuthSourceMode, CostData, Provider, ProviderInfo, ProviderStatus, QuotaLimit,
+    Result, UsageData,
 };
 
 static LAST_PLAN: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("Unknown".to_string()));
@@ -148,7 +149,10 @@ impl ClaudeProvider {
     }
 
     fn cached_snapshot() -> Option<ClaudeUsageSnapshot> {
-        LAST_SNAPSHOT.lock().ok().and_then(|guard| guard.as_ref().cloned())
+        LAST_SNAPSHOT
+            .lock()
+            .ok()
+            .and_then(|guard| guard.as_ref().cloned())
     }
 
     fn parse_snapshot(value: &Value) -> ClaudeUsageSnapshot {
@@ -172,10 +176,8 @@ impl ClaudeProvider {
             &["/seven_day_opus/utilization", "/sevenDayOpus/utilization"],
         );
 
-        let five_hour_reset_at = Self::reset_from_paths(
-            value,
-            &["/five_hour/resets_at", "/fiveHour/resetsAt"],
-        );
+        let five_hour_reset_at =
+            Self::reset_from_paths(value, &["/five_hour/resets_at", "/fiveHour/resetsAt"]);
         let weekly_reset_at = Self::reset_from_paths(
             value,
             &[
@@ -258,6 +260,8 @@ impl Provider for ClaudeProvider {
             name: "Anthropic Claude".to_string(),
             icon: "brain".to_string(),
             auth_method: AuthMethod::OAuth,
+            supported_auth_modes: vec![AuthSourceMode::Auto, AuthSourceMode::OAuthToken],
+            default_auth_mode: AuthSourceMode::Auto,
             plan_name: plan,
             quota_limit: 100,
             reset_period: "rolling".to_string(),
@@ -265,18 +269,28 @@ impl Provider for ClaudeProvider {
     }
 
     async fn fetch_usage(&self) -> Result<UsageData> {
+        let token_from_manager = self
+            .credential_manager
+            .get_credential("claude")
+            .ok()
+            .flatten()
+            .map(|value| value.to_string())
+            .filter(|value| !value.trim().is_empty());
+
         let oauth = Self::read_oauth();
-        let token = oauth
+        let oauth_token = oauth
             .as_ref()
             .and_then(|oauth| oauth.access_token.clone())
             .filter(|_| oauth.as_ref().map(Self::is_valid_oauth).unwrap_or(false))
-            .or_else(|| {
-                self.credential_manager
-                    .get_credential("claude")
-                    .ok()
-                    .flatten()
-                    .map(|value| value.to_string())
-            });
+            .filter(|value| !value.trim().is_empty());
+        let token = token_from_manager.or_else(|| {
+            if let Some(value) = oauth_token.as_ref() {
+                let _ = self
+                    .credential_manager
+                    .save_credential("claude", value.to_string());
+            }
+            oauth_token
+        });
 
         let Some(token) = token else {
             Self::clear_snapshot();

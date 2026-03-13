@@ -1,4 +1,6 @@
 import type { ComponentType } from "react";
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { LayoutDashboard, Settings, TrendingUp } from "lucide-react";
 
@@ -9,16 +11,20 @@ interface NavigationProps {
   onNavigate: (route: AppRoute) => void;
 }
 
-const items: Array<{ id: AppRoute; label: string; icon: ComponentType<{ className?: string }> }> = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "analytics", label: "Analytics", icon: TrendingUp },
-  { id: "settings", label: "Settings", icon: Settings },
-];
-
 export const Navigation = ({ route, onNavigate }: NavigationProps) => {
+  const { t } = useTranslation();
+  const items = useMemo<Array<{ id: AppRoute; label: string; icon: ComponentType<{ className?: string }> }>>(
+    () => [
+      { id: "dashboard", label: t("nav.dashboard"), icon: LayoutDashboard },
+      { id: "analytics", label: t("nav.analytics"), icon: TrendingUp },
+      { id: "settings", label: t("nav.settings"), icon: Settings },
+    ],
+    [t],
+  );
+
   return (
     <>
-      <nav role="navigation" aria-label="Primary navigation" className="hidden w-56 shrink-0 border-r border-border/60 bg-[var(--nav-bg)] p-3 backdrop-blur-sm md:block">
+      <nav role="navigation" aria-label={t("nav.primary")} className="hidden w-56 shrink-0 border-r border-border/60 bg-[var(--nav-bg)] p-3 backdrop-blur-sm md:block">
         <ul className="space-y-2">
           {items.map((item) => {
             const Icon = item.icon;
@@ -34,7 +40,7 @@ export const Navigation = ({ route, onNavigate }: NavigationProps) => {
                 ) : null}
                 <button
                   type="button"
-                  aria-label={`Navigate to ${item.label}`}
+                  aria-label={t("nav.navigateTo", { item: item.label })}
                   className={`relative z-10 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium ${
                     active ? "text-[var(--nav-active-fg)]" : "text-foreground/80 hover:bg-muted"
                   }`}
@@ -49,7 +55,7 @@ export const Navigation = ({ route, onNavigate }: NavigationProps) => {
         </ul>
       </nav>
 
-      <nav role="navigation" aria-label="Primary navigation mobile" className="fixed inset-x-4 bottom-4 z-30 rounded-2xl border border-border bg-[var(--nav-bg)] p-2 shadow-lg backdrop-blur md:hidden">
+      <nav role="navigation" aria-label={t("nav.primaryMobile")} className="fixed inset-x-4 bottom-4 z-30 rounded-2xl border border-border bg-[var(--nav-bg)] p-2 shadow-lg backdrop-blur md:hidden">
         <div className="grid grid-cols-3 gap-1">
           {items.map((item) => {
             const Icon = item.icon;
@@ -58,7 +64,7 @@ export const Navigation = ({ route, onNavigate }: NavigationProps) => {
               <button
                 key={item.id}
                 type="button"
-                aria-label={`Navigate to ${item.label}`}
+                aria-label={t("nav.navigateTo", { item: item.label })}
                 className={`relative flex flex-col items-center justify-center rounded-md py-2 text-[11px] ${
                   active ? "text-primary-foreground" : "hover:bg-muted"
                 }`}

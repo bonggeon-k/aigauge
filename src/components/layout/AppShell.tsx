@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Menu, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ export const AppShell = ({
   updateBanner,
   children,
 }: AppShellProps) => {
+  const { t } = useTranslation();
   const platform = detectPlatform();
   const isTauri =
     typeof window !== "undefined" &&
@@ -61,7 +63,7 @@ export const AppShell = ({
         <div className="absolute -left-24 top-0 h-72 w-72 rounded-full bg-teal-400/20 blur-3xl dark:bg-teal-300/10" />
         <div className="absolute right-[-5rem] top-28 h-72 w-72 rounded-full bg-orange-400/20 blur-3xl dark:bg-orange-300/10" />
       </div>
-      <a href="#main-content" className="skip-link">Skip to content</a>
+      <a href="#main-content" className="skip-link">{t("a11y.skipToContent")}</a>
       <div className="premium-shell anim-rise relative mx-auto w-full max-w-7xl overflow-hidden rounded-2xl">
         <header className="flex items-center justify-between rounded-t-2xl border-b border-border/70 px-4 py-3">
           <div className="flex items-center gap-2" data-tauri-drag-region={isTauri ? "" : undefined}>
@@ -70,19 +72,19 @@ export const AppShell = ({
             <p className="rounded-full bg-[var(--nav-muted)] px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{platform}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="icon" variant="ghost" onClick={onToggleTheme} aria-label="Toggle theme">
+            <Button size="icon" variant="ghost" onClick={onToggleTheme} aria-label={t("shell.toggleTheme")}>
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="icon" variant="outline" aria-label="Menu">
+                <Button size="icon" variant="outline" aria-label={t("shell.menu")}>
                   <Menu className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onNavigate("dashboard")}>Dashboard</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onNavigate("analytics")}>Analytics</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onNavigate("settings")}>Settings</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onNavigate("dashboard")}>{t("nav.dashboard")}</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onNavigate("analytics")}>{t("nav.analytics")}</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onNavigate("settings")}>{t("nav.settings")}</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -96,8 +98,11 @@ export const AppShell = ({
         </div>
 
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 px-4 py-2 text-xs text-muted-foreground">
-          <p>{shortcutPrefix}+Shift+G: Toggle window · {shortcutPrefix}+Shift+R: Refresh providers</p>
-          <p>v{appVersion}</p>
+          <p className="korean-keep">
+            {t("shell.shortcuts.toggleWindow", { key: `${shortcutPrefix}+Shift+G` })} ·{" "}
+            {t("shell.shortcuts.refreshProviders", { key: `${shortcutPrefix}+Shift+R` })}
+          </p>
+          <p>{t("shell.version", { version: appVersion })}</p>
         </footer>
       </div>
     </div>

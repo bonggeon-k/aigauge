@@ -13,7 +13,7 @@ export const PaceIndicator = ({ pace }: PaceIndicatorProps) => {
   const { t } = useTranslation();
   if (!pace) {
     return (
-      <Card className="border-border/70 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)]">
+      <Card className="min-h-[11rem] border-border/70 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)]">
         <p className="text-sm text-muted-foreground">{t("analytics.pace.noData")}</p>
       </Card>
     );
@@ -35,7 +35,7 @@ export const PaceIndicator = ({ pace }: PaceIndicatorProps) => {
   const daysRemaining = Math.max(0, daysInMonth - now.getDate());
 
   return (
-    <Card className="space-y-4 border-border/70 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)]">
+    <Card className="min-h-[11rem] space-y-4 border-border/70 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)]">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className={`inline-flex items-center gap-1.5 text-sm font-medium ${tone}`}>
           <Icon className="h-4 w-4" />
@@ -56,6 +56,10 @@ export const PaceIndicator = ({ pace }: PaceIndicatorProps) => {
           className="quota-meter quota-meter-pace h-2.5 w-full rounded-full"
           max={100}
           value={width}
+          aria-label={t("analytics.pace.projectedAgainstBudget")}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(width)}
         />
       </div>
 

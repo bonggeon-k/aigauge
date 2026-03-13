@@ -68,8 +68,10 @@ Suggested tools:
 
 ## Preflight Command
 
-Run:
+Run automated baseline checks:
 
 ```bash
 pnpm release:oss-check
 ```
+
+Then complete the remaining manual checklist items above (for example branch protection and signed tag verification).

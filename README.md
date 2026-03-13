@@ -2,9 +2,9 @@
 
 > FinOps dashboard for AI coding assistants.
 
-![Version](https://img.shields.io/badge/version-1.0.0-0f766e)
+![Version](https://img.shields.io/badge/version-1.1.1-0f766e)
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![CI](https://img.shields.io/github/actions/workflow/status/everygoodnews-ship-it/aigauge/ci.yml?branch=main)
+![CI](https://img.shields.io/github/actions/workflow/status/bonggeon-k/aigauge/ci.yml?branch=main)
 
 ## Highlights
 
@@ -56,6 +56,8 @@ pnpm tauri dev
 
 Environment preflight checklist: [docs/ENVIRONMENT_CHECKLIST.md](docs/ENVIRONMENT_CHECKLIST.md)
 Windows native smoke test: [docs/WINDOWS_NATIVE_TEST.md](docs/WINDOWS_NATIVE_TEST.md)
+Test installer build guide (Windows/macOS): [docs/TEST_INSTALLER_BUILD.md](docs/TEST_INSTALLER_BUILD.md)
+Windows free self-signing (internal QA): [docs/WINDOWS_FREE_SIGNING.md](docs/WINDOWS_FREE_SIGNING.md)
 Windows optional tool bootstrap: `scripts/windows-install-optional-tools.ps1`
 
 Release gate (local):
@@ -69,6 +71,12 @@ Open-source preflight:
 ```bash
 pnpm release:oss-check
 ```
+
+GitHub release safe mode:
+
+1. Push release tag (`vMAJOR.MINOR.PATCH`) from `main`.
+2. Workflow creates a **Draft** release (not public yet).
+3. Verify artifacts/checklist, then publish manually in GitHub Releases UI.
 
 ## Supported Providers
 

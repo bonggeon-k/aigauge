@@ -2,10 +2,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tracing::instrument;
 
 use crate::commands::AppState;
+use crate::providers::AuthSourceMode;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct NotificationSettings {
@@ -17,11 +18,27 @@ fn default_monthly_budget_usd() -> f64 {
     100.0
 }
 
+fn default_provider_auth_modes() -> HashMap<String, AuthSourceMode> {
+    [
+        ("codex".to_string(), AuthSourceMode::Auto),
+        ("claude".to_string(), AuthSourceMode::Auto),
+        ("gemini".to_string(), AuthSourceMode::ApiKey),
+        ("kiro".to_string(), AuthSourceMode::Cli),
+        ("copilot".to_string(), AuthSourceMode::OAuthToken),
+        ("cursor".to_string(), AuthSourceMode::Token),
+        ("jetbrains".to_string(), AuthSourceMode::Auto),
+    ]
+    .into_iter()
+    .collect()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct AppConfig {
     pub polling_intervals: HashMap<String, u64>,
     pub enabled_providers: Vec<String>,
+    #[serde(default = "default_provider_auth_modes")]
+    pub provider_auth_modes: HashMap<String, AuthSourceMode>,
     pub theme_preference: String,
     pub language: String,
     pub onboarding_complete: bool,
@@ -56,6 +73,7 @@ impl Default for AppConfig {
                 "cursor".to_string(),
                 "jetbrains".to_string(),
             ],
+            provider_auth_modes: default_provider_auth_modes(),
             theme_preference: "system".to_string(),
             language: "en".to_string(),
             onboarding_complete: false,
@@ -136,7 +154,9 @@ pub fn update_config(
     state: tauri::State<'_, AppState>,
     app: tauri::AppHandle,
 ) -> Result<AppConfig, String> {
-    state.config_store.save(&app, &config)
+    let saved = state.config_store.save(&app, &config)?;
+    let _ = app.emit("config-updated", &saved);
+    Ok(saved)
 }
 
 #[cfg(test)]
@@ -179,5 +199,9 @@ mod tests {
         fs::write(path.as_path(), legacy).expect("legacy write should succeed");
         let loaded = ConfigStore::load_from_path(path.as_path()).expect("legacy should load");
         assert_eq!(loaded.monthly_budget_usd, 100.0);
+        assert_eq!(
+            loaded.provider_auth_modes.get("gemini"),
+            Some(&AuthSourceMode::ApiKey)
+        );
     }
 }
