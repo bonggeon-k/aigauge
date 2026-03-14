@@ -8,13 +8,12 @@ const packageJson = JSON.parse(
   fs.readFileSync(path.join(root, "package.json"), "utf8"),
 );
 const releaseTag = `v${String(packageJson.version ?? "").trim()}`;
-
 const run = (label, command, args, options = {}) => {
   console.log(label);
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? root,
     stdio: "inherit",
-    shell: false,
+    shell: options.shell ?? false,
     env: {
       ...process.env,
       ...(options.env ?? {}),
@@ -25,11 +24,19 @@ const run = (label, command, args, options = {}) => {
   }
 };
 
+const runPnpm = (label, args) => {
+  if (process.platform === "win32") {
+    run(label, "pnpm", args, { shell: true });
+    return;
+  }
+  run(label, "pnpm", args);
+};
+
 run("[1/9] Git status", "git", ["status", "--short"]);
 run("[2/9] Version alignment", "node", ["./scripts/check-version-alignment.mjs"], {
   env: { RELEASE_TAG: releaseTag },
 });
-run("[3/9] Provider env doctor", "pnpm", ["doctor:providers"]);
+runPnpm("[3/9] Provider env doctor", ["doctor:providers"]);
 run("[4/9] Rust clippy", "cargo", [
   "clippy",
   "--manifest-path",
@@ -40,10 +47,10 @@ run("[4/9] Rust clippy", "cargo", [
   "warnings",
 ]);
 run("[5/9] Rust tests", "cargo", ["test", "--manifest-path", "src-tauri/Cargo.toml"]);
-run("[6/9] Frontend lint", "pnpm", ["lint"]);
-run("[7/9] Frontend build", "pnpm", ["build"]);
+runPnpm("[6/9] Frontend lint", ["lint"]);
+runPnpm("[7/9] Frontend build", ["build"]);
 run("[8/9] Cargo audit", "cargo", ["audit"], { cwd: path.join(root, "src-tauri") });
-run("[9/9] pnpm audit", "pnpm", ["audit", "--audit-level=high"]);
+runPnpm("[9/9] pnpm audit", ["audit", "--audit-level=high"]);
 
 const gitleaks = spawnSync("gitleaks", ["version"], {
   cwd: root,
