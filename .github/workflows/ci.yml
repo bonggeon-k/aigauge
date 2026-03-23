@@ -82,8 +82,8 @@ jobs:
 
       - name: Accessibility check (manual fallback)
         run: |
-          pnpm add -D @axe-core/cli
-          echo "Axe CLI installed. E2E page URL required for full run in CI."
+          pnpm exec axe --version
+          echo "Axe CLI available. E2E page URL required for full run in CI."
 
       - name: Bundle size check
         run: node -e "const fs=require('fs'); const path=require('path'); const walk=(p)=>fs.existsSync(p)?fs.statSync(p).isDirectory()?fs.readdirSync(p).reduce((n,f)=>n+walk(path.join(p,f)),0):fs.statSync(p).size:0; const bytes=walk('dist'); const mb=Math.round((bytes/1024/1024)*100)/100; console.log('dist size:', mb+'MB'); if(mb>5){console.log('::warning::dist bundle is larger than 5MB')}"
@@ -99,4 +99,5 @@ jobs:
           fi
 
       - name: pnpm audit
+        if: matrix.os == 'ubuntu-latest'
         run: pnpm audit --audit-level=high

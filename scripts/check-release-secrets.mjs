@@ -7,13 +7,6 @@ const commonRequired = [
 const platform = (process.env.RELEASE_OS ?? "").trim().toLowerCase();
 
 const platformRequired = {
-  "windows-latest": [
-    "WINDOWS_CERTIFICATE",
-    "WINDOWS_CERTIFICATE_PASSWORD",
-    "WINDOWS_CERTIFICATE_SHA1",
-    "WINDOWS_DIGEST_ALGORITHM",
-    "WINDOWS_TIMESTAMP_URL",
-  ],
   "macos-latest": [
     "APPLE_CERTIFICATE",
     "APPLE_CERTIFICATE_PASSWORD",
@@ -25,10 +18,33 @@ const platformRequired = {
   ],
 };
 
-const required = [
-  ...commonRequired,
-  ...(platformRequired[platform] ?? []),
-];
+const windowsSigningConfigured = [
+  "WINDOWS_CERTIFICATE",
+  "WINDOWS_CERTIFICATE_PASSWORD",
+  "WINDOWS_CERTIFICATE_SHA1",
+  "WINDOWS_DIGEST_ALGORITHM",
+  "WINDOWS_TIMESTAMP_URL",
+].every((name) => (process.env[name] ?? "").toString().trim());
+
+const required = [...commonRequired];
+
+if (platform === "windows-latest") {
+  if (windowsSigningConfigured) {
+    required.push(
+      "WINDOWS_CERTIFICATE",
+      "WINDOWS_CERTIFICATE_PASSWORD",
+      "WINDOWS_CERTIFICATE_SHA1",
+      "WINDOWS_DIGEST_ALGORITHM",
+      "WINDOWS_TIMESTAMP_URL",
+    );
+  } else {
+    console.log(
+      "Windows signing secrets are not fully configured; continuing with unsigned Windows release artifact.",
+    );
+  }
+} else {
+  required.push(...(platformRequired[platform] ?? []));
+}
 
 const missing = required.filter((name) => !(process.env[name] ?? "").toString().trim());
 

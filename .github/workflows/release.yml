@@ -78,7 +78,9 @@ jobs:
 
       - name: Default release flags
         shell: bash
-        run: echo "MAC_RELEASE_ENABLED=true" >> "$GITHUB_ENV"
+        run: |
+          echo "MAC_RELEASE_ENABLED=true" >> "$GITHUB_ENV"
+          echo "WINDOWS_SIGNING_ENABLED=true" >> "$GITHUB_ENV"
 
       - name: Detect macOS signing availability
         if: matrix.os == 'macos-latest'
@@ -99,8 +101,25 @@ jobs:
             echo "MAC_RELEASE_ENABLED=false" >> "$GITHUB_ENV"
           fi
 
+      - name: Detect Windows signing availability
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_CERTIFICATE_SHA1: ${{ secrets.WINDOWS_CERTIFICATE_SHA1 }}
+          WINDOWS_DIGEST_ALGORITHM: ${{ secrets.WINDOWS_DIGEST_ALGORITHM }}
+          WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
+        run: |
+          if [[ -n "$WINDOWS_CERTIFICATE" && -n "$WINDOWS_CERTIFICATE_PASSWORD" && -n "$WINDOWS_CERTIFICATE_SHA1" && -n "$WINDOWS_DIGEST_ALGORITHM" && -n "$WINDOWS_TIMESTAMP_URL" ]]; then
+            echo "WINDOWS_SIGNING_ENABLED=true" >> "$GITHUB_ENV"
+          else
+            echo "::notice::Building unsigned Windows release because Windows signing secrets are not configured."
+            echo "WINDOWS_SIGNING_ENABLED=false" >> "$GITHUB_ENV"
+          fi
+
       - name: Check release signing secrets
-        if: env.MAC_RELEASE_ENABLED != 'false'
+        if: env.MAC_RELEASE_ENABLED != 'false' || env.WINDOWS_SIGNING_ENABLED != 'false'
         run: node ./scripts/check-release-secrets.mjs
         env:
           RELEASE_OS: ${{ matrix.os }}
@@ -129,7 +148,7 @@ jobs:
           UPDATER_PUBLIC_KEY: ${{ secrets.UPDATER_PUBLIC_KEY }}
 
       - name: Import Windows code-signing certificate
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-latest' && env.WINDOWS_SIGNING_ENABLED == 'true'
         shell: pwsh
         env:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
@@ -142,7 +161,7 @@ jobs:
           Import-PfxCertificate -FilePath certificate/certificate.pfx -CertStoreLocation Cert:\CurrentUser\My -Password $securePassword | Out-Null
 
       - name: Configure Windows code-signing settings
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-latest' && env.WINDOWS_SIGNING_ENABLED == 'true'
         run: node ./scripts/configure-windows-signing.mjs
         env:
           WINDOWS_CERTIFICATE_SHA1: ${{ secrets.WINDOWS_CERTIFICATE_SHA1 }}

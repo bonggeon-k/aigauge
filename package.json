@@ -32,6 +32,7 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "@axe-core/cli": "^4.11.0",
     "@eslint/js": "^9.39.3",
     "@tailwindcss/vite": "^4.2.1",
     "@tauri-apps/cli": "^2",
@@ -57,7 +58,7 @@
       "hono": "4.12.7",
       "@hono/node-server": "1.19.10",
       "express-rate-limit": "8.2.2",
-      "flatted": "3.4.0"
+      "flatted": "3.4.2"
     }
   }
 }
