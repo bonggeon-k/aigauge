@@ -24,6 +24,13 @@ interface CostDashboardProps {
 const ranges = ["this_month", "last_3", "last_6", "last_year"] as const;
 type RangeValue = (typeof ranges)[number];
 
+const rangeWindowSize: Record<RangeValue, number> = {
+  this_month: 1,
+  last_3: 3,
+  last_6: 6,
+  last_year: 12,
+};
+
 const colorAt = (index: number): string => `var(--chart-${(index % 7) + 1})`;
 
 const formatCurrency = (value: number, currency = "USD", locale = "en-US"): string =>
@@ -62,10 +69,12 @@ export const CostDashboard = ({ summary, history }: CostDashboardProps) => {
   }, [history, range]);
 
   const current = summary?.total_monthly ?? 0;
-  const previous = history.length > 1 ? history[history.length - 2]?.total ?? 0 : 0;
-  const changePct = previous > 0 ? ((current - previous) / previous) * 100 : 0;
-  const changeUp = changePct > 0;
+  const previous = history.length > 1 ? (history[history.length - 2]?.total ?? null) : null;
+  const changePct = previous != null && previous > 0 ? ((current - previous) / previous) * 100 : null;
+  const changeUp = (changePct ?? 0) > 0;
   const currency = summary?.currency || "USD";
+  const expectedMonths = rangeWindowSize[range];
+  const insufficientHistory = historyView.length < expectedMonths;
 
   const avgInRange =
     historyView.length > 0
@@ -111,6 +120,15 @@ export const CostDashboard = ({ summary, history }: CostDashboardProps) => {
           </div>
         </div>
 
+        {insufficientHistory ? (
+          <div className="rounded-xl border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+            {t("analytics.historyNotice", {
+              available: historyView.length,
+              expected: expectedMonths,
+            })}
+          </div>
+        ) : null}
+
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Card className="h-full border-border/70 bg-[var(--surface-1)] p-3">
             <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{t("analytics.currentMonth")}</p>
@@ -118,7 +136,9 @@ export const CostDashboard = ({ summary, history }: CostDashboardProps) => {
           </Card>
           <Card className="h-full border-border/70 bg-[var(--surface-1)] p-3">
             <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{t("analytics.previousMonth")}</p>
-            <p className="mt-1 text-lg font-semibold tracking-tight">{formatCurrency(previous, currency, locale)}</p>
+            <p className="mt-1 text-lg font-semibold tracking-tight">
+              {previous != null ? formatCurrency(previous, currency, locale) : t("analytics.unavailable")}
+            </p>
           </Card>
           <Card className="h-full border-border/70 bg-[var(--surface-1)] p-3">
             <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{t("analytics.avgInRange")}</p>
@@ -126,14 +146,18 @@ export const CostDashboard = ({ summary, history }: CostDashboardProps) => {
           </Card>
           <Card className="h-full border-border/70 bg-[var(--surface-1)] p-3">
             <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{t("analytics.momChange")}</p>
-            <div
-              className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-1 text-sm font-semibold ${
-                changeUp ? "text-rose-600 dark:text-rose-300" : "text-emerald-600 dark:text-emerald-300"
-              }`}
-            >
-              {changeUp ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-              {Math.abs(changePct).toFixed(1)}%
-            </div>
+            {changePct != null ? (
+              <div
+                className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-1 text-sm font-semibold ${
+                  changeUp ? "text-rose-600 dark:text-rose-300" : "text-emerald-600 dark:text-emerald-300"
+                }`}
+              >
+                {changeUp ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+                {Math.abs(changePct).toFixed(1)}%
+              </div>
+            ) : (
+              <p className="mt-1 text-sm font-semibold text-muted-foreground">{t("analytics.unavailable")}</p>
+            )}
           </Card>
         </div>
 
@@ -184,7 +208,7 @@ export const CostDashboard = ({ summary, history }: CostDashboardProps) => {
                 </ResponsiveContainer>
               ) : (
                 <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-border/70 text-xs text-muted-foreground">
-                  {t("analytics.roi.noData")}
+                  {t("analytics.noTrendData")}
                 </div>
               )}
             </div>
@@ -213,7 +237,7 @@ export const CostDashboard = ({ summary, history }: CostDashboardProps) => {
                 </ResponsiveContainer>
               ) : (
                 <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-border/70 text-xs text-muted-foreground">
-                  {t("analytics.roi.noData")}
+                  {t("analytics.noProviderShareData")}
                 </div>
               )}
             </div>

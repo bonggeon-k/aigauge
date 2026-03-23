@@ -51,6 +51,11 @@ interface QuotaStatusMeta {
   dotClass: string;
 }
 
+interface StatusSummaryMeta {
+  label: string;
+  toneClass: string;
+}
+
 type Translator = (key: string, options?: Record<string, unknown>) => string;
 
 const iconMap = {
@@ -304,6 +309,31 @@ const getQuotaStatusBadge = (
   };
 };
 
+const getStatusSummary = (entry: DashboardEntry, t: Translator): StatusSummaryMeta => {
+  if (entry.usage.status === "not_configured") {
+    return {
+      label: t("dashboard.providerCard.statusSummary.notConfigured"),
+      toneClass: "text-slate-600 dark:text-slate-300",
+    };
+  }
+  if (entry.stale) {
+    return {
+      label: t("dashboard.providerCard.statusSummary.stale"),
+      toneClass: "text-amber-700 dark:text-amber-300",
+    };
+  }
+  if (!entry.health.reachable) {
+    return {
+      label: t("dashboard.providerCard.statusSummary.offline"),
+      toneClass: "text-rose-700 dark:text-rose-300",
+    };
+  }
+  return {
+    label: t("dashboard.providerCard.statusSummary.live"),
+    toneClass: "text-emerald-700 dark:text-emerald-300",
+  };
+};
+
 export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardProps) => {
   const { t, i18n } = useTranslation();
   const Icon = iconMap[entry.info.id as keyof typeof iconMap] ?? Bot;
@@ -344,6 +374,7 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
         ? Math.max(0, entry.quota.used / entry.quota.limit)
         : null;
   const quotaStatusBadge = getQuotaStatusBadge(entry, quotaStatusRatio, t);
+  const statusSummary = getStatusSummary(entry, t);
   const planLabel =
     entry.info.plan_name.toLowerCase() === "manual"
       ? t("tray.manual.planNameManual")
@@ -353,7 +384,9 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
     if (entry.cost_view.mode === "included") {
       return t("dashboard.providerCard.included");
     }
-    if (entry.cost_view.mode !== "metered" || entry.cost_view.total == null) return "-";
+    if (entry.cost_view.mode !== "metered" || entry.cost_view.total == null) {
+      return t("dashboard.providerCard.unavailable");
+    }
     return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: entry.cost_view.currency || "USD",
@@ -449,6 +482,7 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
               </p>
             </div>
             <p className="mt-1 text-sm font-semibold korean-keep">{quotaModelLabel}</p>
+            <p className={`mt-1 text-xs korean-keep ${statusSummary.toneClass}`}>{statusSummary.label}</p>
           </div>
         </CardHeader>
 
@@ -528,6 +562,11 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
               {codexCostScopeNote ? (
                 <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground korean-keep">
                   {codexCostScopeNote}
+                </p>
+              ) : null}
+              {!codexCostScopeNote && entry.cost_view.note && !isNotConfigured ? (
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground korean-keep">
+                  {entry.cost_view.note}
                 </p>
               ) : null}
             </div>

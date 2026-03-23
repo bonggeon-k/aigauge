@@ -118,6 +118,7 @@ export const TrayApp = () => {
   });
 
   const [entries, setEntries] = useState<DashboardEntry[]>([]);
+  const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [activeProviderId, setActiveProviderId] = useState("codex");
   const [statuses, setStatuses] = useState<Record<string, { indicator: string; description: string }>>({});
   const [codexCost, setCodexCost] = useState<CodexCostBreakdown | null>(null);
@@ -135,17 +136,23 @@ export const TrayApp = () => {
     [entries, activeProviderId],
   );
   const configuredCount = useMemo(
-    () => entries.filter((entry) => entry.health.configured).length,
-    [entries],
+    () =>
+      Object.values(appConfig?.provider_connections ?? {}).filter((connection) => connection?.verified)
+        .length,
+    [appConfig],
   );
+  const hasVerifiedProviders = configuredCount > 0;
   const warningCount = useMemo(
     () =>
       entries.filter((entry) => {
         const track = entry.tracks.find((item) => item.kind === "subscription");
-        if (track && track.limit > 0) {
+        if (entry.usage.status !== "ok" || entry.stale || !entry.health.reachable) {
+          return false;
+        }
+        if (track && track.status === "ok" && track.limit > 0) {
           return track.used / track.limit >= 0.8;
         }
-        if (entry.quota.limit > 0) {
+        if (entry.quota.status === "ok" && entry.quota.limit > 0) {
           return entry.quota.used / entry.quota.limit >= 0.8;
         }
         return false;
@@ -182,6 +189,8 @@ export const TrayApp = () => {
       return currentId;
     });
     notify.notifyThresholds(ordered);
+    setLastRefreshedAt(Date.now());
+    setActionNotice(null);
   }, [providerApi, notify, settings.enabledProviders]);
 
   const refreshStatuses = useCallback(async (force = false) => {
@@ -223,6 +232,7 @@ export const TrayApp = () => {
       .getConfig()
       .then((config) => {
         if (disposed) return;
+        setAppConfig(config);
         if (config.language && config.language !== i18n.language) {
           void i18n.changeLanguage(config.language);
         }
@@ -269,6 +279,7 @@ export const TrayApp = () => {
   useTauriEvent<AppConfig>(
     "config-updated",
     (config) => {
+      setAppConfig(config);
       if (config.language && config.language !== i18n.language) {
         void i18n.changeLanguage(config.language);
       }
@@ -532,6 +543,20 @@ export const TrayApp = () => {
               codexCost={activeEntry.info.id === "codex" ? codexCost : null}
               onOpenManualInput={() => setManualOpen(true)}
             />
+          ) : hasVerifiedProviders ? (
+            <div className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-4 text-sm">
+              <p className="font-medium tracking-tight">{t("tray.emptyInactive.title")}</p>
+              <p className="mt-2 text-muted-foreground korean-keep">{t("tray.emptyInactive.description")}</p>
+              <button
+                type="button"
+                className="mt-4 rounded-full border border-primary/50 px-3 py-1.5 text-xs text-primary transition hover:bg-primary/10"
+                onClick={() => {
+                  void openMainDashboard();
+                }}
+              >
+                {t("tray.emptyInactive.cta")}
+              </button>
+            </div>
           ) : (
             <div className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-4 text-sm text-muted-foreground">
               {t("tray.emptyNoData")}

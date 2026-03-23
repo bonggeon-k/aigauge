@@ -92,10 +92,18 @@ export interface DashboardEntry {
   health: HealthStatus;
 }
 
+export interface ProviderConnectionState {
+  verified: boolean;
+  auto_refresh: boolean;
+  last_verified_at?: string | null;
+  last_error?: string | null;
+}
+
 export interface AppConfig {
   polling_intervals: Record<string, number>;
   enabled_providers: string[];
   provider_auth_modes: Record<string, AuthSourceMode>;
+  provider_connections: Record<string, ProviderConnectionState>;
   theme_preference: string;
   language: string;
   onboarding_complete: boolean;
@@ -599,7 +607,7 @@ export const useProvider = () =>
               cursor: 300,
               jetbrains: 300,
             },
-            enabled_providers: ["codex", "claude", "gemini", "kiro", "copilot", "cursor", "jetbrains"],
+            enabled_providers: [],
             provider_auth_modes: {
               codex: "auto",
               claude: "auto",
@@ -608,6 +616,15 @@ export const useProvider = () =>
               copilot: "oauth_token",
               cursor: "token",
               jetbrains: "auto",
+            },
+            provider_connections: {
+              codex: { verified: false, auto_refresh: false, last_verified_at: null, last_error: null },
+              claude: { verified: false, auto_refresh: false, last_verified_at: null, last_error: null },
+              gemini: { verified: false, auto_refresh: false, last_verified_at: null, last_error: null },
+              kiro: { verified: false, auto_refresh: false, last_verified_at: null, last_error: null },
+              copilot: { verified: false, auto_refresh: false, last_verified_at: null, last_error: null },
+              cursor: { verified: false, auto_refresh: false, last_verified_at: null, last_error: null },
+              jetbrains: { verified: false, auto_refresh: false, last_verified_at: null, last_error: null },
             },
             theme_preference: "system",
             language: "en",

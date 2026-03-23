@@ -1,4 +1,4 @@
-use crate::config::{AppConfig, ConfigStore};
+use crate::config::{normalize_config, AppConfig, ConfigStore, ProviderConnectionState};
 use crate::cost_engine::CostEngine;
 use crate::credentials::CredentialManager;
 use crate::platform;
@@ -282,7 +282,7 @@ fn load_config_or_default(state: &AppState, app: &tauri::AppHandle) -> AppConfig
         .config_store
         .load(app)
         .unwrap_or_else(|_| AppConfig::default());
-    normalize_provider_auth_modes(&mut config);
+    normalize_config(&mut config);
     config
 }
 
@@ -299,13 +299,62 @@ fn provider_selected_auth_mode(
         .unwrap_or_else(|| provider_default_auth_mode(provider))
 }
 
-fn normalize_provider_auth_modes(config: &mut AppConfig) {
-    for provider in PROVIDER_IDS {
-        config
-            .provider_auth_modes
-            .entry((*provider).to_string())
-            .or_insert_with(|| provider_default_auth_mode(provider));
+fn connection_state_for<'a>(
+    config: &'a mut AppConfig,
+    provider: &str,
+) -> &'a mut ProviderConnectionState {
+    config
+        .provider_connections
+        .entry(provider.to_string())
+        .or_default()
+}
+
+fn provider_is_verified(config: &AppConfig, provider: &str) -> bool {
+    config
+        .provider_connections
+        .get(provider)
+        .map(|state| state.verified)
+        .unwrap_or(false)
+}
+
+fn provider_auto_refresh_enabled(config: &AppConfig, provider: &str) -> bool {
+    config
+        .provider_connections
+        .get(provider)
+        .map(|state| state.auto_refresh)
+        .unwrap_or(false)
+}
+
+fn mark_provider_connection_failure(
+    state: &AppState,
+    app: &tauri::AppHandle,
+    provider: &str,
+    error: Option<String>,
+) -> Result<(), String> {
+    let mut config = load_config_or_default(state, app);
+    let connection = connection_state_for(&mut config, provider);
+    connection.verified = false;
+    connection.auto_refresh = false;
+    connection.last_verified_at = None;
+    connection.last_error = error;
+    state.config_store.save(app, &config).map(|_| ())
+}
+
+fn mark_provider_connection_success(
+    state: &AppState,
+    app: &tauri::AppHandle,
+    provider: &str,
+) -> Result<(), String> {
+    let mut config = load_config_or_default(state, app);
+    if !provider_enabled_in_config(&config, provider) {
+        config.enabled_providers.push(provider.to_string());
     }
+    let connection = connection_state_for(&mut config, provider);
+    connection.verified = true;
+    connection.auto_refresh = true;
+    connection.last_verified_at = Some(Utc::now().to_rfc3339());
+    connection.last_error = None;
+    state.config_store.save(app, &config).map(|_| ())
 }
 
 fn sync_primary_credential_with_mode(
@@ -553,6 +602,8 @@ pub(crate) fn active_provider_ids(state: &AppState, app: &tauri::AppHandle) -> V
         .iter()
         .copied()
         .filter(|provider| provider_enabled_in_config(&config, provider))
+        .filter(|provider| provider_is_verified(&config, provider))
+        .filter(|provider| provider_auto_refresh_enabled(&config, provider))
         .filter(|provider| provider_has_runtime_configuration(provider, state, app))
         .map(str::to_string)
         .collect()
@@ -571,6 +622,11 @@ fn set_provider_enabled(
         }
     } else {
         config.enabled_providers.retain(|value| value != provider);
+        let connection = connection_state_for(&mut config, provider);
+        connection.verified = false;
+        connection.auto_refresh = false;
+        connection.last_verified_at = None;
+        connection.last_error = None;
     }
     state.config_store.save(app, &config).map(|_| ())
 }
@@ -1417,15 +1473,13 @@ pub fn set_provider_auth_mode(
 
     let mut config = load_config_or_default(&state, &app);
     config.provider_auth_modes.insert(provider.clone(), mode);
-    normalize_provider_auth_modes(&mut config);
+    let connection = connection_state_for(&mut config, provider.as_str());
+    connection.verified = false;
+    connection.auto_refresh = false;
+    connection.last_verified_at = None;
+    connection.last_error = None;
     state.config_store.save(&app, &config)?;
     sync_primary_credential_with_mode(&state, provider.as_str(), mode)?;
-
-    if !provider_has_runtime_configuration(provider.as_str(), &state, &app) {
-        set_provider_enabled(&state, &app, provider.as_str(), false)?;
-    } else {
-        set_provider_enabled(&state, &app, provider.as_str(), true)?;
-    }
     Ok(mode)
 }
 
@@ -1477,9 +1531,8 @@ pub fn save_credential(
     config
         .provider_auth_modes
         .insert(provider.clone(), selected_mode);
-    normalize_provider_auth_modes(&mut config);
     state.config_store.save(&app, &config)?;
-    set_provider_enabled(&state, &app, provider.as_str(), true)
+    Ok(())
 }
 
 #[tauri::command]
@@ -1520,7 +1573,7 @@ pub fn delete_credential(
     }
     state.quota_cache.clear(Some(provider.as_str()));
     if !provider_has_runtime_configuration(provider.as_str(), &state, &app) {
-        set_provider_enabled(&state, &app, provider.as_str(), false)?;
+        mark_provider_connection_failure(&state, &app, provider.as_str(), None)?;
     }
     Ok(())
 }
@@ -1623,7 +1676,7 @@ pub async fn poll_copilot_device_flow(
             .credential_manager
             .save_credential("copilot", token.to_string())
             .map_err(|error| format!("failed to persist copilot token: {error}"))?;
-        let _ = set_provider_enabled(&state, &app, "copilot", true);
+        let _ = mark_provider_connection_success(&state, &app, "copilot");
         return Ok(CopilotDeviceFlowPoll {
             status: "authorized".to_string(),
             message: Some("GitHub authorization complete".to_string()),
@@ -1680,7 +1733,7 @@ pub fn save_manual_input(
     manual.insert(provider, input);
     save_manual_inputs(&app, &manual)?;
     state.quota_cache.clear(Some(provider_id.as_str()));
-    set_provider_enabled(&state, &app, provider_id.as_str(), true)
+    mark_provider_connection_success(&state, &app, provider_id.as_str())
 }
 
 #[tauri::command]
@@ -1699,6 +1752,8 @@ pub fn clear_provider_data(
     save_manual_inputs(&app, &manual)?;
     if !provider_has_runtime_configuration(provider.as_str(), &state, &app) {
         set_provider_enabled(&state, &app, provider.as_str(), false)?;
+    } else {
+        mark_provider_connection_failure(&state, &app, provider.as_str(), None)?;
     }
     Ok(())
 }

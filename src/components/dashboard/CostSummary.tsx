@@ -1,5 +1,4 @@
 import { Pie, PieChart, ResponsiveContainer, Cell, Tooltip } from "recharts";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { DashboardEntry } from "@/hooks/useProvider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,13 +23,21 @@ export const CostSummary = ({ entries }: CostSummaryProps) => {
   const data = entries
     .map((entry) => ({
       name: entry.info.name,
-      value: entry.cost?.status === "ok" ? entry.cost.total : 0,
+      value:
+        entry.cost_view.mode === "metered" && entry.cost_view.total != null
+          ? entry.cost_view.total
+          : 0,
     }))
     .filter((item) => item.value > 0);
 
   const total = data.reduce((sum, item) => sum + item.value, 0);
-  const previous = total * 0.91;
-  const diff = previous > 0 ? ((total - previous) / previous) * 100 : 0;
+  const meteredCount = data.length;
+  const includedCount = entries.filter((entry) => entry.cost_view.mode === "included").length;
+  const unavailableCount = entries.filter((entry) => entry.cost_view.mode === "unavailable").length;
+  const totalLabel = new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "USD",
+  }).format(total);
 
   return (
     <Card className="flex h-full min-h-[260px] border-border/70 bg-[var(--glass-bg)] shadow-[var(--shadow-soft)]">
@@ -40,51 +47,62 @@ export const CostSummary = ({ entries }: CostSummaryProps) => {
       <CardContent className="grid flex-1 gap-4 md:grid-cols-2">
         <div>
           <p className="text-sm text-muted-foreground">{t("dashboard.costSummary.monthlyTotal")}</p>
-          <p className="text-3xl font-semibold">
-            {new Intl.NumberFormat(locale, {
-              style: "currency",
-              currency: "USD",
-            }).format(total)}
+          <p className="text-3xl font-semibold">{totalLabel}</p>
+          <p className="mt-2 text-sm text-muted-foreground korean-keep">
+            {t("dashboard.costSummary.coverage", {
+              metered: meteredCount,
+              included: includedCount,
+              unavailable: unavailableCount,
+            })}
           </p>
-          <p className="mt-2 flex items-center gap-1 text-sm">
-            {diff >= 0 ? (
-              <ArrowUpRight className="h-4 w-4 text-red-500" />
-            ) : (
-              <ArrowDownRight className="h-4 w-4 text-emerald-500" />
-            )}
-            <span className={diff >= 0 ? "text-red-500" : "text-emerald-500"}>
-              {Math.abs(diff).toFixed(1)}%
-            </span>
-            <span className="text-muted-foreground">{t("dashboard.costSummary.vsLastMonth")}</span>
-          </p>
+          <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+            <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
+              <p className="text-muted-foreground">{t("dashboard.costSummary.metered")}</p>
+              <p className="mt-1 text-sm font-semibold">{meteredCount}</p>
+            </div>
+            <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
+              <p className="text-muted-foreground">{t("dashboard.costSummary.included")}</p>
+              <p className="mt-1 text-sm font-semibold">{includedCount}</p>
+            </div>
+            <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
+              <p className="text-muted-foreground">{t("dashboard.costSummary.unavailable")}</p>
+              <p className="mt-1 text-sm font-semibold">{unavailableCount}</p>
+            </div>
+          </div>
         </div>
         <div className="h-52 min-h-[13rem]">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={data}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                innerRadius={45}
-                outerRadius={75}
-                paddingAngle={2}
-              >
-                {data.map((_, index) => (
-                  <Cell key={`slice-${index}`} fill={colors[index % colors.length]} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(value: number | string | undefined) =>
-                  new Intl.NumberFormat(locale, {
-                    style: "currency",
-                    currency: "USD",
-                  }).format(typeof value === "number" ? value : 0)
-                }
-              />
-            </PieChart>
-          </ResponsiveContainer>
+          {data.length === 0 ? (
+            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-border/70 bg-[var(--surface-1)] p-4 text-center text-sm text-muted-foreground korean-keep">
+              {t("dashboard.costSummary.noMeteredData")}
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={data}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={45}
+                  outerRadius={75}
+                  paddingAngle={2}
+                >
+                  {data.map((_, index) => (
+                    <Cell key={`slice-${index}`} fill={colors[index % colors.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value: number | string | undefined) =>
+                    new Intl.NumberFormat(locale, {
+                      style: "currency",
+                      currency: "USD",
+                    }).format(typeof value === "number" ? value : 0)
+                  }
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </CardContent>
     </Card>

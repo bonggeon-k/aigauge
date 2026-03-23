@@ -66,7 +66,7 @@ export const useTrayNotifications = ({
 
             const levelKey = isCritical ? "app.alerts.quotaCritical" : "app.alerts.quotaWarning";
             const trackLabel = t(`app.trackKind.${track.kind}`);
-            new window.Notification("AIGauge", {
+            new window.Notification(t("app.notifications.title"), {
               body: `${t(levelKey, { provider: entry.info.name })} (${trackLabel} ${Math.round(usagePct)}%)`,
             });
             lastNotifiedRef.current[key] = now;

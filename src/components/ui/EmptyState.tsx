@@ -15,6 +15,9 @@ export const EmptyState = ({ onGetStarted }: EmptyStateProps) => {
       <p className="mt-1 text-sm text-muted-foreground">
         {t("empty.description")}
       </p>
+      <p className="mt-2 text-xs text-muted-foreground korean-keep">
+        {t("empty.subtleHint")}
+      </p>
       <Button className="mt-4" onClick={onGetStarted} aria-label={t("empty.cta")}>
         {t("empty.cta")}
       </Button>

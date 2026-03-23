@@ -32,6 +32,28 @@ fn default_provider_auth_modes() -> HashMap<String, AuthSourceMode> {
     .collect()
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct ProviderConnectionState {
+    pub verified: bool,
+    pub auto_refresh: bool,
+    pub last_verified_at: Option<String>,
+    pub last_error: Option<String>,
+}
+
+fn default_provider_connections() -> HashMap<String, ProviderConnectionState> {
+    [
+        ("codex".to_string(), ProviderConnectionState::default()),
+        ("claude".to_string(), ProviderConnectionState::default()),
+        ("gemini".to_string(), ProviderConnectionState::default()),
+        ("kiro".to_string(), ProviderConnectionState::default()),
+        ("copilot".to_string(), ProviderConnectionState::default()),
+        ("cursor".to_string(), ProviderConnectionState::default()),
+        ("jetbrains".to_string(), ProviderConnectionState::default()),
+    ]
+    .into_iter()
+    .collect()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct AppConfig {
@@ -39,6 +61,8 @@ pub struct AppConfig {
     pub enabled_providers: Vec<String>,
     #[serde(default = "default_provider_auth_modes")]
     pub provider_auth_modes: HashMap<String, AuthSourceMode>,
+    #[serde(default = "default_provider_connections")]
+    pub provider_connections: HashMap<String, ProviderConnectionState>,
     pub theme_preference: String,
     pub language: String,
     pub onboarding_complete: bool,
@@ -64,16 +88,9 @@ impl Default for AppConfig {
 
         Self {
             polling_intervals,
-            enabled_providers: vec![
-                "codex".to_string(),
-                "claude".to_string(),
-                "gemini".to_string(),
-                "kiro".to_string(),
-                "copilot".to_string(),
-                "cursor".to_string(),
-                "jetbrains".to_string(),
-            ],
+            enabled_providers: Vec::new(),
             provider_auth_modes: default_provider_auth_modes(),
+            provider_connections: default_provider_connections(),
             theme_preference: "system".to_string(),
             language: "en".to_string(),
             onboarding_complete: false,
@@ -84,6 +101,18 @@ impl Default for AppConfig {
                 quota_critical: true,
             },
         }
+    }
+}
+
+pub fn normalize_config(config: &mut AppConfig) {
+    for (provider, mode) in default_provider_auth_modes() {
+        config.provider_auth_modes.entry(provider).or_insert(mode);
+    }
+    for (provider, connection) in default_provider_connections() {
+        config
+            .provider_connections
+            .entry(provider)
+            .or_insert(connection);
     }
 }
 
@@ -112,8 +141,10 @@ impl ConfigStore {
 
         let raw =
             fs::read_to_string(path).map_err(|error| format!("failed to read config: {error}"))?;
-        serde_json::from_str::<AppConfig>(&raw)
-            .map_err(|error| format!("failed to parse config: {error}"))
+        let mut parsed =
+            serde_json::from_str::<AppConfig>(&raw).map_err(|error| format!("failed to parse config: {error}"))?;
+        normalize_config(&mut parsed);
+        Ok(parsed)
     }
 
     #[instrument(skip(path, config))]
@@ -144,16 +175,19 @@ pub fn get_config(
     state: tauri::State<'_, AppState>,
     app: tauri::AppHandle,
 ) -> Result<AppConfig, String> {
-    state.config_store.load(&app)
+    let mut config = state.config_store.load(&app)?;
+    normalize_config(&mut config);
+    Ok(config)
 }
 
 #[tauri::command]
 #[instrument(skip(state, app, config))]
 pub fn update_config(
-    config: AppConfig,
+    mut config: AppConfig,
     state: tauri::State<'_, AppState>,
     app: tauri::AppHandle,
 ) -> Result<AppConfig, String> {
+    normalize_config(&mut config);
     let saved = state.config_store.save(&app, &config)?;
     let _ = app.emit("config-updated", &saved);
     Ok(saved)

@@ -23,12 +23,15 @@
       "api": "API",
       "manual": "Manual"
     },
+    "notifications": {
+      "title": "AIGauge"
+    },
     "alerts": {
-      "quotaWarning": "{{provider}}: quota usage is above 80%",
-      "quotaCritical": "{{provider}}: quota usage is above 95%",
-      "trackWarning": "{{provider}} {{track}} track is above 80%",
-      "trackCritical": "{{provider}} {{track}} track is above 95%",
-      "dataStale": "{{provider}}: showing cached data older than 5 minutes"
+      "quotaWarning": "{{provider}} needs attention: quota usage passed 80%",
+      "quotaCritical": "{{provider}} is near quota exhaustion at 95%",
+      "trackWarning": "{{provider}} {{track}} usage passed 80%",
+      "trackCritical": "{{provider}} {{track}} usage passed 95%",
+      "dataStale": "{{provider}} is showing cached data older than 5 minutes"
     },
     "loading": {
       "dashboard": "Loading dashboard...",
@@ -39,12 +42,25 @@
     },
     "providerPicker": {
       "title": "Choose Provider",
-      "description": "Select a provider to configure credentials and enable polling.",
+      "description": "Choose a provider, pick a connection method, and verify it before automatic refresh is enabled.",
       "empty": "No providers available.",
       "configured": "Configured",
       "notConfigured": "Not configured",
       "refreshList": "Refresh list",
       "close": "Close"
+    },
+    "inactiveProviders": {
+      "title": "No providers are refreshing right now",
+      "description": "At least one provider was verified before, but automatic refresh is off or the connection needs to be checked again.",
+      "cta": "Open settings"
+    },
+    "dashboardSummary": {
+      "connected": "Connected",
+      "connectedHint": "Providers currently feeding the dashboard.",
+      "attention": "Needs attention",
+      "attentionHint": "Providers that are stale, unreachable, or near quota.",
+      "metered": "Spend visible",
+      "meteredHint": "Providers with metered or estimated monthly cost."
     }
   },
   "nav": {
@@ -58,16 +74,21 @@
   "onboarding": {
     "welcomeTitle": "Welcome to AIGauge",
     "welcomeDesc": "Track usage, quota, and cost across your AI coding providers with real-time alerts.",
+    "firstRunBehavior": "AIGauge does not scan every provider on first launch. You choose which providers to connect first, then only verified providers refresh automatically later.",
     "chooseTitle": "Choose your providers",
-    "chooseDesc": "Select the providers you want to monitor first. You can change this anytime in Settings.",
+    "chooseDesc": "Select the providers you want to connect first. You can add or change them anytime later.",
     "setupTitle": "Set up credentials",
-    "setupDesc": "Add credentials for selected providers one by one. You can skip any provider.",
+    "setupDesc": "Choose a connection method, verify it, and AIGauge will enable automatic refresh for verified providers.",
+    "setupProgress": "Provider {{current}} of {{total}}",
+    "setupNoSelection": "Choose at least one provider to start setup.",
     "setupDone": "All selected providers processed.",
     "skip": "Skip",
     "next": "Next",
     "back": "Back",
+    "startSetup": "Start setup",
+    "reviewSetup": "Review setup",
     "complete": "You're all set",
-    "completeDesc": "{{count}} providers selected. Open dashboard to start monitoring.",
+    "completeDesc": "{{count}} provider selections reviewed. Open the dashboard to continue.",
     "openDashboard": "Open Dashboard",
     "providers": {
       "codex": "Codex",
@@ -86,11 +107,15 @@
     "costCoverageNote": "Only providers with metered or estimated spend are highlighted in the chart. Included-plan providers may remain at $0.00.",
     "monthlyTrend": "Monthly Trend",
     "providerShare": "Provider Share",
-    "currentMonth": "Current Month",
-    "previousMonth": "Previous Month",
-    "momChange": "MoM Change",
-    "avgInRange": "Avg in Range",
+    "currentMonth": "Current month spend",
+    "previousMonth": "Previous month spend",
+    "momChange": "Current vs previous month",
+    "avgInRange": "Average in selected range",
     "peakInRange": "Peak in Range",
+    "unavailable": "Not enough history",
+    "historyNotice": "Only {{available}} month of recorded cost history is available, so this view may match the current month until more monthly snapshots are collected.",
+    "noTrendData": "Monthly cost history is not available yet.",
+    "noProviderShareData": "Provider cost share will appear once spend data is available.",
     "range": {
       "this_month": "This month",
       "last_3": "Last 3 months",
@@ -188,12 +213,17 @@
     },
     "setup": {
       "title": "Setup Provider",
-      "description": "Configure {{provider}} credential.",
+      "description": "Choose how to connect {{provider}} and verify the connection.",
       "status": "Status",
       "testConnection": "Test Connection",
-      "localSource": "Local data source will be used automatically.",
-      "cliSource": "CLI-based detection will be used automatically.",
+      "verifyConnection": "Verify Connection",
+      "verifying": "Verifying...",
+      "localSource": "AIGauge will check your local login when you verify this provider.",
+      "cliSource": "AIGauge will use your CLI session when you verify this provider.",
       "noneSource": "No credential is required for this mode.",
+      "successAutoRefresh": "Connection verified. Automatic refresh is now enabled for future launches.",
+      "tryOtherMode": "Try another connection method if this one does not work.",
+      "skipForNow": "Skip for now",
       "placeholder": "Enter {{label}}",
       "mode": {
         "label": "Auth mode",
@@ -239,10 +269,20 @@
     },
     "settings": {
       "title": "Provider Settings",
+      "description": "Review {{provider}} refresh behavior and connection method.",
       "authMode": "Auth mode",
       "pollingIntervalSeconds": "Polling interval (seconds)",
       "enableNotifications": "Enable notifications",
-      "removeCredential": "Remove Credential"
+      "removeCredential": "Remove Credential",
+      "applyChanges": "Apply changes",
+      "connectionStatus": "Connection status",
+      "connected": "Verified and ready",
+      "verificationRequired": "Verification required",
+      "lastVerified": "Last verified: {{value}}",
+      "autoRefresh": "Automatic refresh",
+      "autoRefreshDescription": "Refresh this provider automatically after the app starts.",
+      "reverifyToEnable": "Verify the connection again to enable automatic refresh.",
+      "modeChangeNotice": "Changing the connection method turns off automatic refresh until you verify this provider again."
     }
   },
   "common": {
@@ -251,6 +291,11 @@
   "tray": {
     "title": "AIGauge Quick View",
     "emptyNoData": "No provider data available yet.",
+    "emptyInactive": {
+      "title": "No provider is refreshing right now",
+      "description": "At least one provider was verified before, but automatic refresh is off or the connection needs attention.",
+      "cta": "Open dashboard"
+    },
     "actions": {
       "openDashboard": "Open Dashboard",
       "refresh": "Refresh Data",
@@ -356,7 +401,14 @@
         "dataStatus": "Data: {{value}}",
         "quotaStatus": "Quota: {{value}}"
       },
+      "statusSummary": {
+        "live": "Showing live data from the latest refresh.",
+        "stale": "Showing cached data because the latest refresh did not complete.",
+        "offline": "Provider is configured, but the latest refresh could not reach it."
+      },
+      "lastChecked": "Last checked: {{value}}",
       "subscriptionQuota": "Subscription quota",
+      "quotaModelLabel": "Quota model",
       "primaryWindowRemaining": "Primary window remaining",
       "resetIn": "Reset {{value}}",
       "apiTrack": "API Track",
@@ -394,6 +446,7 @@
   "empty": {
     "title": "No providers configured",
     "description": "Connect your first provider to start tracking usage, quota, and spend.",
+    "subtleHint": "After verification, AIGauge will refresh only the providers you chose.",
     "cta": "Get started"
   },
   "a11y": {
@@ -433,6 +486,12 @@
       "providerMenu": "Provider menu",
       "providerSettings": "Provider Settings",
       "setupCredential": "Setup Credential",
+      "statusSummary": {
+        "live": "Live data from the latest refresh.",
+        "stale": "Showing cached data because the latest refresh did not complete.",
+        "offline": "Configured, but the latest refresh could not reach this provider.",
+        "notConfigured": "Finish setup to start tracking this provider."
+      },
       "notConfigured": "Not Configured",
       "setupProvider": "Setup Provider",
       "quotaModelLabel": "Quota model",
@@ -499,7 +558,11 @@
     "costSummary": {
       "title": "Cost Summary",
       "monthlyTotal": "Monthly total",
-      "vsLastMonth": "vs last month"
+      "coverage": "{{metered}} metered · {{included}} included · {{unavailable}} unavailable",
+      "metered": "Metered",
+      "included": "Included",
+      "unavailable": "Unavailable",
+      "noMeteredData": "No metered or estimated spend is visible yet. Included-plan providers still appear in the dashboard."
     }
   }
 }

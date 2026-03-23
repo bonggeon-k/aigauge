@@ -16,6 +16,7 @@ const waitForStableUi = async (page) => {
 };
 
 const captureMainViews = async (page, theme, outputDir) => {
+  await page.emulateMedia({ colorScheme: theme });
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await page.evaluate((nextTheme) => {
     localStorage.setItem("aigauge-theme", nextTheme);
@@ -52,6 +53,7 @@ const captureMainViews = async (page, theme, outputDir) => {
 const captureTrayView = async (browser, theme, outputDir) => {
   const trayContext = await browser.newContext({
     viewport: { width: 420, height: 540 },
+    colorScheme: theme,
   });
   const trayPage = await trayContext.newPage();
 

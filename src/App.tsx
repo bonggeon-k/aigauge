@@ -181,6 +181,7 @@ function DashboardApp() {
   const [providerPickerOpen, setProviderPickerOpen] = useState(false);
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null);
   const [providerCatalog, setProviderCatalog] = useState<ProviderDescriptor[]>([]);
+  const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -238,6 +239,7 @@ function DashboardApp() {
           : 100;
       const pace = await analyticsApi.getPaceAnalysis(configuredBudget);
 
+      setAppConfig(config);
       setEntries(data);
       setCostSummary(summary);
       setCostHistory(history);
@@ -321,6 +323,7 @@ function DashboardApp() {
   useTauriEvent<AppConfig>(
     "config-updated",
     (config) => {
+      setAppConfig(config);
       if (config.language && config.language !== i18n.language) {
         void i18n.changeLanguage(config.language);
       }
@@ -478,12 +481,28 @@ function DashboardApp() {
   const configuredProviderIds = useMemo(
     () =>
       new Set(
-        entries
-          .filter((entry) => entry.health.configured)
-          .map((entry) => entry.info.id),
+        Object.entries(appConfig?.provider_connections ?? {})
+          .filter(([, connection]) => connection?.verified)
+          .map(([providerId]) => providerId),
       ),
-    [entries],
+    [appConfig],
   );
+  const hasVerifiedProviders = configuredProviderIds.size > 0;
+  const dashboardSummary = useMemo(() => {
+    const connected = entries.filter((entry) => entry.health.configured).length;
+    const attention = entries.filter((entry) => {
+      const track = entry.tracks.find((item) => item.kind === "subscription");
+      const ratio =
+        track && track.limit > 0
+          ? track.used / track.limit
+          : entry.quota.limit > 0
+            ? entry.quota.used / entry.quota.limit
+            : 0;
+      return entry.stale || !entry.health.reachable || ratio >= 0.8;
+    }).length;
+    const metered = entries.filter((entry) => entry.cost_view.mode === "metered").length;
+    return { connected, attention, metered };
+  }, [entries]);
 
   const selectableProviders = useMemo(() => {
     return [...providerCatalog].sort((a, b) => a.name.localeCompare(b.name));
@@ -523,19 +542,20 @@ function DashboardApp() {
           <AppShell theme={theme} onToggleTheme={toggleTheme} route={route} onNavigate={setRoute} updateBanner={updateBanner}>
             <WelcomeFlow
               providers={onboardingProviders}
-              onComplete={async (selected) => {
+              onComplete={async () => {
                 const config = await providerApi.getConfig();
                 await providerApi.updateConfig({
                   ...config,
                   onboarding_complete: true,
-                  enabled_providers: selected,
                 });
                 setShowOnboarding(false);
+                await loadInitialData();
               }}
               onSkip={async () => {
                 const config = await providerApi.getConfig();
                 await providerApi.updateConfig({ ...config, onboarding_complete: true });
                 setShowOnboarding(false);
+                await loadInitialData();
               }}
             />
           </AppShell>
@@ -619,6 +639,36 @@ function DashboardApp() {
                   </div>
                 </section>
 
+                <section className="mb-5 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-border/70 bg-[var(--surface-1)] p-4 shadow-[var(--shadow-soft)]">
+                    <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
+                      {t("app.dashboardSummary.connected")}
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold">{dashboardSummary.connected}</p>
+                    <p className="mt-1 text-xs text-muted-foreground korean-keep">
+                      {t("app.dashboardSummary.connectedHint")}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-border/70 bg-[var(--surface-1)] p-4 shadow-[var(--shadow-soft)]">
+                    <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
+                      {t("app.dashboardSummary.attention")}
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold">{dashboardSummary.attention}</p>
+                    <p className="mt-1 text-xs text-muted-foreground korean-keep">
+                      {t("app.dashboardSummary.attentionHint")}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-border/70 bg-[var(--surface-1)] p-4 shadow-[var(--shadow-soft)]">
+                    <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
+                      {t("app.dashboardSummary.metered")}
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold">{dashboardSummary.metered}</p>
+                    <p className="mt-1 text-xs text-muted-foreground korean-keep">
+                      {t("app.dashboardSummary.meteredHint")}
+                    </p>
+                  </div>
+                </section>
+
                 {loading ? (
                   <div className={dashboardProviderGridClass}>
                     {Array.from({ length: 6 }).map((_, index) => (
@@ -635,8 +685,16 @@ function DashboardApp() {
                       {t("app.retry")}
                     </Button>
                   </div>
-                ) : entries.length === 0 || entries.every((entry) => !entry.health.configured) ? (
+                ) : entries.length === 0 && !hasVerifiedProviders ? (
                   <EmptyState onGetStarted={() => setShowOnboarding(true)} />
+                ) : entries.length === 0 && hasVerifiedProviders ? (
+                  <div className="rounded-2xl border border-dashed border-border/70 bg-[var(--surface-1)] p-8 text-center">
+                    <h2 className="text-lg font-semibold">{t("app.inactiveProviders.title")}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">{t("app.inactiveProviders.description")}</p>
+                    <Button className="mt-4" onClick={() => setRoute("settings")}>
+                      {t("app.inactiveProviders.cta")}
+                    </Button>
+                  </div>
                 ) : filteredEntries.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-border/70 bg-[var(--surface-1)] p-8 text-center text-sm text-muted-foreground">
                     <p>{t("app.noResults")}</p>

@@ -7,7 +7,7 @@ import { ProviderSetup } from "@/components/providers/ProviderSetup";
 
 interface WelcomeFlowProps {
   providers: ProviderDescriptor[];
-  onComplete: (selectedProviders: string[]) => void;
+  onComplete: () => void;
   onSkip: () => void;
 }
 
@@ -20,7 +20,7 @@ const stepVariants = {
 export const WelcomeFlow = ({ providers, onComplete, onSkip }: WelcomeFlowProps) => {
   const { t } = useTranslation();
   const [step, setStep] = useState(0);
-  const [selected, setSelected] = useState<string[]>(providers.slice(0, 2).map((provider) => provider.id));
+  const [selected, setSelected] = useState<string[]>([]);
   const [setupIndex, setSetupIndex] = useState(0);
 
   const currentProvider = selected[setupIndex] ?? null;
@@ -28,6 +28,12 @@ export const WelcomeFlow = ({ providers, onComplete, onSkip }: WelcomeFlowProps)
     if (!currentProvider) return "api_key";
     return providers.find((provider) => provider.id === currentProvider)?.auth_method ?? "api_key";
   }, [currentProvider, providers]);
+  const setupCompleted = selected.length > 0 && setupIndex >= selected.length;
+
+  const goToSetupStep = () => {
+    setSetupIndex(0);
+    setStep(2);
+  };
 
   return (
     <div className="mx-auto max-w-2xl rounded-2xl border border-border bg-card/80 p-6 shadow-lg">
@@ -47,6 +53,9 @@ export const WelcomeFlow = ({ providers, onComplete, onSkip }: WelcomeFlowProps)
               <p className="text-sm text-muted-foreground">
                 {t("onboarding.welcomeDesc")}
               </p>
+              <div className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-4 text-sm text-muted-foreground">
+                {t("onboarding.firstRunBehavior")}
+              </div>
             </>
           ) : null}
 
@@ -80,20 +89,35 @@ export const WelcomeFlow = ({ providers, onComplete, onSkip }: WelcomeFlowProps)
 
           {step === 2 ? (
             <>
-              <h2 className="text-xl font-semibold">{t("onboarding.setupTitle")}</h2>
-              <p className="text-sm text-muted-foreground">
-                {t("onboarding.setupDesc")}
-              </p>
+              <div className="space-y-1">
+                <h2 className="text-xl font-semibold">{t("onboarding.setupTitle")}</h2>
+                <p className="text-sm text-muted-foreground">
+                  {t("onboarding.setupDesc")}
+                </p>
+                {selected.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    {t("onboarding.setupProgress", {
+                      current: Math.min(setupIndex + 1, selected.length),
+                      total: selected.length,
+                    })}
+                  </p>
+                ) : null}
+              </div>
               {currentProvider ? (
                 <ProviderSetup
-                  open={true}
+                  embedded
+                  open
                   providerId={currentProvider}
                   authMethod={currentAuth}
                   onClose={() => setSetupIndex((prev) => Math.min(prev + 1, selected.length))}
                   onSaved={() => setSetupIndex((prev) => Math.min(prev + 1, selected.length))}
                 />
               ) : (
-                <p className="text-sm">{t("onboarding.setupDone")}</p>
+                <div className="rounded-xl border border-border/70 bg-[var(--surface-1)] p-4 text-sm text-muted-foreground">
+                  {selected.length === 0
+                    ? t("onboarding.setupNoSelection")
+                    : t("onboarding.setupDone")}
+                </div>
               )}
             </>
           ) : null}
@@ -119,11 +143,20 @@ export const WelcomeFlow = ({ providers, onComplete, onSkip }: WelcomeFlowProps)
               {t("onboarding.back")}
             </Button>
           ) : null}
-          {step < 3 ? (
-            <Button onClick={() => setStep((prev) => Math.min(3, prev + 1))}>{t("onboarding.next")}</Button>
-          ) : (
-            <Button onClick={() => onComplete(selected)}>{t("onboarding.openDashboard")}</Button>
-          )}
+          {step === 0 ? (
+            <Button onClick={() => setStep(1)}>{t("onboarding.next")}</Button>
+          ) : null}
+          {step === 1 ? (
+            <Button disabled={selected.length === 0} onClick={goToSetupStep}>
+              {t("onboarding.startSetup")}
+            </Button>
+          ) : null}
+          {step === 2 && setupCompleted ? (
+            <Button onClick={() => setStep(3)}>{t("onboarding.reviewSetup")}</Button>
+          ) : null}
+          {step === 3 ? (
+            <Button onClick={onComplete}>{t("onboarding.openDashboard")}</Button>
+          ) : null}
         </div>
       </div>
     </div>

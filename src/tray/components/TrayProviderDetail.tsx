@@ -342,10 +342,29 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
     entry.info.plan_name.toLowerCase() === "manual"
       ? t("tray.manual.planNameManual")
       : entry.info.plan_name;
+  const quotaModelLabel = t(
+    `dashboard.providerCard.quotaModels.${entry.info.id}` as const,
+    {
+      defaultValue: t("dashboard.providerCard.quotaModels.default"),
+    },
+  );
+  const lastCheckedLabel = entry.health.last_checked
+    ? new Date(entry.health.last_checked).toLocaleString(locale)
+    : t("tray.provider.unavailable");
+  const statusSummary =
+    entry.usage.status === "not_configured"
+      ? setupGuideLabel
+      : entry.stale
+        ? t("tray.provider.statusSummary.stale")
+        : entry.health.reachable
+          ? t("tray.provider.statusSummary.live")
+          : t("tray.provider.statusSummary.offline");
   const monthlyCost = entry.cost_view.total ?? 0;
   const monthlyCostLabel =
     entry.cost_view.mode === "included"
       ? t("dashboard.providerCard.included")
+      : entry.cost_view.mode === "unavailable"
+        ? t("tray.provider.unavailable")
       : new Intl.NumberFormat(locale, {
           style: "currency",
           currency: entry.cost_view.currency || "USD",
@@ -401,6 +420,17 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
             <span className="truncate korean-keep">{quotaBadgeLabel}</span>
           </span>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-border/60 bg-[var(--surface-2)] px-3 py-2 text-xs">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-muted-foreground korean-keep">{t("tray.provider.quotaModelLabel")}</p>
+          <p className="font-medium korean-keep">{quotaModelLabel}</p>
+        </div>
+        <p className="mt-1 text-muted-foreground korean-keep">{statusSummary}</p>
+        <p className="mt-1 text-muted-foreground">
+          {t("tray.provider.lastChecked", { value: lastCheckedLabel })}
+        </p>
       </div>
 
       <div className="space-y-1">
@@ -514,6 +544,12 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
           </p>
           {entry.cost_view.mode === "included" ? (
             <p className="text-muted-foreground korean-keep">{t("tray.provider.cost.noAdditionalCharge")}</p>
+          ) : null}
+          {entry.cost_view.mode === "metered" && entry.cost_view.note ? (
+            <p className="text-muted-foreground korean-keep">{entry.cost_view.note}</p>
+          ) : null}
+          {entry.cost_view.mode === "unavailable" ? (
+            <p className="text-muted-foreground korean-keep">{entry.cost_view.note}</p>
           ) : null}
           {entry.info.id === "codex" && codexCost ? (
             <p className="text-muted-foreground">

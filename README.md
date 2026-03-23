@@ -23,10 +23,6 @@ Main dashboard in light theme:
 
 ![AIGauge dashboard in light theme](docs/screenshots/dashboard-light.png)
 
-Main dashboard in dark theme:
-
-![AIGauge dashboard in dark theme](docs/screenshots/dashboard-dark.png)
-
 Quick View tray popup:
 
 ![AIGauge tray quick view](docs/screenshots/tray-light.png)
@@ -39,11 +35,11 @@ Analytics view:
 
 1. Download release artifact for your OS.
 2. Install and launch AIGauge.
-3. Run onboarding and configure provider credentials.
+3. Run onboarding, choose a connection method for each provider, and verify the connection.
 4. Monitor usage and cost in dashboard + analytics.
 5. Use tray icon click to open the compact Quick View widget.
 
-## Provider Setup Guide (Tray Widget)
+## Provider Connection Guide
 
 - `codex`: `~/.codex/auth.json` available from Codex CLI login.
 - `claude`: `~/.claude/.credentials.json` available after Claude CLI OAuth login.
@@ -115,7 +111,7 @@ Validation scope note:
 
 - Windows is the primary target platform today.
 - The maintainer has directly exercised the Windows flow more heavily for Codex and Kiro.
-- Claude, Gemini, Copilot, and Cursor integrations are implemented, but not every paid-account or long-running real-world usage path has been hands-on validated by the maintainer yet.
+- Claude, Gemini, Copilot, Cursor, and JetBrains integrations are implemented, but not every paid-account, local-environment, or long-running real-world usage path has been hands-on validated by the maintainer yet.
 - If a provider-specific number looks wrong, please treat it as a bug report rather than an expected limitation.
 
 | Provider | Auth Method | Tracks |
