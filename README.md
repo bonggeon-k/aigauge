@@ -17,12 +17,23 @@
 - Onboarding flow and accessibility polish
 - Community plugin manifest foundation
 
-## Screenshot Placeholders
+## Screenshots
 
-- Dashboard Light: `1280x820`
-- Dashboard Dark: `1280x820`
-- Tray Popover: `600x500`
-- Analytics: `1280x820`
+Main dashboard in light theme:
+
+![AIGauge dashboard in light theme](docs/screenshots/dashboard-light.png)
+
+Main dashboard in dark theme:
+
+![AIGauge dashboard in dark theme](docs/screenshots/dashboard-dark.png)
+
+Quick View tray popup:
+
+![AIGauge tray quick view](docs/screenshots/tray-light.png)
+
+Analytics view:
+
+![AIGauge analytics view](docs/screenshots/analytics-light.png)
 
 ## Quick Start
 
@@ -31,25 +42,6 @@
 3. Run onboarding and configure provider credentials.
 4. Monitor usage and cost in dashboard + analytics.
 5. Use tray icon click to open the compact Quick View widget.
-
-## Codex Profiles
-
-Use the project-local Codex config from the repository root:
-
-```bash
-codex
-```
-
-- Default: `codex` uses the `aigauge` profile for normal implementation work.
-- Deep analysis: `codex --profile aigauge-research`
-- Fast iteration: `codex --profile aigauge-quick`
-
-Available subagents:
-
-- `rust-backend`: Tauri 2.x Rust backend, providers, credentials, IPC
-- `react-frontend`: React 19 UI, design tokens, motion, i18n
-- `security`: CSP, credential storage, CI/CD, release hardening
-- `explorer`: read-only repository inspection and dependency tracing
 
 ## Provider Setup Guide (Tray Widget)
 

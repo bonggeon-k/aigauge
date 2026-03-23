@@ -76,8 +76,31 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
 
+      - name: Default release flags
+        shell: bash
+        run: echo "MAC_RELEASE_ENABLED=true" >> "$GITHUB_ENV"
+
+      - name: Detect macOS signing availability
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          if [[ -n "$APPLE_CERTIFICATE" && -n "$APPLE_CERTIFICATE_PASSWORD" && -n "$APPLE_ID" && -n "$APPLE_PASSWORD" && -n "$APPLE_TEAM_ID" && -n "$APPLE_SIGNING_IDENTITY" && -n "$KEYCHAIN_PASSWORD" ]]; then
+            echo "MAC_RELEASE_ENABLED=true" >> "$GITHUB_ENV"
+          else
+            echo "::notice::Skipping macOS release because Apple signing secrets are not configured."
+            echo "MAC_RELEASE_ENABLED=false" >> "$GITHUB_ENV"
+          fi
+
       - name: Check release signing secrets
-        if: ${{ matrix.os != 'macos-latest' || (secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.KEYCHAIN_PASSWORD != '') }}
+        if: env.MAC_RELEASE_ENABLED != 'false'
         run: node ./scripts/check-release-secrets.mjs
         env:
           RELEASE_OS: ${{ matrix.os }}
@@ -127,7 +150,7 @@ jobs:
           WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
 
       - name: Import Apple Developer certificate
-        if: ${{ matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.KEYCHAIN_PASSWORD != '' }}
+        if: matrix.os == 'macos-latest' && env.MAC_RELEASE_ENABLED == 'true'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -142,7 +165,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
       - name: Build Tauri app
-        if: ${{ matrix.os != 'macos-latest' || (secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.KEYCHAIN_PASSWORD != '') }}
+        if: env.MAC_RELEASE_ENABLED != 'false'
         uses: tauri-apps/tauri-action@73fb865345c54760d875b94642314f8c0c894afa
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
