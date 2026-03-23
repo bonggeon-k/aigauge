@@ -342,9 +342,7 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
     entry.info.plan_name.toLowerCase() === "manual"
       ? t("tray.manual.planNameManual")
       : entry.info.plan_name;
-  const monthlyCost = entry.cost_view.total ??
-    (entry.info.id === "codex" ? codexCost?.estimated_cost_usd_30d : undefined) ??
-    0;
+  const monthlyCost = entry.cost_view.total ?? 0;
   const monthlyCostLabel =
     entry.cost_view.mode === "included"
       ? t("dashboard.providerCard.included")
@@ -519,7 +517,12 @@ export const TrayProviderDetail = ({ entry, status, codexCost, onOpenManualInput
           ) : null}
           {entry.info.id === "codex" && codexCost ? (
             <p className="text-muted-foreground">
-              {t("tray.provider.cost.apiEquivalent30d", { value: codexCost.estimated_cost_usd_30d.toFixed(2) })}
+              {t("tray.provider.cost.localEstimate30d", { value: codexCost.estimated_cost_usd_30d.toFixed(2) })}
+            </p>
+          ) : null}
+          {entry.info.id === "codex" && codexCost ? (
+            <p className="text-muted-foreground korean-keep">
+              {t("tray.provider.cost.localEstimateScope")}
             </p>
           ) : null}
           {monthlyCost > 500 ? (

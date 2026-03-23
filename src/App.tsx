@@ -334,6 +334,18 @@ function DashboardApp() {
       if (typeof config.onboarding_complete === "boolean") {
         setShowOnboarding(!config.onboarding_complete);
       }
+      if (typeof config.monthly_budget_usd === "number" && Number.isFinite(config.monthly_budget_usd)) {
+        const configuredBudget = Math.max(0, config.monthly_budget_usd);
+        setPaceBudget(configuredBudget);
+        void analyticsApi
+          .getPaceAnalysis(configuredBudget)
+          .then((pace) => {
+            setPaceAnalysis(pace);
+          })
+          .catch(() => {
+            // Keep the last visible pace analysis if refresh fails.
+          });
+      }
     },
     isAppConfigPayload,
   );

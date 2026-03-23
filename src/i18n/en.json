@@ -383,6 +383,8 @@
         "monthly": "Monthly",
         "noAdditionalCharge": "No additional charge within plan quota.",
         "apiEquivalent30d": "API-equivalent estimate (30d): ${{value}}",
+        "localEstimate30d": "Local session estimate (30d): ${{value}}",
+        "localEstimateScope": "Derived from local Codex session logs and may include usage across all accounts in this local profile.",
         "highCostWarning": "High cost warning"
       },
       "riskLabel": "Risk (quota used)",
@@ -449,6 +451,7 @@
       "source": "Source",
       "primaryWindow": "Primary window",
       "costPerMonth": "Cost / month",
+      "codexLocalEstimateScope": "For Codex, this month value is estimated from local session logs and can include multiple accounts in the same local profile.",
       "primaryUsage": "Primary usage",
       "apiTrack": "API Track",
       "unavailable": "Unavailable",

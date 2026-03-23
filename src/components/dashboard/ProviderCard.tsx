@@ -377,6 +377,10 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
         ? t("dashboard.providerCard.notConfigured")
         : t("dashboard.providerCard.unavailable")
     : t("dashboard.providerCard.unavailable");
+  const codexCostScopeNote =
+    entry.info.id === "codex" && entry.cost_view.mode === "metered"
+      ? t("dashboard.providerCard.codexLocalEstimateScope")
+      : null;
 
   return (
     <motion.div
@@ -521,6 +525,11 @@ export const ProviderCard = ({ entry, onSetup, onOpenSettings }: ProviderCardPro
             <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
               <p className="text-xs text-muted-foreground korean-keep">{t("dashboard.providerCard.costPerMonth")}</p>
               <p className="text-base font-semibold">{isNotConfigured ? "-" : costLabel}</p>
+              {codexCostScopeNote ? (
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground korean-keep">
+                  {codexCostScopeNote}
+                </p>
+              ) : null}
             </div>
             <div className="rounded-xl bg-[var(--surface-1)] p-2.5">
               <p className="text-xs text-muted-foreground korean-keep">{t("dashboard.providerCard.primaryUsage")}</p>

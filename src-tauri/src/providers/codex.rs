@@ -190,16 +190,6 @@ impl CodexProvider {
     }
 
     async fn auth_header_value(&self) -> Option<(String, Option<String>)> {
-        if let Some(saved) = self
-            .credential_manager
-            .get_credential("codex")
-            .ok()
-            .flatten()
-            .filter(|value| !value.trim().is_empty())
-        {
-            return Some((saved.to_string(), None));
-        }
-
         if let Some(auth) = Self::read_auth_from_file() {
             if let Some(api_key) = auth
                 .openai_api_key
@@ -238,6 +228,16 @@ impl CodexProvider {
                     return Some((access_token, tokens.account_id.clone()));
                 }
             }
+        }
+
+        if let Some(saved) = self
+            .credential_manager
+            .get_credential("codex")
+            .ok()
+            .flatten()
+            .filter(|value| !value.trim().is_empty())
+        {
+            return Some((saved.to_string(), None));
         }
         None
     }

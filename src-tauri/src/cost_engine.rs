@@ -101,6 +101,8 @@ struct CachedCodexCost {
 }
 
 static CODEX_COST_CACHE: Lazy<Mutex<Option<CachedCodexCost>>> = Lazy::new(|| Mutex::new(None));
+static CODEX_MONTHLY_COST_CACHE: Lazy<Mutex<Option<CachedCodexCost>>> =
+    Lazy::new(|| Mutex::new(None));
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CostHistoryDocument {
@@ -315,8 +317,12 @@ impl CostEngine {
         })
     }
 
+    pub fn codex_current_month_cost(&self) -> Option<f64> {
+        self.codex_monthly_stats_cached().map(|stats| stats.total_cost)
+    }
+
     fn codex_monthly_cost(&self) -> Option<f64> {
-        self.codex_stats_cached().map(|stats| stats.total_cost)
+        self.codex_monthly_stats_cached().map(|stats| stats.total_cost)
     }
 
     fn codex_stats_cached(&self) -> Option<CodexThirtyDayStats> {
@@ -338,7 +344,41 @@ impl CostEngine {
         Some(scanned)
     }
 
+    fn codex_monthly_stats_cached(&self) -> Option<CodexThirtyDayStats> {
+        if let Ok(cache) = CODEX_MONTHLY_COST_CACHE.lock() {
+            if let Some(cached) = cache.as_ref() {
+                if cached.computed_at.elapsed() < Duration::from_secs(30 * 60) {
+                    return Some(cached.stats.clone());
+                }
+            }
+        }
+
+        let scanned = self.scan_codex_sessions_current_month().ok()?;
+        if let Ok(mut cache) = CODEX_MONTHLY_COST_CACHE.lock() {
+            *cache = Some(CachedCodexCost {
+                computed_at: Instant::now(),
+                stats: scanned.clone(),
+            });
+        }
+        Some(scanned)
+    }
+
     fn scan_codex_sessions_last_30_days(&self) -> Result<CodexThirtyDayStats, String> {
+        let now = Utc::now();
+        self.scan_codex_sessions(|modified_at| now.signed_duration_since(modified_at).num_days() <= 30)
+    }
+
+    fn scan_codex_sessions_current_month(&self) -> Result<CodexThirtyDayStats, String> {
+        let now = Utc::now();
+        self.scan_codex_sessions(|modified_at| {
+            modified_at.year() == now.year() && modified_at.month() == now.month()
+        })
+    }
+
+    fn scan_codex_sessions<F>(&self, include_file: F) -> Result<CodexThirtyDayStats, String>
+    where
+        F: Fn(DateTime<Utc>) -> bool,
+    {
         let home = home_dir()
             .ok_or_else(|| "failed to resolve home directory (USERPROFILE/HOME)".to_string())?;
         let mut roots = vec![
@@ -352,7 +392,6 @@ impl CostEngine {
             roots.push(wsl_archived);
         }
 
-        let now = Utc::now();
         let mut totals_by_model: BTreeMap<String, TokenTotals> = BTreeMap::new();
         let mut session_files = 0_u64;
         let mut token_events = 0_u64;
@@ -367,7 +406,7 @@ impl CostEngine {
                     .and_then(|meta| meta.modified())
                     .unwrap_or(SystemTime::UNIX_EPOCH);
                 let modified_at: DateTime<Utc> = DateTime::<Utc>::from(modified);
-                if now.signed_duration_since(modified_at).num_days() > 30 {
+                if !include_file(modified_at) {
                     continue;
                 }
                 session_files += 1;
@@ -393,24 +432,25 @@ impl CostEngine {
                     let model = value
                         .pointer("/payload/model")
                         .and_then(Value::as_str)
+                        .or_else(|| value.pointer("/payload/info/model").and_then(Value::as_str))
                         .or_else(|| {
                             value
-                                .pointer("/payload/last_token_usage/model")
+                                .pointer("/payload/info/last_token_usage/model")
                                 .and_then(Value::as_str)
                         })
                         .unwrap_or("gpt-4o")
                         .to_string();
 
                     let input = value
-                        .pointer("/payload/last_token_usage/input_tokens")
+                        .pointer("/payload/info/last_token_usage/input_tokens")
                         .and_then(Value::as_u64)
                         .unwrap_or(0);
                     let output = value
-                        .pointer("/payload/last_token_usage/output_tokens")
+                        .pointer("/payload/info/last_token_usage/output_tokens")
                         .and_then(Value::as_u64)
                         .unwrap_or(0);
                     let reasoning = value
-                        .pointer("/payload/last_token_usage/reasoning_output_tokens")
+                        .pointer("/payload/info/last_token_usage/reasoning_output_tokens")
                         .and_then(Value::as_u64)
                         .unwrap_or(0);
 

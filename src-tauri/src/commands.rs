@@ -949,7 +949,7 @@ fn build_tracks_for_entry(
             tracks.push(UsageTrack {
                 id: "api:primary".to_string(),
                 kind: TrackKind::Api,
-                label: "API tokens (30d)".to_string(),
+                label: "Local tokens (30d)".to_string(),
                 used: codex_api_tokens_30d.unwrap_or(0),
                 limit: 0,
                 unit: "tokens".to_string(),
@@ -1004,7 +1004,11 @@ fn is_included_plan(plan_name: &str) -> bool {
     markers.iter().any(|value| lowered.contains(value))
 }
 
-fn build_cost_view(info: &ProviderInfo, cost: &Option<CostData>) -> CostView {
+fn build_cost_view(
+    info: &ProviderInfo,
+    cost: &Option<CostData>,
+    codex_local_monthly_estimate: Option<f64>,
+) -> CostView {
     if let Some(cost_data) = cost.as_ref() {
         if cost_data.total > 0.0 {
             return CostView {
@@ -1012,6 +1016,18 @@ fn build_cost_view(info: &ProviderInfo, cost: &Option<CostData>) -> CostView {
                 currency: cost_data.currency.clone(),
                 total: Some(cost_data.total),
                 note: "Usage-based charges".to_string(),
+            };
+        }
+    }
+
+    if info.id == "codex" {
+        if let Some(estimate) = codex_local_monthly_estimate {
+            return CostView {
+                mode: CostDisplayMode::Metered,
+                currency: "USD".to_string(),
+                total: Some(estimate.max(0.0)),
+                note: "Estimated from local Codex session logs for the current month."
+                    .to_string(),
             };
         }
     }
@@ -1147,7 +1163,12 @@ async fn fetch_live_entry(
         .find(|track| track.kind == TrackKind::Subscription)
         .map(|track| track.kind)
         .unwrap_or(TrackKind::Subscription);
-    let cost_view = build_cost_view(&info, &cost);
+    let codex_local_monthly_estimate = if provider == "codex" {
+        CostEngine.codex_current_month_cost()
+    } else {
+        None
+    };
+    let cost_view = build_cost_view(&info, &cost, codex_local_monthly_estimate);
 
     Ok(DashboardEntry {
         info,
@@ -1204,7 +1225,16 @@ pub(crate) async fn resolve_dashboard_entry(
             .find(|track| track.kind == TrackKind::Subscription)
             .map(|track| track.kind)
             .unwrap_or(TrackKind::Subscription);
-        let cost_view = build_cost_view(&snapshot.info, &snapshot.cost);
+        let codex_local_monthly_estimate = if provider == "codex" {
+            CostEngine.codex_current_month_cost()
+        } else {
+            None
+        };
+        let cost_view = build_cost_view(
+            &snapshot.info,
+            &snapshot.cost,
+            codex_local_monthly_estimate,
+        );
         let entry = DashboardEntry {
             info: snapshot.info,
             usage: cached_usage.clone(),
@@ -1793,9 +1823,29 @@ mod tests {
             reset_period: "rolling".to_string(),
         };
 
-        let view = build_cost_view(&info, &None);
+        let view = build_cost_view(&info, &None, None);
         assert_eq!(view.mode, CostDisplayMode::Included);
         assert!(view.total.is_none());
+    }
+
+    #[test]
+    fn cost_view_uses_codex_local_estimate_when_remote_cost_is_unavailable() {
+        let info = ProviderInfo {
+            id: "codex".to_string(),
+            name: "OpenAI Codex".to_string(),
+            icon: "bot".to_string(),
+            auth_method: AuthMethod::OAuth,
+            supported_auth_modes: vec![AuthSourceMode::Auto, AuthSourceMode::OAuthToken],
+            default_auth_mode: AuthSourceMode::Auto,
+            plan_name: "Codex Pro".to_string(),
+            quota_limit: 100,
+            reset_period: "monthly".to_string(),
+        };
+
+        let view = build_cost_view(&info, &None, Some(12.5));
+        assert_eq!(view.mode, CostDisplayMode::Metered);
+        assert_eq!(view.total, Some(12.5));
+        assert!(view.note.contains("local Codex session logs"));
     }
 
     #[test]
