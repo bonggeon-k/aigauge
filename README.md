@@ -111,6 +111,13 @@ If you are sharing a test build before public signing is ready:
 
 Current built-in scope is intentionally fixed at **7 providers** for stability. Additional providers can be added via plugins.
 
+Validation scope note:
+
+- Windows is the primary target platform today.
+- The maintainer has directly exercised the Windows flow more heavily for Codex and Kiro.
+- Claude, Gemini, Copilot, and Cursor integrations are implemented, but not every paid-account or long-running real-world usage path has been hands-on validated by the maintainer yet.
+- If a provider-specific number looks wrong, please treat it as a bug report rather than an expected limitation.
+
 | Provider | Auth Method | Tracks |
 | --- | --- | --- |
 | OpenAI Codex | OAuth/session token | Usage, quota, cost |

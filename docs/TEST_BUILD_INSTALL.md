@@ -9,6 +9,8 @@ Current status note:
 
 - AIGauge is currently developed primarily as a **Windows-first** app.
 - Windows test flow has been exercised more directly.
+- The maintainer has directly exercised Codex and Kiro more than other providers.
+- Claude, Gemini, Copilot, and Cursor setup paths exist, but not every real paid-account scenario has been hands-on validated yet.
 - macOS builds may still be insufficiently tested on real hardware, so installation or runtime issues are still possible.
 
 ## Windows

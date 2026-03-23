@@ -38,6 +38,7 @@ If you are using a pre-release or QA build instead of a signed public release:
 
 - Provider availability can depend on your local CLI login state or local credential setup.
 - Some providers expose different levels of usage, quota, or cost detail.
+- The maintainer has exercised Codex and Kiro more directly than Claude, Gemini, Copilot, and Cursor so far, so some provider-specific edge cases may still surface in the wild.
 - Community plugins depend on their own endpoint behavior and quality.
 - Windows is the primary supported target today.
 - macOS compatibility may still need additional real-device verification on the maintainer side.
