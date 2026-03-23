@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   release:
-    if: ${{ matrix.os != 'macos-latest' || (secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.KEYCHAIN_PASSWORD != '') }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -78,6 +77,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
 
       - name: Check release signing secrets
+        if: ${{ matrix.os != 'macos-latest' || (secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.KEYCHAIN_PASSWORD != '') }}
         run: node ./scripts/check-release-secrets.mjs
         env:
           RELEASE_OS: ${{ matrix.os }}
@@ -127,7 +127,7 @@ jobs:
           WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
 
       - name: Import Apple Developer certificate
-        if: matrix.os == 'macos-latest'
+        if: ${{ matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.KEYCHAIN_PASSWORD != '' }}
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -142,6 +142,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
       - name: Build Tauri app
+        if: ${{ matrix.os != 'macos-latest' || (secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.KEYCHAIN_PASSWORD != '') }}
         uses: tauri-apps/tauri-action@73fb865345c54760d875b94642314f8c0c894afa
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
