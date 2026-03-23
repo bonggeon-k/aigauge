@@ -32,3 +32,6 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows-selfsign-and-sign.ps1
 
 For public installer distribution, use OV/EV Authenticode signing.
 Self-signed certs are only recommended for private/internal QA circulation.
+
+If you want Windows users to stop seeing trust warnings on downloaded installers,
+move to the public release path in [docs/PUBLIC_RELEASE_SIGNING.md](PUBLIC_RELEASE_SIGNING.md).

@@ -2,7 +2,7 @@
 
 > FinOps dashboard for AI coding assistants.
 
-![Version](https://img.shields.io/badge/version-1.1.1-0f766e)
+![Version](https://img.shields.io/badge/version-1.0.0-0f766e)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![CI](https://img.shields.io/github/actions/workflow/status/bonggeon-k/aigauge/ci.yml?branch=main)
 
@@ -12,7 +12,7 @@
 - Dual-mode UI: full dashboard window + tray widget popup (`/tray`)
 - Cost analytics (trend, breakdown, ROI, pace)
 - System tray quick status + alerts
-- Auto-update channel ready (production signing applied at public GitHub release time)
+- Auto-update channel ready
 - Export (CSV/JSON)
 - Onboarding flow and accessibility polish
 - Community plugin manifest foundation
@@ -31,6 +31,25 @@
 3. Run onboarding and configure provider credentials.
 4. Monitor usage and cost in dashboard + analytics.
 5. Use tray icon click to open the compact Quick View widget.
+
+## Codex Profiles
+
+Use the project-local Codex config from the repository root:
+
+```bash
+codex
+```
+
+- Default: `codex` uses the `aigauge` profile for normal implementation work.
+- Deep analysis: `codex --profile aigauge-research`
+- Fast iteration: `codex --profile aigauge-quick`
+
+Available subagents:
+
+- `rust-backend`: Tauri 2.x Rust backend, providers, credentials, IPC
+- `react-frontend`: React 19 UI, design tokens, motion, i18n
+- `security`: CSP, credential storage, CI/CD, release hardening
+- `explorer`: read-only repository inspection and dependency tracing
 
 ## Provider Setup Guide (Tray Widget)
 
@@ -57,6 +76,7 @@ pnpm tauri dev
 Environment preflight checklist: [docs/ENVIRONMENT_CHECKLIST.md](docs/ENVIRONMENT_CHECKLIST.md)
 Windows native smoke test: [docs/WINDOWS_NATIVE_TEST.md](docs/WINDOWS_NATIVE_TEST.md)
 Test installer build guide (Windows/macOS): [docs/TEST_INSTALLER_BUILD.md](docs/TEST_INSTALLER_BUILD.md)
+How to install unsigned test builds: [docs/TEST_BUILD_INSTALL.md](docs/TEST_BUILD_INSTALL.md)
 Windows free self-signing (internal QA): [docs/WINDOWS_FREE_SIGNING.md](docs/WINDOWS_FREE_SIGNING.md)
 Windows optional tool bootstrap: `scripts/windows-install-optional-tools.ps1`
 
@@ -77,6 +97,23 @@ GitHub release safe mode:
 1. Push release tag (`vMAJOR.MINOR.PATCH`) from `main`.
 2. Workflow creates a **Draft** release (not public yet).
 3. Verify artifacts/checklist, then publish manually in GitHub Releases UI.
+
+Release body template:
+
+- Public release notes template: [docs/RELEASE_BODY_TEMPLATE.md](docs/RELEASE_BODY_TEMPLATE.md)
+
+Public release trust signing:
+
+- Windows public installers should be Authenticode-signed.
+- macOS public installers should be Developer ID signed and notarized.
+- Unsigned test artifacts are only for limited QA.
+- Details: [docs/PUBLIC_RELEASE_SIGNING.md](docs/PUBLIC_RELEASE_SIGNING.md)
+
+If you are sharing a test build before public signing is ready:
+
+- Windows testers may need to click `More info` -> `Run anyway`
+- macOS testers may need to right-click the app and choose `Open`
+- Step-by-step tester instructions: [docs/TEST_BUILD_INSTALL.md](docs/TEST_BUILD_INSTALL.md)
 
 ## Supported Providers
 

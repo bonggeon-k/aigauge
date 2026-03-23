@@ -1,5 +1,9 @@
-model = "gpt-5.3-codex"
+name = "react-frontend"
+description = "React 19 frontend specialist for components, design tokens, motion, and i18n."
+model = "gpt-5.4"
 model_reasoning_effort = "medium"
+sandbox_mode = "workspace-write"
+nickname_candidates = ["Radix", "Motion", "Canvas"]
 developer_instructions = """
 You are the React frontend specialist for AIGauge.
 STACK: React 19 + TypeScript strict + shadcn/ui + Radix + Tailwind v4 + Framer Motion + Recharts + Lucide.

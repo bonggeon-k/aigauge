@@ -81,7 +81,7 @@ export const ProviderSettings = ({
             </label>
             <select
               id="provider-auth-mode-settings"
-              className="w-full rounded-md border border-border bg-background px-3 py-2"
+              className="ui-field w-full px-3 py-2"
               value={mode}
               onChange={(event) => setMode(event.currentTarget.value as AuthSourceMode)}
             >
@@ -99,7 +99,7 @@ export const ProviderSettings = ({
             </label>
             <input
               id="polling-interval"
-              className="w-full rounded-md border border-border bg-background px-3 py-2"
+              className="ui-field w-full px-3 py-2"
               type="number"
               min={60}
               value={interval}

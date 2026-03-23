@@ -305,7 +305,7 @@ export const ProviderSetup = ({
           </label>
           <select
             id="provider-auth-mode"
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+            className="ui-field w-full px-3 py-2 text-sm"
             value={selectedMode}
             onChange={(event) => setSelectedMode(event.currentTarget.value as AuthSourceMode)}
           >
@@ -330,7 +330,7 @@ export const ProviderSetup = ({
           ) : (
             <input
               id="provider-credential"
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+              className="ui-field w-full px-3 py-2 text-sm"
               type={isJetBrainsProvider ? "text" : "password"}
               value={isJetBrainsProvider ? jetbrainsPath : credential}
               onChange={(event) =>

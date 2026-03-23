@@ -24,7 +24,7 @@ import { useTraySettings } from "@/tray/hooks/useTraySettings";
 import { useTrayAutoRefresh } from "@/tray/hooks/useTrayAutoRefresh";
 import { useTrayNotifications } from "@/tray/hooks/useTrayNotifications";
 import { useProvider, useTauriEvent, type AppConfig, type DashboardEntry } from "@/hooks/useProvider";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme, type ThemePreference } from "@/hooks/useTheme";
 import { applyPlatformDataAttribute, detectPlatform } from "@/lib/platform";
 import type { CodexCostBreakdown } from "@/tray/hooks/useTrayProviders";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,7 @@ export const TrayApp = () => {
   const providerApi = useTrayProviders();
   const appProviderApi = useProvider();
   const { settings, patchSettings } = useTraySettings();
+  const [themePreference, setThemePreference] = useState<ThemePreference>("system");
   const [notificationSettings, setNotificationSettings] = useState<AppConfig["notifications"]>({
     quota_warning: true,
     quota_critical: true,
@@ -89,7 +90,32 @@ export const TrayApp = () => {
     warningEnabled: notificationSettings.quota_warning,
     criticalEnabled: notificationSettings.quota_critical,
   });
-  const { theme, toggleTheme } = useTheme();
+  const persistThemePreference = useCallback(
+    async (nextPreference: ThemePreference) => {
+      setThemePreference(nextPreference);
+      try {
+        const config = await appProviderApi.getConfig();
+        const updated = await appProviderApi.updateConfig({
+          ...config,
+          theme_preference: nextPreference,
+        });
+        if (
+          updated.theme_preference === "light" ||
+          updated.theme_preference === "dark" ||
+          updated.theme_preference === "system"
+        ) {
+          setThemePreference(updated.theme_preference);
+        }
+      } catch {
+        // Keep local preference even if persistence fails.
+      }
+    },
+    [appProviderApi],
+  );
+  const { theme, toggleTheme } = useTheme({
+    preference: themePreference,
+    onPreferenceChange: persistThemePreference,
+  });
 
   const [entries, setEntries] = useState<DashboardEntry[]>([]);
   const [activeProviderId, setActiveProviderId] = useState("codex");
@@ -200,6 +226,13 @@ export const TrayApp = () => {
         if (config.language && config.language !== i18n.language) {
           void i18n.changeLanguage(config.language);
         }
+        if (
+          config.theme_preference === "light" ||
+          config.theme_preference === "dark" ||
+          config.theme_preference === "system"
+        ) {
+          setThemePreference(config.theme_preference);
+        }
         setNotificationSettings(config.notifications);
       })
       .catch(() => undefined);
@@ -238,6 +271,13 @@ export const TrayApp = () => {
     (config) => {
       if (config.language && config.language !== i18n.language) {
         void i18n.changeLanguage(config.language);
+      }
+      if (
+        config.theme_preference === "light" ||
+        config.theme_preference === "dark" ||
+        config.theme_preference === "system"
+      ) {
+        setThemePreference(config.theme_preference);
       }
       setNotificationSettings(config.notifications);
     },

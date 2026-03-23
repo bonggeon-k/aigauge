@@ -22,7 +22,7 @@ import {
   type ProviderDescriptor,
 } from "@/hooks/useProvider";
 import { useCostAnalytics } from "@/hooks/useCostAnalytics";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme, type ThemePreference } from "@/hooks/useTheme";
 import { useUpdater } from "@/hooks/useUpdater";
 import type { AppRoute } from "@/components/layout/Navigation";
 
@@ -141,11 +141,37 @@ const dashboardProviderGridClass =
 
 function DashboardApp() {
   const { t, i18n } = useTranslation();
-  const { theme, toggleTheme } = useTheme();
   const providerApi = useProvider();
   const analyticsApi = useCostAnalytics();
   const updater = useUpdater();
   const { checkForUpdate } = updater;
+  const [themePreference, setThemePreference] = useState<ThemePreference>("system");
+  const persistThemePreference = useCallback(
+    async (nextPreference: ThemePreference) => {
+      setThemePreference(nextPreference);
+      try {
+        const config = await providerApi.getConfig();
+        const updated = await providerApi.updateConfig({
+          ...config,
+          theme_preference: nextPreference,
+        });
+        if (
+          updated.theme_preference === "light" ||
+          updated.theme_preference === "dark" ||
+          updated.theme_preference === "system"
+        ) {
+          setThemePreference(updated.theme_preference);
+        }
+      } catch {
+        // Keep the in-memory preference even if persistence fails.
+      }
+    },
+    [providerApi],
+  );
+  const { theme, toggleTheme } = useTheme({
+    preference: themePreference,
+    onPreferenceChange: persistThemePreference,
+  });
 
   const [route, setRoute] = useState<AppRoute>("dashboard");
   const [entries, setEntries] = useState<DashboardEntry[]>([]);
@@ -218,6 +244,13 @@ function DashboardApp() {
       setRoiAnalysis(roi);
       setPaceAnalysis(pace);
       setPaceBudget(configuredBudget);
+      if (
+        config.theme_preference === "light" ||
+        config.theme_preference === "dark" ||
+        config.theme_preference === "system"
+      ) {
+        setThemePreference(config.theme_preference);
+      }
       setShowOnboarding(!config.onboarding_complete);
       setProviderCatalog(providers);
       if (config.language && config.language !== i18n.language) {
@@ -290,6 +323,13 @@ function DashboardApp() {
     (config) => {
       if (config.language && config.language !== i18n.language) {
         void i18n.changeLanguage(config.language);
+      }
+      if (
+        config.theme_preference === "light" ||
+        config.theme_preference === "dark" ||
+        config.theme_preference === "system"
+      ) {
+        setThemePreference(config.theme_preference);
       }
       if (typeof config.onboarding_complete === "boolean") {
         setShowOnboarding(!config.onboarding_complete);

@@ -1,6 +1,6 @@
 # Test Installer Build Guide (Windows + macOS)
 
-Use this guide to create unsigned test installers for external QA before public GitHub release.
+Use this guide to create unsigned test installers for limited QA before the signed public GitHub release.
 
 ## 1) Windows (MSI + EXE)
 
@@ -38,6 +38,11 @@ These are unsigned development builds:
 
 - Windows: SmartScreen warning may appear. Choose `More info` -> `Run anyway`.
 - macOS: Gatekeeper may block first run. Open via Finder context menu -> `Open`.
+
+Do **not** treat these artifacts as public release candidates for general distribution.
+For public releases intended for normal end users, use the signed release workflow described in [docs/PUBLIC_RELEASE_SIGNING.md](PUBLIC_RELEASE_SIGNING.md).
+
+For a tester-friendly install guide, share [docs/TEST_BUILD_INSTALL.md](TEST_BUILD_INSTALL.md) together with the artifact.
 
 Optional (Windows internal QA only): self-sign test installers with a temporary cert.
 

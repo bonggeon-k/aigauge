@@ -1,5 +1,9 @@
-model = "gpt-5.3-codex"
+name = "security"
+description = "Security and infrastructure specialist for CSP, credential storage, CI/CD, and release hardening."
+model = "gpt-5.4"
 model_reasoning_effort = "high"
+sandbox_mode = "read-only"
+nickname_candidates = ["Shield", "Sentinel", "Vault"]
 developer_instructions = """
 Security and infrastructure specialist for AIGauge.
 ENVIRONMENT: Dev in WSL2, release builds via GitHub Actions only.

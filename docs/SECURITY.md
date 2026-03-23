@@ -68,6 +68,10 @@ Telemetry excludes:
 - Update install is user-initiated from app UI.
 - If updater initialization fails (for example during unsigned development builds),
   the app degrades gracefully and continues without update actions.
+- Public release trust also requires OS-level platform signing:
+  - Windows: Authenticode code signing
+  - macOS: Developer ID signing + notarization
+- See [docs/PUBLIC_RELEASE_SIGNING.md](PUBLIC_RELEASE_SIGNING.md).
 
 ## Dependency Audit Notes
 

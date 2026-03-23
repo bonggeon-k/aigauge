@@ -68,7 +68,7 @@ export const SettingsView = () => {
         : t("settings.options.system");
   const languageLabel = config.language === "ko" ? "한국어" : "English";
   const selectorTriggerClass =
-    "inline-flex h-10 w-full items-center justify-between rounded-xl border border-border/70 bg-[var(--surface-2)] px-3 text-left text-sm text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition-colors hover:border-border/90";
+    "ui-field inline-flex h-10 w-full items-center justify-between px-3 text-left text-sm";
   const switchTrackClass = (enabled: boolean): string =>
     `relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
       enabled

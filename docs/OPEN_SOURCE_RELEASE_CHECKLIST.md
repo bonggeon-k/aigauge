@@ -10,7 +10,7 @@ Use this checklist before every public release.
 
 Suggested tools:
 
-- `gitleaks detect --source .`
+- `gitleaks detect --source . --log-opts="--all"`
 - `trufflehog filesystem --directory .`
 
 ## 2) Branch Protection

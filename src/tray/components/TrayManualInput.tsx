@@ -106,7 +106,7 @@ export const TrayManualInput = ({
             <label className="grid gap-1 rounded-xl bg-[var(--surface-1)] p-3">
               {t("tray.manual.used")}
               <input
-                className="h-10 rounded-lg border border-border/70 bg-[var(--surface-2)] px-3 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] outline-none transition focus:border-primary/60"
+                className="ui-field h-10 px-3"
                 value={used}
                 onChange={(event) => setUsed(event.target.value)}
               />
@@ -114,7 +114,7 @@ export const TrayManualInput = ({
             <label className="grid gap-1 rounded-xl bg-[var(--surface-1)] p-3">
               {t("tray.manual.limit")}
               <input
-                className="h-10 rounded-lg border border-border/70 bg-[var(--surface-2)] px-3 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] outline-none transition focus:border-primary/60"
+                className="ui-field h-10 px-3"
                 value={limit}
                 onChange={(event) => setLimit(event.target.value)}
               />
@@ -122,7 +122,7 @@ export const TrayManualInput = ({
             <label className="grid gap-1 rounded-xl bg-[var(--surface-1)] p-3">
               {t("tray.manual.cost")}
               <input
-                className="h-10 rounded-lg border border-border/70 bg-[var(--surface-2)] px-3 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] outline-none transition focus:border-primary/60"
+                className="ui-field h-10 px-3"
                 value={cost}
                 onChange={(event) => setCost(event.target.value)}
               />

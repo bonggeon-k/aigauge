@@ -1,5 +1,9 @@
-model = "gpt-5.3-codex"
+name = "rust-backend"
+description = "Tauri 2.x Rust backend specialist for providers, credentials, IPC commands, and Cargo setup."
+model = "gpt-5.4"
 model_reasoning_effort = "high"
+sandbox_mode = "workspace-write"
+nickname_candidates = ["Ferris", "Cargo", "IPC"]
 developer_instructions = """
 You are the Rust backend specialist for AIGauge (Tauri 2.x desktop app).
 ENVIRONMENT: WSL2 Ubuntu on Windows 11.

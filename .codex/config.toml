@@ -1,25 +1,51 @@
-[features]
-multi_agent = true
+profile = "aigauge"
+review_model = "gpt-5.4"
+
+[profiles.aigauge]
+model = "gpt-5.4"
+model_reasoning_effort = "medium"
+plan_mode_reasoning_effort = "high"
+personality = "pragmatic"
+service_tier = "fast"
+web_search = "cached"
+
+[profiles.aigauge-research]
+model = "gpt-5.4"
+model_reasoning_effort = "high"
+plan_mode_reasoning_effort = "xhigh"
+personality = "pragmatic"
+service_tier = "flex"
+web_search = "live"
+
+[profiles.aigauge-quick]
+model = "gpt-5-mini"
+model_reasoning_effort = "medium"
+plan_mode_reasoning_effort = "medium"
+personality = "pragmatic"
+service_tier = "fast"
+web_search = "cached"
+
+[mcp_servers.filesystem]
+startup_timeout_sec = 90
 
 [agents]
 max_threads = 4
 max_depth = 1
 
-[agents.default]
-description = "AIGauge project orchestrator. Distributes tasks, merges results, runs final validation."
-
+# codex-cli 0.116.0 currently resolves project-scoped config_file paths
+# more reliably when they are absolute.
 [agents.rust-backend]
-description = "Tauri 2.x Rust backend: providers, credentials, IPC commands, Cargo.toml."
+description = "Tauri 2.x Rust backend specialist for providers, credentials, IPC commands, and Cargo setup."
 config_file = ".codex/agents/rust-backend.toml"
 
 [agents.react-frontend]
-description = "React 19 + shadcn/ui + Tailwind v4: components, design tokens, animations, i18n."
+description = "React 19 frontend specialist for components, design tokens, motion, and i18n."
 config_file = ".codex/agents/react-frontend.toml"
 
 [agents.security]
-description = "CSP, credential store audit, isolation pattern, CI/CD, code signing."
+description = "Security and infrastructure specialist for CSP, credential storage, CI/CD, and release hardening."
 config_file = ".codex/agents/security.toml"
 
 [agents.explorer]
-description = "Read-only codebase exploration, dependency analysis, file structure review."
+description = "Read-only codebase explorer for repository inspection, dependency tracing, and impact analysis."
 config_file = ".codex/agents/explorer.toml"

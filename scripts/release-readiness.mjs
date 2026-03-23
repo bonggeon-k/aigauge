@@ -59,14 +59,15 @@ const gitleaks = spawnSync("gitleaks", ["version"], {
   env: process.env,
 });
 if (gitleaks.status === 0) {
-  run("[extra] gitleaks secret scan", "gitleaks", [
+  run("[extra] gitleaks working tree + git history scan", "gitleaks", [
     "detect",
     "--source",
     ".",
     "--redact",
+    "--log-opts=--all",
   ]);
 } else {
-  console.log("[extra] gitleaks not installed (skip)");
+  console.log("[extra] gitleaks not installed (manual full-history secret scan required)");
 }
 
 console.log("");
