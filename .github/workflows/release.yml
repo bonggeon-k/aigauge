@@ -80,7 +80,7 @@ jobs:
         shell: bash
         run: |
           echo "MAC_RELEASE_ENABLED=true" >> "$GITHUB_ENV"
-          echo "WINDOWS_SIGNING_ENABLED=true" >> "$GITHUB_ENV"
+          echo "WINDOWS_SIGNING_ENABLED=false" >> "$GITHUB_ENV"
 
       - name: Detect macOS signing availability
         if: matrix.os == 'macos-latest'
